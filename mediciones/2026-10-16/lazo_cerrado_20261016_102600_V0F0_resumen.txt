@@ -1,0 +1,10 @@
+comandos previos: M58 V0 F0
+Prueba 2026-10-16T10:26:00: 1 ciclos 0 -> 255 mm a 2 mm/s, telemetria a 1000 Hz
+Resultado: OK, sin cortes   paquetes perdidos: 6619
+
+tramo      dur[s]  max|err|  rms err out medio max|out|   >70° satur.   vmin  coh pp  estado encoder
+                       [um]     [um]     [°el]    [°el]    [%] [mues] [mm/s]     [°]
+ida 1       128.0      25.3     14.1     +58.9     81.0  23.32  12217   0.99    54.7  limpio
+vuelta 1    128.0      22.7     13.6     -38.2     80.5   0.37      0   0.95    54.7  limpio
+
+margen de torque: limite de la salida = ±81° electricos; corte por falla con |err| > 1000 um durante 0,5 s

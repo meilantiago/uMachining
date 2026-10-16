@@ -1,0 +1,30 @@
+> M120 S0
+I)Telemetria binaria desactivada
+ok
+> M119
+homed=1 calibrated=1 target_mm=0.0000 pos_mm=0.0007 err_mm=-0.0007 enc_deg=1617.985 crc_errors=-1
+servo: fault=0 motor_update=1 motor_pos=0.0009 rad vel=-0.001 rad/s out=0.142 field=-68.929 amp=0.60
+ultimo corte (2 en total): target_mm=6.6517 pos_mm=4.6510 err_mm=2.0007 vel=-0.000 rad/s out=1.414 status=0
+ok
+> G90
+ok
+> M58 V1 F1
+velocidad_tabla=1 realimentacion_anticipada=1
+ok
+> M17
+ok
+> M120 S1 P2
+I)Telemetria binaria activada
+ok
+> G1 X20 F2
+ok
+> G1 X0 F2
+ok
+> M120 S0
+I)Telemetria binaria desactivada
+ok
+> M119
+homed=1 calibrated=1 target_mm=0.0000 pos_mm=-0.0006 err_mm=0.0006 enc_deg=1614.133 crc_errors=-1
+servo: fault=0 motor_update=1 motor_pos=-0.0008 rad vel=0.003 rad/s out=-0.017 field=-69.173 amp=0.60
+ultimo corte (2 en total): target_mm=6.6517 pos_mm=4.6510 err_mm=2.0007 vel=-0.000 rad/s out=1.414 status=0
+ok

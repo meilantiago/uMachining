@@ -1,0 +1,64 @@
+{
+ "fecha": "2026-10-16T13:19:28",
+ "param": "POS_KI",
+ "posiciones": [
+  20.0,
+  100.0
+ ],
+ "acq_s": 10.0,
+ "decimation": 2,
+ "valores": [
+  {
+   "param": "POS_KI",
+   "value": 0.0,
+   "archivos": {
+    "20": "pos_ki_0_x20.csv",
+    "100": "pos_ki_0_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.089749,
+   "costura_deg": 0.048467,
+   "conmutacion_deg": 1.3
+  },
+  {
+   "param": "POS_KI",
+   "value": 100.0,
+   "archivos": {
+    "20": "pos_ki_100_x20.csv",
+    "100": "pos_ki_100_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.087625,
+   "costura_deg": 0.124091,
+   "conmutacion_deg": 1.3
+  },
+  {
+   "param": "POS_KI",
+   "value": 250.0,
+   "archivos": {
+    "20": "pos_ki_250_x20.csv",
+    "100": "pos_ki_250_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.093574,
+   "costura_deg": 0.019507,
+   "conmutacion_deg": -1.4
+  },
+  {
+   "param": "POS_KI",
+   "value": 400.0,
+   "archivos": {
+    "20": "pos_ki_400_x20.csv",
+    "100": "pos_ki_400_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.090676,
+   "costura_deg": 0.041227,
+   "conmutacion_deg": -0.2
+  }
+ ]
+}

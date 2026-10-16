@@ -1,0 +1,120 @@
+// --------------------------------------------------------------------------------------
+// Datos compartidos entre los dos núcleos del RP2040/RP2350:
+//  - Core 0 corre el perfil trapezoidal (2 kHz) y escribe la posición objetivo actual.
+//  - Core 1 corre el lazo servo (lo más rápido posible) y lee esa posición objetivo.
+// Mismo patrón que 'SharedData' en robot.h del proyecto original, pero para 1 solo eje.
+//
+// Telemetría: un ring buffer estático de TelemetryPoint permite a la ISR de 2 kHz
+// empaquetar el estado del eje sin bloquear, y loop() lo drena como stream binario.
+// --------------------------------------------------------------------------------------
+
+#pragma once
+
+#include <cstdint>
+#include "pico/sync.h"
+
+//*** TELEMETRY *************************************************************************
+
+struct TelemetryPoint {
+  uint32_t timestamp_us;   // time_us_64() truncado a 32 bits (wraps ~71 min)
+  float    target_mm;      // posición objetivo (salida del perfil trapezoidal)
+  float    motor_pos_mm;   // posición del motor (última lectura de encoder, cacheada)
+  float    linear_pos_mm;  // posición del encoder lineal (placeholder = motor_pos_mm)
+};
+
+// Cola circular estática, sin asignación dinámica de memoria.
+// El productor (ISR) usa spin_try_lock_unsafe (no bloqueante).
+// El consumidor (loop()) usa spin_lock_unsafe_blocking (seguro fuera de ISR).
+struct TelemetryRingBuffer {
+  static constexpr uint32_t CAPACITY = 1000;
+
+  TelemetryPoint buffer[CAPACITY];
+  volatile uint32_t head = 0;  // próxima posición de escritura (productor)
+  volatile uint32_t tail = 0;  // próxima posición de lectura (consumidor)
+
+  // Retorna la cantidad de elementos almacenados (llamar con lock tomado o aceptar
+  // lectura aproximada si se llama sin lock para diagnóstico).
+  uint32_t count() const {
+    uint32_t h = head;
+    uint32_t t = tail;
+    return (h >= t) ? (h - t) : (CAPACITY - t + h);
+  }
+
+  bool is_full() const {
+    return ((head + 1) % CAPACITY) == tail;
+  }
+
+  bool is_empty() const {
+    return head == tail;
+  }
+
+  // Intenta pushear un punto desde la ISR. Usa spin_try_lock_unsafe: si el lock
+  // no se consigue, descarta el punto y retorna false (la ISR no debe bloquearse).
+  // También descarta si el buffer está lleno.
+  bool try_push(const TelemetryPoint& pt, spin_lock_t* lock) {
+    if (!spin_try_lock_unsafe(lock)) {
+      return false;  // lock no disponible, descartar punto
+    }
+
+    uint32_t next_head = (head + 1) % CAPACITY;
+    if (next_head == tail) {
+      // buffer lleno, descartar
+      spin_unlock_unsafe(lock);
+      return false;
+    }
+
+    buffer[head] = pt;
+    head = next_head;
+    spin_unlock_unsafe(lock);
+    return true;
+  }
+
+  // Extrae un punto (llamar desde loop(), no desde ISR). Bloquea hasta obtener
+  // el spinlock — aceptable en contexto de thread, no en ISR.
+  bool pop(TelemetryPoint& out, spin_lock_t* lock) {
+    spin_lock_unsafe_blocking(lock);
+
+    if (head == tail) {
+      // buffer vacío
+      spin_unlock_unsafe(lock);
+      return false;
+    }
+
+    out = buffer[tail];
+    tail = (tail + 1) % CAPACITY;
+    spin_unlock_unsafe(lock);
+    return true;
+  }
+};
+
+//*** SHARED DATA ***********************************************************************
+
+struct SharedData {
+  explicit SharedData(int hw_spinlock_id = 0) {
+    lock = spin_lock_instance(hw_spinlock_id);
+  }
+
+  // posición objetivo actual del carro, en mm (ya interpolada por el perfil trapezoidal)
+  volatile float target_position_mm = 0.0f;
+
+  // Core 1 solo debe llamar a AxisController::update_servo() mientras esto es true.
+  // Se pone en false desde Core 0 antes de correr homing/calibración (que toman
+  // control exclusivo y bloqueante del encoder/driver), y en true al terminar.
+  // Ver advertencia de coordinación en homing_controller.h del módulo reusado.
+  volatile bool servo_loop_enabled = false;
+
+  // --- Telemetría binaria de alta tasa ---
+  // Flag controlado por M120 S<1|0>. La ISR lo lee para decidir si empaqueta puntos.
+  volatile bool telemetry_enabled = false;
+  // Ring buffer estático de TelemetryPoint, compartido entre ISR (push) y loop() (pop).
+  TelemetryRingBuffer telemetry_buffer;
+
+  // --- Lazo externo de cascada (encoder lineal) ---
+  // Flag para habilitar/deshabilitar el corrector de cascada en la ISR.
+  // Default false: todavia no hay encoder lineal, y read_linear_encoder() devuelve la
+  // misma posicion del motor que ya corrige el lazo servo. Con eso el integrador solo
+  // acumula el error de seguimiento y corre el objetivo hasta +2 mm.
+  volatile bool cascade_corrector_enabled = false;
+
+  spin_lock_t* lock = nullptr;
+};

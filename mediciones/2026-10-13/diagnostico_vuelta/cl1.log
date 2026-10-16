@@ -1,0 +1,518 @@
+> M17
+  ok
+> G1 X250
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=0.1159 err_mm=-0.0001 enc_deg=1748.092 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=0.1456 rad vel=0.000 rad/s out=-0.003 field=-973.983 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=3.7309 err_mm=0.0056 enc_deg=9525.205 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=4.6897 rad vel=3.199 rad/s out=0.047 field=-746.727 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=7.7373 err_mm=0.0151 enc_deg=18203.361 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=9.7241 rad vel=2.361 rad/s out=0.602 field=-494.457 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=11.7484 err_mm=0.0129 enc_deg=26880.641 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=14.7651 rad vel=3.163 rad/s out=0.320 field=-242.700 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=15.7559 err_mm=0.0177 enc_deg=35547.879 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=19.7998 rad vel=2.270 rad/s out=0.652 field=9.379 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=19.7782 err_mm=0.0101 enc_deg=44192.855 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=24.8550 rad vel=2.103 rad/s out=0.089 field=261.569 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=23.7894 err_mm=0.0146 enc_deg=52870.383 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=29.8968 rad vel=2.600 rad/s out=0.689 field=514.244 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=27.8152 err_mm=0.0028 enc_deg=61556.027 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=34.9542 rad vel=2.769 rad/s out=0.040 field=766.486 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=31.8200 err_mm=0.0128 enc_deg=70224.352 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=39.9868 rad vel=2.112 rad/s out=0.384 field=1018.462 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=35.8390 err_mm=0.0107 enc_deg=78912.016 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=45.0376 rad vel=3.189 rad/s out=0.334 field=1270.951 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=39.8515 err_mm=0.0143 enc_deg=87557.953 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=50.0790 rad vel=3.005 rad/s out=-0.283 field=1522.401 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=43.8690 err_mm=0.0130 enc_deg=96238.156 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=55.1298 rad vel=2.771 rad/s out=0.560 field=1775.783 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=47.8917 err_mm=0.0043 enc_deg=104921.703 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=60.1839 rad vel=3.346 rad/s out=0.216 field=2028.138 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=51.9035 err_mm=0.0105 enc_deg=113601.266 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=65.2248 rad vel=2.499 rad/s out=0.236 field=2280.200 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=55.9176 err_mm=0.0127 enc_deg=122282.891 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=70.2690 rad vel=3.493 rad/s out=0.354 field=2532.537 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=59.9260 err_mm=0.0142 enc_deg=130931.461 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=75.3065 rad vel=4.170 rad/s out=-0.330 field=2783.720 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=63.9326 err_mm=0.0177 enc_deg=139583.922 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=80.3407 rad vel=2.240 rad/s out=0.280 field=3036.054 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=67.9536 err_mm=0.0121 enc_deg=148272.422 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=85.3947 rad vel=2.812 rad/s out=0.872 field=3289.345 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=71.9710 err_mm=0.0081 enc_deg=156942.234 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=90.4427 rad vel=2.390 rad/s out=0.305 field=3541.164 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=75.9820 err_mm=0.0126 enc_deg=165616.500 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=95.4827 rad vel=2.442 rad/s out=0.495 field=3793.366 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=79.9978 err_mm=0.0121 enc_deg=174274.516 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=100.5293 rad vel=2.441 rad/s out=0.062 field=4045.257 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=84.0112 err_mm=0.0132 enc_deg=182946.281 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=105.5722 rad vel=2.935 rad/s out=0.097 field=4297.448 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=88.0335 err_mm=0.0131 enc_deg=191638.750 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=110.6279 rad vel=1.957 rad/s out=0.914 field=4551.031 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=92.0495 err_mm=0.0056 enc_deg=200311.297 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=115.6745 rad vel=2.951 rad/s out=0.319 field=4802.780 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=96.0589 err_mm=0.0109 enc_deg=208974.734 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=120.7115 rad vel=2.116 rad/s out=0.409 field=5054.721 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=100.0623 err_mm=0.0150 enc_deg=217627.422 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=125.7421 rad vel=1.199 rad/s out=0.550 field=5306.390 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=104.0729 err_mm=0.0117 enc_deg=226266.344 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=130.7828 rad vel=2.099 rad/s out=0.211 field=5558.079 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=108.0804 err_mm=0.0114 enc_deg=234924.500 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=135.8197 rad vel=2.552 rad/s out=0.649 field=5810.372 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=112.0845 err_mm=0.0148 enc_deg=243608.531 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=140.8508 rad vel=3.538 rad/s out=0.195 field=6061.461 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=116.0853 err_mm=0.0206 enc_deg=252266.188 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=145.8770 rad vel=2.642 rad/s out=0.342 field=6312.932 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=120.0893 err_mm=0.0229 enc_deg=260904.641 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=150.9098 rad vel=1.825 rad/s out=1.015 field=6565.226 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=124.1017 err_mm=0.0191 enc_deg=269543.156 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=155.9516 rad vel=1.776 rad/s out=0.517 field=6816.826 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=128.1149 err_mm=0.0153 enc_deg=278212.500 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=160.9963 rad vel=3.164 rad/s out=0.803 field=7069.334 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=132.1461 err_mm=0.0114 enc_deg=286918.000 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=166.0603 rad vel=1.514 rad/s out=0.493 field=7322.239 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=136.1693 err_mm=0.0147 enc_deg=295639.594 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=171.1158 rad vel=2.496 rad/s out=0.425 field=7574.948 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=140.2001 err_mm=0.0101 enc_deg=304327.875 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=176.1824 rad vel=2.681 rad/s out=0.794 field=7828.638 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=144.2301 err_mm=0.0065 enc_deg=313004.750 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=181.2460 rad vel=2.933 rad/s out=-0.027 field=8081.005 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=148.2541 err_mm=0.0092 enc_deg=321717.844 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=186.3021 rad vel=2.949 rad/s out=0.186 field=8334.030 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=152.2861 err_mm=0.0132 enc_deg=330427.531 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=191.3697 rad vel=2.261 rad/s out=1.034 field=8588.257 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=156.3205 err_mm=0.0150 enc_deg=339152.562 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=196.4390 rad vel=2.184 rad/s out=0.577 field=8841.257 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=160.3513 err_mm=0.0183 enc_deg=347867.625 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=201.5054 rad vel=2.521 rad/s out=1.035 field=9095.039 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=164.3967 err_mm=0.0064 enc_deg=356555.719 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=206.5882 rad vel=2.534 rad/s out=0.010 field=9348.150 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=168.4271 err_mm=0.0122 enc_deg=365289.094 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=211.6522 rad vel=2.743 rad/s out=0.211 field=9601.559 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=172.4686 err_mm=0.0047 enc_deg=374015.188 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=216.7324 rad vel=3.243 rad/s out=0.367 field=9855.727 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=176.4932 err_mm=0.0145 enc_deg=382729.781 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=221.7891 rad vel=3.028 rad/s out=0.307 field=10108.491 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=180.5181 err_mm=0.0167 enc_deg=391430.188 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=226.8478 rad vel=2.395 rad/s out=0.897 field=10362.007 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=184.5666 err_mm=0.0072 enc_deg=400133.812 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=231.9338 rad vel=2.491 rad/s out=-0.186 field=10615.239 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=188.5953 err_mm=0.0142 enc_deg=408859.531 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=236.9963 rad vel=2.583 rad/s out=0.177 field=10868.731 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=192.6312 err_mm=0.0051 enc_deg=417566.281 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=242.0694 rad vel=3.178 rad/s out=0.714 field=11122.897 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=196.6534 err_mm=0.0124 enc_deg=426261.375 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=247.1228 rad vel=2.303 rad/s out=0.389 field=11375.256 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=200.6853 err_mm=0.0167 enc_deg=434992.375 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=252.1911 rad vel=2.798 rad/s out=0.995 field=11629.265 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=204.7277 err_mm=0.0083 enc_deg=443688.344 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=257.2695 rad vel=2.205 rad/s out=0.079 field=11882.294 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=208.7575 err_mm=0.0127 enc_deg=452401.281 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=262.3339 rad vel=3.871 rad/s out=0.102 field=12135.516 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=212.7982 err_mm=0.0073 enc_deg=461121.625 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=267.4127 rad vel=3.017 rad/s out=1.118 field=12390.493 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=216.8273 err_mm=0.0130 enc_deg=469838.781 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=272.4742 rad vel=2.267 rad/s out=0.582 field=12643.031 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=220.8645 err_mm=0.0112 enc_deg=478560.219 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=277.5487 rad vel=2.757 rad/s out=0.769 field=12896.945 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=224.8996 err_mm=0.0122 enc_deg=487253.656 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=282.6181 rad vel=2.441 rad/s out=-0.088 field=13149.541 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=228.9311 err_mm=0.0163 enc_deg=495980.250 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=287.6843 rad vel=2.770 rad/s out=0.256 field=13403.201 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=232.9823 err_mm=0.0007 enc_deg=504728.531 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=292.7750 rad vel=3.968 rad/s out=-0.142 field=13657.342 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=237.0021 err_mm=0.0142 enc_deg=513423.625 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=297.8266 rad vel=2.922 rad/s out=0.369 field=13910.432 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=241.0445 err_mm=0.0075 enc_deg=522138.781 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=302.9077 rad vel=2.818 rad/s out=0.665 field=14164.774 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=245.0706 err_mm=0.0166 enc_deg=530848.688 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=307.9667 rad vel=2.609 rad/s out=0.784 field=14417.854 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=249.1027 err_mm=0.0195 enc_deg=539545.500 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=313.0332 rad vel=1.868 rad/s out=0.519 field=14670.901 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=250.0000 pos_mm=250.0006 err_mm=-0.0006 enc_deg=541483.500 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=314.1601 rad vel=0.001 rad/s out=-0.385 field=14726.357 amp=0.60
+  ok
+> G1 X0
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=250.0005 err_mm=-0.0005 enc_deg=541482.875 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=314.1599 rad vel=-0.091 rad/s out=-0.560 field=14726.175 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=246.4049 err_mm=-0.0138 enc_deg=533727.062 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=309.6407 rad vel=-2.672 rad/s out=-0.760 field=14500.014 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=242.3947 err_mm=-0.0212 enc_deg=525048.625 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=304.6014 rad vel=-2.039 rad/s out=-1.388 field=14247.425 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=238.3659 err_mm=-0.0104 enc_deg=516360.812 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=299.5377 rad vel=-2.458 rad/s out=-1.368 field=13994.269 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=234.3663 err_mm=-0.0208 enc_deg=507705.281 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=294.5125 rad vel=-2.018 rad/s out=-1.414 field=13742.945 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=230.3365 err_mm=-0.0068 enc_deg=499036.062 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=289.4486 rad vel=-2.898 rad/s out=-0.384 field=13490.779 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=226.3269 err_mm=-0.0131 enc_deg=490366.875 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=284.4099 rad vel=-2.726 rad/s out=-0.604 field=13238.642 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=222.3161 err_mm=-0.0170 enc_deg=481682.531 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=279.3696 rad vel=-2.482 rad/s out=-1.168 field=12986.062 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=218.2999 err_mm=-0.0158 enc_deg=473004.531 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=274.3223 rad vel=-2.726 rad/s out=-1.281 field=12733.566 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=214.2731 err_mm=-0.0097 enc_deg=464319.781 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=269.2622 rad vel=-2.389 rad/s out=-1.398 field=12480.454 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=210.2540 err_mm=-0.0078 enc_deg=455651.562 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=264.2124 rad vel=-2.907 rad/s out=-0.374 field=12228.985 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=206.2411 err_mm=-0.0120 enc_deg=446976.531 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=259.1690 rad vel=-3.181 rad/s out=-0.473 field=11976.719 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=202.2318 err_mm=-0.0138 enc_deg=438307.188 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=254.1306 rad vel=-3.229 rad/s out=-0.793 field=11724.496 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=198.2201 err_mm=-0.0168 enc_deg=429638.531 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=249.0900 rad vel=-1.631 rad/s out=-1.414 field=11471.824 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=194.1992 err_mm=-0.0122 enc_deg=420953.875 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=244.0363 rad vel=-2.342 rad/s out=-1.414 field=11219.152 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=190.1766 err_mm=-0.0065 enc_deg=412289.406 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=238.9818 rad vel=-2.724 rad/s out=-0.643 field=10967.196 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=186.1641 err_mm=-0.0108 enc_deg=403625.312 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=233.9396 rad vel=-1.788 rad/s out=-0.857 field=10714.858 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=182.1539 err_mm=-0.0150 enc_deg=394939.312 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=228.9001 rad vel=-2.445 rad/s out=-0.940 field=10462.811 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=178.1455 err_mm=-0.0221 enc_deg=386269.750 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=223.8637 rad vel=-1.680 rad/s out=-1.414 field=10210.512 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=174.1205 err_mm=-0.0126 enc_deg=377578.750 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=218.8047 rad vel=-2.537 rad/s out=-1.410 field=9957.579 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=170.1003 err_mm=-0.0088 enc_deg=368924.406 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=213.7527 rad vel=-2.623 rad/s out=-0.912 field=9705.479 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=166.0832 err_mm=-0.0071 enc_deg=360256.156 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=208.7060 rad vel=-2.458 rad/s out=-0.344 field=9453.699 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=162.0744 err_mm=-0.0127 enc_deg=351575.562 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=203.6680 rad vel=-2.202 rad/s out=-0.846 field=9201.287 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=158.0674 err_mm=-0.0212 enc_deg=342887.906 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=198.6327 rad vel=-1.681 rad/s out=-1.414 field=8948.957 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=154.0444 err_mm=-0.0127 enc_deg=334209.531 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=193.5766 rad vel=-2.238 rad/s out=-1.396 field=8696.186 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=150.0301 err_mm=-0.0136 enc_deg=325562.531 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=188.5319 rad vel=-2.337 rad/s out=-1.315 field=8444.021 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=146.0074 err_mm=-0.0053 enc_deg=316878.156 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=183.4777 rad vel=-3.541 rad/s out=-0.331 field=8192.290 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=141.9973 err_mm=-0.0119 enc_deg=308210.844 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=178.4376 rad vel=-3.011 rad/s out=-0.824 field=7939.813 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=137.9822 err_mm=-0.0121 enc_deg=299527.656 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=173.3922 rad vel=-3.184 rad/s out=-1.056 field=7687.292 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=133.9715 err_mm=-0.0169 enc_deg=290849.438 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=168.3523 rad vel=-1.818 rad/s out=-1.414 field=7434.950 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=129.9582 err_mm=-0.0201 enc_deg=282189.250 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=163.3090 rad vel=-2.043 rad/s out=-1.414 field=7182.774 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=125.9306 err_mm=-0.0060 enc_deg=273517.156 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=158.2481 rad vel=-2.690 rad/s out=-0.706 field=6930.438 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=121.9221 err_mm=-0.0085 enc_deg=264855.750 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=153.2116 rad vel=-2.165 rad/s out=-0.640 field=6678.673 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=117.8955 err_mm=-0.0156 enc_deg=256132.734 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=148.1519 rad vel=-2.954 rad/s out=-0.678 field=6425.658 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=113.8590 err_mm=-0.0119 enc_deg=247420.406 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=143.0779 rad vel=-2.505 rad/s out=-1.407 field=6171.226 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=109.8347 err_mm=-0.0230 enc_deg=238705.016 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=138.0212 rad vel=-2.545 rad/s out=-1.414 field=5918.387 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=105.7899 err_mm=-0.0132 enc_deg=230001.594 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=132.9384 rad vel=-2.134 rad/s out=-0.999 field=5664.653 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=101.7527 err_mm=-0.0109 enc_deg=221290.578 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=127.8658 rad vel=-1.494 rad/s out=-0.896 field=5411.128 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=97.7253 err_mm=-0.0187 enc_deg=212562.016 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=122.8050 rad vel=-2.016 rad/s out=-1.111 field=5157.881 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=93.6854 err_mm=-0.0136 enc_deg=203843.188 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=117.7269 rad vel=-2.823 rad/s out=-1.361 field=4903.725 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=89.6567 err_mm=-0.0210 enc_deg=195136.266 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=112.6638 rad vel=-3.552 rad/s out=-1.300 field=4650.625 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=85.6162 err_mm=-0.0148 enc_deg=186428.922 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=107.5870 rad vel=-2.427 rad/s out=-1.016 field=4397.074 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=81.5818 err_mm=-0.0125 enc_deg=177714.719 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=102.5178 rad vel=-2.519 rad/s out=-0.859 field=4143.778 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=77.5573 err_mm=-0.0160 enc_deg=169003.328 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=97.4600 rad vel=-3.854 rad/s out=-0.886 field=3890.848 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=73.5137 err_mm=-0.0064 enc_deg=160284.891 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=92.3793 rad vel=-3.176 rad/s out=-0.963 field=3636.748 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=69.4872 err_mm=-0.0140 enc_deg=151562.531 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=87.3195 rad vel=-3.396 rad/s out=-0.987 field=3383.724 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=65.4559 err_mm=-0.0171 enc_deg=142880.562 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=82.2528 rad vel=-2.319 rad/s out=-1.178 field=3130.201 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=61.4177 err_mm=-0.0142 enc_deg=134160.453 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=77.1781 rad vel=-2.386 rad/s out=-0.962 field=2876.698 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=57.3928 err_mm=-0.0234 enc_deg=125442.930 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=72.1212 rad vel=-1.555 rad/s out=-1.414 field=2623.383 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=53.3437 err_mm=-0.0083 enc_deg=116717.391 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=67.0333 rad vel=-2.161 rad/s out=-0.965 field=2369.433 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=49.3140 err_mm=-0.0146 enc_deg=107986.500 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=61.9689 rad vel=-2.409 rad/s out=-1.247 field=2115.945 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=45.2788 err_mm=-0.0145 enc_deg=99300.609 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=56.8977 rad vel=-2.309 rad/s out=-1.189 field=1862.432 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=41.2470 err_mm=-0.0145 enc_deg=90591.969 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=51.8310 rad vel=-2.695 rad/s out=-0.838 field=1609.463 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=37.2194 err_mm=-0.0217 enc_deg=81873.516 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=46.7698 rad vel=-1.922 rad/s out=-1.414 field=1355.832 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=33.1726 err_mm=-0.0076 enc_deg=73148.469 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=41.6851 rad vel=-3.706 rad/s out=-0.681 field=1102.308 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=29.1514 err_mm=-0.0135 enc_deg=64434.016 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=36.6321 rad vel=-3.113 rad/s out=-0.876 field=849.468 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=25.1257 err_mm=-0.0168 enc_deg=55762.344 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=31.5725 rad vel=-2.522 rad/s out=-1.147 field=596.216 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=21.0819 err_mm=-0.0084 enc_deg=47049.090 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=26.4922 rad vel=-2.417 rad/s out=-0.406 field=342.942 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=17.0535 err_mm=-0.0161 enc_deg=38317.664 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=21.4297 rad vel=-2.525 rad/s out=-0.722 field=89.509 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=13.0087 err_mm=-0.0107 enc_deg=29594.781 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=16.3462 rad vel=-3.081 rad/s out=-1.211 field=-165.164 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=8.9766 err_mm=-0.0139 enc_deg=20858.719 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=11.2797 rad vel=-2.662 rad/s out=-0.957 field=-418.231 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=4.9411 err_mm=-0.0136 enc_deg=12168.030 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=6.2079 rad vel=-2.063 rad/s out=-1.414 field=-672.277 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=0.9076 err_mm=-0.0152 enc_deg=3453.954 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=1.1397 rad vel=-2.523 rad/s out=-0.843 field=-925.128 amp=0.60
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=-0.0017 err_mm=0.0017 enc_deg=1475.270 crc_errors=-1
+  servo: fault=0 motor_update=1 motor_pos=-0.0021 rad vel=-0.040 rad/s out=-0.797 field=-982.168 amp=0.60
+  ok

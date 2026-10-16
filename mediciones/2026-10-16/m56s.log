@@ -1,0 +1,24 @@
+> M56 S
+  I)AxisController: homing...
+  I)Homing: tope detectado tras 0.24 vueltas de motor (relacion 0.09 en 3 ventanas seguidas)
+  D)home_encoder_angle=91.499809 deg
+  I)AxisController: homing OK (pos = 0.7206 mm). Lazo cerrado apagado: M17 para habilitarlo.
+  I)Measuring motor to encoder angle lookup table...
+  D)Running foreward pass...
+  D)Running backward pass...
+  I)Rueda magnetica: 29.963088 periodos de encoder por vuelta de motor
+  D)Optimizing lookup table...
+  D)Optimizing lookup table finished: rms_error=0.008493
+  I)LUT 'encoder_raw_angle -> motor_pos': rms_error = 0.098826 deg, atraso del rotor = -0.476500 deg
+  I)Salto en la costura de la vuelta: -0.124637 deg
+  I)finished
+  I)Conmutacion: desfase -8.9 deg electricos (con el encoder corrido -1 periodo: -125.5, +1: 115.1), atraso del rotor 22.6 deg, con
+  D)Saving Lookup table to file 'axis_enc_to_pos_lut.dat'...
+  D)Saving Lookup table to file 'axis_pos_to_field_lut.dat'...
+  I)AxisController: calibracion guardada en flash
+  I)AxisController: calibracion OK
+  ok
+> M119
+  homed=1 calibrated=1 target_mm=0.0000 pos_mm=0.0085 err_mm=-0.0085 enc_deg=1585.475 crc_errors=-1
+  servo: fault=0 motor_update=0 motor_pos=0.0107 rad vel=-0.195 rad/s out=0.000 field=-30.480 amp=0.60
+  ok

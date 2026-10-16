@@ -1,0 +1,194 @@
+{
+ "fecha": "2026-10-16T12:32:36",
+ "param": "POS_KI",
+ "posiciones": [
+  20.0,
+  100.0
+ ],
+ "acq_s": 10.0,
+ "decimation": 2,
+ "valores": [
+  {
+   "param": "POS_KI",
+   "value": 500.0,
+   "archivos": {
+    "20": "pos_ki_500_x20.csv",
+    "100": "pos_ki_500_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.089008,
+   "costura_deg": 0.259192,
+   "conmutacion_deg": -10.2
+  },
+  {
+   "param": "POS_KI",
+   "value": 700.0,
+   "archivos": {
+    "20": "pos_ki_700_x20.csv",
+    "100": "pos_ki_700_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.091319,
+   "costura_deg": 0.174907,
+   "conmutacion_deg": -4.4
+  },
+  {
+   "param": "POS_KI",
+   "value": 900.0,
+   "archivos": {
+    "20": "pos_ki_900_x20.csv",
+    "100": "pos_ki_900_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.08836,
+   "costura_deg": -0.050325,
+   "conmutacion_deg": -5.3
+  },
+  {
+   "param": "POS_KI",
+   "value": 1100.0,
+   "archivos": {
+    "20": "pos_ki_1100_x20.csv",
+    "100": "pos_ki_1100_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.094967,
+   "costura_deg": 0.254684,
+   "conmutacion_deg": -0.6
+  },
+  {
+   "param": "POS_KI",
+   "value": 1300.0,
+   "archivos": {
+    "20": "pos_ki_1300_x20.csv",
+    "100": "pos_ki_1300_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.093394,
+   "costura_deg": -0.098901,
+   "conmutacion_deg": -2.0
+  },
+  {
+   "param": "POS_KI",
+   "value": 1500.0,
+   "archivos": {
+    "20": "pos_ki_1500_x20.csv",
+    "100": "pos_ki_1500_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.088642,
+   "costura_deg": -0.043741,
+   "conmutacion_deg": 1.5
+  },
+  {
+   "param": "POS_KI",
+   "value": 1700.0,
+   "archivos": {
+    "20": "pos_ki_1700_x20.csv",
+    "100": "pos_ki_1700_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.093752,
+   "costura_deg": 0.004262,
+   "conmutacion_deg": 0.0
+  },
+  {
+   "param": "POS_KI",
+   "value": 1900.0,
+   "archivos": {
+    "20": "pos_ki_1900_x20.csv",
+    "100": "pos_ki_1900_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.093476,
+   "costura_deg": 0.098874,
+   "conmutacion_deg": -1.1
+  },
+  {
+   "param": "POS_KI",
+   "value": 2100.0,
+   "archivos": {
+    "20": "pos_ki_2100_x20.csv",
+    "100": "pos_ki_2100_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.087868,
+   "costura_deg": -0.048986,
+   "conmutacion_deg": 0.0
+  },
+  {
+   "param": "POS_KI",
+   "value": 2300.0,
+   "archivos": {
+    "20": "pos_ki_2300_x20.csv",
+    "100": "pos_ki_2300_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.096607,
+   "costura_deg": 0.006885,
+   "conmutacion_deg": -1.0
+  },
+  {
+   "param": "POS_KI",
+   "value": 2500.0,
+   "archivos": {
+    "20": "pos_ki_2500_x20.csv",
+    "100": "pos_ki_2500_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.087075,
+   "costura_deg": 0.237636,
+   "conmutacion_deg": -4.0
+  },
+  {
+   "param": "POS_KI",
+   "value": 2700.0,
+   "archivos": {
+    "20": "pos_ki_2700_x20.csv",
+    "100": "pos_ki_2700_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.087512,
+   "costura_deg": 0.001585,
+   "conmutacion_deg": -9.0
+  },
+  {
+   "param": "POS_KI",
+   "value": 2900.0,
+   "archivos": {
+    "20": "pos_ki_2900_x20.csv",
+    "100": "pos_ki_2900_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.093874,
+   "costura_deg": -0.111332,
+   "conmutacion_deg": 1.0
+  },
+  {
+   "param": "POS_KI",
+   "value": 3000.0,
+   "archivos": {
+    "20": "pos_ki_3000_x20.csv",
+    "100": "pos_ki_3000_x100.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=1 realimentacion_anticipada=1",
+   "cal_rms_deg": 0.088438,
+   "costura_deg": 0.244439,
+   "conmutacion_deg": -13.3
+  }
+ ]
+}

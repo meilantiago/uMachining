@@ -1,0 +1,9 @@
+comandos previos: M58 V0 F0
+Prueba 2026-10-16T10:22:58: 1 ciclos 0 -> 20 mm a 2 mm/s, telemetria a 1000 Hz
+Resultado: FALLO / INTERRUMPIDA   paquetes perdidos: 245
+
+tramo      dur[s]  max|err|  rms err out medio max|out|   >70° satur.   vmin  coh pp  estado encoder
+                       [um]     [um]     [°el]    [°el]    [%] [mues] [mm/s]     [°]
+ida 1         3.5    2001.7    655.4     +62.1     81.0  39.05   1158   0.00    47.1  limpio
+
+margen de torque: limite de la salida = ±81° electricos; corte por falla con |err| > 1000 um durante 0,5 s
