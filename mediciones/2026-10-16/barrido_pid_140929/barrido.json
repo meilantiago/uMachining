@@ -1,0 +1,59 @@
+{
+ "configs": [
+  {
+   "name": "base",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 1500.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_base.npz"
+  },
+  {
+   "name": "ki0",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 0.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki0.npz"
+  },
+  {
+   "name": "ki250",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 250.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki250.npz"
+  },
+  {
+   "name": "ki500",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 500.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki500.npz"
+  }
+ ],
+ "base": {
+  "pos_kp": 60.0,
+  "pos_ki": 1500.0,
+  "vel_kp": 0.2,
+  "vel_ki": 90.0,
+  "vel_tc": 0.004
+ }
+}

@@ -1,0 +1,47 @@
+{
+ "configs": [
+  {
+   "name": "base",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 1500.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_base.npz"
+  },
+  {
+   "name": "ki750",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 750.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki750.npz"
+  },
+  {
+   "name": "base_final",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 1500.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_base_final.npz"
+  }
+ ],
+ "base": {
+  "pos_kp": 60.0,
+  "pos_ki": 1500.0,
+  "vel_kp": 0.2,
+  "vel_ki": 90.0,
+  "vel_tc": 0.004
+ }
+}
