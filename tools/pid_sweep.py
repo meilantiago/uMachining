@@ -329,7 +329,8 @@ def fig_metricas(runs, out_dir):
     n = len(runs)
     ncols = 5
     nrows = int(np.ceil(len(METRICS) / ncols))
-    fig, axs = plt.subplots(nrows, ncols, figsize=(17, 0.42 * n * nrows + 2.2), sharey=True,
+    height = 0.42 * n * nrows + 2.2
+    fig, axs = plt.subplots(nrows, ncols, figsize=(17, height), sharey=True,
                             gridspec_kw=dict(wspace=0.12, hspace=0.35))
     axs = np.atleast_2d(axs)
     y = np.arange(n)
@@ -361,7 +362,7 @@ def fig_metricas(runs, out_dir):
         axs[r, 0].invert_yaxis()
     fig.suptitle("Barrido de PID: cada métrica del error por configuración (línea punteada = base, × = descartada)",
                  x=0.01, ha="left", fontsize=12, fontweight="bold")
-    fig.subplots_adjust(left=0.13, right=0.98, top=0.9, bottom=0.05)
+    fig.subplots_adjust(left=0.13, right=0.98, top=1 - 0.75 / height, bottom=0.45 / height)
     A.save(fig, out_dir, "comparacion_metricas.png")
 
 
