@@ -6,3 +6,6 @@
 
 # datos crudos binarios de las mediciones: quedan solo en disco
 mediciones/**/*.npz
+
+# caché de Python
+__pycache__/
