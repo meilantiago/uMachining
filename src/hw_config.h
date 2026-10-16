@@ -115,11 +115,11 @@ constexpr float POS_KI = 1500.0f;
 // calibracion. Antes salia de las cuentas crudas por una constante, con la no linealidad del
 // encoder (+-3.8 um por iman): el lazo de velocidad corregia una ondulacion que no existia y
 // metia una real de +-4.5 um por iman.
-constexpr bool VELOCITY_FROM_LUT = true;
+constexpr bool VELOCITY_FROM_LUT = false;
 // VELOCITY_FEEDFORWARD: la velocidad del perfil se suma directo a la velocidad pedida. Antes
 // la tenia que pedir el PI de posicion, y como su integral esta limitada a pi/2 rad/s
 // (1.25 mm/s), a 2 mm/s el resto lo ponia la proporcional con 13 um de atraso constante.
-constexpr bool VELOCITY_FEEDFORWARD = true;
+constexpr bool VELOCITY_FEEDFORWARD = false;
 
 constexpr float VEL_LOWPASS_TC = 0.004f;
 constexpr float VEL_KP = 0.2f;
