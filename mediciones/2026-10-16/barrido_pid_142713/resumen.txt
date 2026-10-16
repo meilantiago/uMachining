@@ -3,8 +3,8 @@ base: pos_kp=60, pos_ki=1500, vel_kp=0.2, vel_ki=90, vel_tc=0.004
 
 config         cambio                     estado                    rms    max  const  imán  paso ciclo vuelta resto reposo max out
                                                                    [µm]   [µm]   [µm]  [µm]  [µm]  [µm]   [µm]  [µm]   [µm]     [°]
-base           base                       ok                       1.77    7.9   0.68  0.56  1.76  0.46   0.54  0.98   0.26    81.0
-ki750          pos_ki=750                 ok                       1.77    7.4   0.69  0.57  1.76  0.46   0.57  0.97   0.22    81.0
-base_final     base                       ok                       1.77    8.0   0.68  0.55  1.73  0.47   0.58  0.99   0.30    81.0
+base           POS_KI = 1500 (referencia, ok                       1.77    7.9   0.68  0.56  1.76  0.46   0.54  0.98   0.26    81.0
+ki750          POS_KI = 750               ok                       1.77    7.4   0.69  0.57  1.76  0.46   0.57  0.97   0.22    81.0
+base_final     POS_KI = 1500 (referencia, ok                       1.77    8.0   0.68  0.55  1.73  0.47   0.58  0.99   0.30    81.0
 
 componentes: amplitud (mitad del pico a pico de la forma plegada), promedio de los tramos; rms, resto y reposo: desvío estándar

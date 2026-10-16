@@ -33,6 +33,8 @@ Resultados en mediciones/AAAA-MM-DD/barrido_pid_HHMMSS/:
     cfg_<nombre>.npz          datos de cada configuracion (mismo formato que closed_loop_test.py;
                               se pueden graficar con closed_loop_test.py --from-file)
     resumen.csv / resumen.txt metricas por configuracion
+    resumen_simple.png        si se barre un solo parametro: error en movimiento y en reposo contra su valor
+    trazas.png                1 s de error en movimiento y 1 s quieto para cada configuracion
     comparacion_metricas.png  cada metrica del error, una fila por configuracion
     comparacion_eje.png       error a lo largo de todo el eje, un panel por configuracion
     comparacion_plegado.png   error plegado sobre el ciclo electrico (100 um = 4 pasos) y sobre 2 imanes
@@ -298,6 +300,21 @@ def load_dir(out_dir):
     return runs
 
 
+def swept_params(runs):
+    """Parametros que cambian entre las configuraciones del barrido."""
+    return [k for k in PARAMS if len({meta["pid"][k] for meta, _, _ in runs}) > 1]
+
+
+def label(meta, swept, short=False):
+    """'POS_KI = 1500 (referencia, al inicio)' en vez de 'base'."""
+    keys = swept or PARAMS[:2]
+    s = ", ".join(f"{HW_NAMES[k]} = {meta['pid'][k]:g}" for k in keys)
+    ref = {"base": "referencia, al inicio", "base_final": "referencia, al final"}.get(meta["config"])
+    if ref:
+        s += f" ({'ref.' if short else ref})" if short else f" ({ref})"
+    return s
+
+
 def write_summary(runs, out_dir):
     cols = ["config", "cambio", "estado"] + PARAMS + [k for k, _ in METRICS]
     with open(os.path.join(out_dir, "resumen.csv"), "w", newline="") as fh:
@@ -314,7 +331,7 @@ def write_summary(runs, out_dir):
              f"{'':14s} {'':26s} {'':22s} {'[µm]':>6s} {'[µm]':>6s} {'[µm]':>6s} {'[µm]':>5s} {'[µm]':>5s} "
              f"{'[µm]':>5s} {'[µm]':>6s} {'[µm]':>5s} {'[µm]':>6s} {'[°]':>7s}"]
     for meta, d, m in runs:
-        lines.append(f"{meta['config']:14s} {meta['cambio'][:26]:26s} {meta['estado'][:22]:22s} {m['rms']:6.2f} "
+        lines.append(f"{meta['config']:14s} {label(meta, swept_params(runs))[:26]:26s} {meta['estado'][:22]:22s} {m['rms']:6.2f} "
                      f"{m['max_err']:6.1f} {m['const']:6.2f} {m['iman']:5.2f} {m['paso']:5.2f} {m['ciclo']:5.2f} "
                      f"{m['vuelta']:6.2f} {m['resto']:5.2f} {m['reposo']:6.2f} {m['max_out']:7.1f}")
     lines.append("\ncomponentes: amplitud (mitad del pico a pico de la forma plegada), promedio de los tramos; "
@@ -335,7 +352,7 @@ def fig_metricas(runs, out_dir):
     axs = np.atleast_2d(axs)
     y = np.arange(n)
     base_idx = [i for i, (meta, _, _) in enumerate(runs) if meta["cambio"] == "base"]
-    for j, (key, label) in enumerate(METRICS):
+    for j, (key, title) in enumerate(METRICS):
         a = axs[j // ncols, j % ncols]
         vals = np.array([m[key] for _, _, m in runs])
         ok = np.array([meta["estado"] == "ok" for meta, _, _ in runs])
@@ -350,15 +367,15 @@ def fig_metricas(runs, out_dir):
                 a.text(v, yi - 0.28, f" {v:.2f}" if v < 10 else f" {v:.1f}", fontsize=7, color=T.INK2, va="center")
         if key == "max_out":
             a.axvline(T.OUT_LIMIT_DEG, color=T.CRITICAL, lw=1, ls=(0, (2, 2)))
-        a.set_title(label, fontsize=9, loc="left")
+        a.set_title(title, fontsize=9, loc="left")
         a.set_xlim(0, None)
         a.grid(axis="y", visible=False)
     for j in range(len(METRICS), nrows * ncols):
         axs[j // ncols, j % ncols].set_visible(False)
     for r in range(nrows):
         axs[r, 0].set_yticks(y)
-        axs[r, 0].set_yticklabels([f"{meta['config']}\n({meta['cambio']})" if meta["cambio"] != "base"
-                                   else meta["config"] for meta, _, _ in runs], fontsize=8)
+        sw = swept_params(runs)
+        axs[r, 0].set_yticklabels([label(meta, sw).replace(" (", "\n(") for meta, _, _ in runs], fontsize=8)
         axs[r, 0].invert_yaxis()
     fig.suptitle("Barrido de PID: cada métrica del error por configuración (línea punteada = base, × = descartada)",
                  x=0.01, ha="left", fontsize=12, fontweight="bold")
@@ -393,7 +410,7 @@ def fig_eje(runs, out_dir):
             a.plot(xc, mean, color=color, lw=1)
         a.axhline(0, color=T.AXIS, lw=0.8)
         state = "" if meta["estado"] == "ok" else f"  —  {meta['estado'].upper()}"
-        a.set_title(f"{meta['config']} ({meta['cambio']}):  RMS {m['rms']:.2f} µm, máx {m['max_err']:.1f} µm{state}",
+        a.set_title(f"{label(meta, swept_params(runs))}:  RMS {m['rms']:.2f} µm, máx {m['max_err']:.1f} µm{state}",
                     fontsize=9, loc="left", color=T.CRITICAL if state else T.INK)
         a.set_ylim(-lim, lim)
         a.set_ylabel("µm", fontsize=8)
@@ -430,7 +447,7 @@ def fig_plegado(runs, out_dir):
             a2.plot(0.5 * (e360[1:] + e360[:-1]), mean, color=T.DIR_COLOR[L["dir"]], lw=1.5)
         for x in (25, 50, 75):
             a1.axvline(x, color=T.GRID, lw=0.8)
-        a1.set_title(f"{meta['config']}" + ("" if meta["estado"] == "ok" else f" ({meta['estado']})"), fontsize=9,
+        a1.set_title(label(meta, swept_params(runs), short=True) + ("" if meta["estado"] == "ok" else f" ({meta['estado']})"), fontsize=9,
                      loc="left", color=T.INK if meta["estado"] == "ok" else T.CRITICAL)
         a1.set_xlim(0, 100)
         a2.set_xlim(0, 360)
@@ -450,12 +467,132 @@ def fig_plegado(runs, out_dir):
     A.save(fig, out_dir, "comparacion_plegado.png")
 
 
+def rest_window(d, meta, seconds=1.0):
+    """Ultimo tramo del reposo en la punta lejana, despues de la ida 1."""
+    ida = [L for L in meta["legs"] if L["dir"] > 0 and L["ok"]]
+    if not ida:
+        return None
+    i_end = np.where(d["leg"] == ida[0]["leg"])[0][-1]
+    after = np.where((d["leg"] == -1) & (np.arange(len(d["leg"])) > i_end) & (np.abs(d["vt_mm_s"]) < 1e-6))[0]
+    if len(after) < 50:
+        return None
+    seg = after[: np.argmax(np.diff(after) > 5) + 1] if np.any(np.diff(after) > 5) else after
+    n = int(seconds * 1000 / meta["decimation"] * 2)
+    return seg[-n:]
+
+
+def motion_window(d, meta, seconds=1.0):
+    """Un segundo de la ida 1 a velocidad de crucero, en la mitad del recorrido."""
+    ida = [L for L in meta["legs"] if L["dir"] > 0 and L["ok"]]
+    if not ida:
+        return None
+    idx = np.where((d["leg"] == ida[0]["leg"]) & d["cruise"])[0]
+    if len(idx) < 100:
+        return None
+    mid = idx[np.argmin(np.abs(d["pos_mm"][idx] - meta["end_mm"] / 2))]
+    n = int(seconds * 1000 / meta["decimation"] * 2)
+    k = np.searchsorted(idx, mid)
+    return idx[max(0, k - n // 2): k + n // 2]
+
+
+def fig_simple(runs, out_dir):
+    """Error en movimiento y en reposo contra el valor del parametro barrido."""
+    sw = swept_params(runs)
+    if len(sw) != 1:
+        return
+    p = sw[0]
+    fig, axs = plt.subplots(1, 2, figsize=(14, 5), gridspec_kw=dict(wspace=0.22))
+    mov, rest = axs
+    series = [("rms", "RMS del error", "o", T.DIR_COLOR[+1]), ("max_err", "máximo |error|", "s", T.DIR_COLOR[-1])]
+    ok = [(meta, m) for meta, _, m in runs if meta["estado"] == "ok"]
+    for key, lab, mk, color in series:
+        main = sorted([(meta["pid"][p], m[key]) for meta, m in ok if meta["config"] not in ("base", "base_final")])
+        refs = [(meta["pid"][p], m[key]) for meta, m in ok if meta["config"] in ("base", "base_final")]
+        if main:
+            mov.plot(*zip(*main), mk + "-", color=color, lw=1.5, ms=8, label=lab)
+        if refs:
+            mov.plot(*zip(*refs), mk, color=color, ms=8, mfc="none", mew=1.8)
+        for x, y in main + refs:
+            mov.annotate(f"{y:.2f}", (x, y), textcoords="offset points", xytext=(6, 4), fontsize=8, color=T.INK2)
+    rmain = sorted([(meta["pid"][p], m["reposo"]) for meta, m in ok if meta["config"] not in ("base", "base_final")])
+    rrefs = [(meta["pid"][p], m["reposo"]) for meta, m in ok if meta["config"] in ("base", "base_final")]
+    if rmain:
+        rest.plot(*zip(*rmain), "o-", color=T.DIR_COLOR[+1], lw=1.5, ms=8, label="desvío del error en reposo")
+    if rrefs:
+        rest.plot(*zip(*rrefs), "o", color=T.DIR_COLOR[+1], ms=8, mfc="none", mew=1.8)
+    for x, y in rmain + rrefs:
+        rest.annotate(f"{y:.2f}", (x, y), textcoords="offset points", xytext=(6, 4), fontsize=8, color=T.INK2)
+    from matplotlib.lines import Line2D
+    hollow = Line2D([], [], marker="o", ls="", color=T.MUTED, mfc="none", mew=1.8,
+                    label=f"{HW_NAMES[p]} de hw_config.h, medido al inicio y al final (referencia)")
+    mov.legend(handles=mov.get_legend_handles_labels()[0] + [hollow], loc="lower right", fontsize=8)
+    rest.legend(handles=rest.get_legend_handles_labels()[0] + [hollow], loc="upper left", fontsize=8)
+    end = runs[0][0]["end_mm"]
+    mov.set_title(f"En movimiento (2 mm/s, 0 → {end:g} → 0 mm)")
+    rest.set_title("Quieto en las puntas del recorrido")
+    for a in axs:
+        a.set_xlabel(HW_NAMES[p])
+        a.set_ylabel("µm")
+        a.set_ylim(0, None)
+        vals = sorted({meta["pid"][p] for meta, _, _ in runs})
+        a.set_xticks(vals)
+    fig.suptitle(f"¿Cómo cambia el error con {HW_NAMES[p]}?", x=0.01, ha="left", fontsize=13, fontweight="bold")
+    fig.subplots_adjust(left=0.06, right=0.98, top=0.85, bottom=0.12)
+    A.save(fig, out_dir, "resumen_simple.png")
+
+
+def fig_trazas(runs, out_dir):
+    """Para cada configuracion: 1 s de error en movimiento y 1 s quieto, misma escala en todas."""
+    sw = swept_params(runs)
+    ok = [r for r in runs if r[0]["estado"] == "ok"]
+    if not ok:
+        return
+    if len(sw) == 1:
+        ok.sort(key=lambda r: (r[0]["pid"][sw[0]], r[0]["config"] == "base_final"))
+    n = len(ok)
+    fig, axs = plt.subplots(n, 2, figsize=(15, 1.7 * n + 1.3), sharey="col", squeeze=False,
+                            gridspec_kw=dict(hspace=0.5, wspace=0.12))
+    wins = [(motion_window(d, meta), rest_window(d, meta)) for meta, d, _ in ok]
+    lim_m = max(np.max(np.abs(d["err_um"][w])) for (_, d, _), (w, _) in zip(ok, wins) if w is not None) * 1.1
+    lim_r = max(np.max(np.abs(d["err_um"][w])) for (_, d, _), (_, w) in zip(ok, wins) if w is not None) * 1.1
+    for i, ((meta, d, m), (wm, wr)) in enumerate(zip(ok, wins)):
+        for j, (w, lim) in enumerate(((wm, lim_m), (wr, lim_r))):
+            a = axs[i, j]
+            if w is None:
+                a.set_visible(False)
+                continue
+            t = (d["t_s"][w] - d["t_s"][w[0]])
+            e = d["err_um"][w]
+            a.plot(t, e, color=T.DIR_COLOR[+1], lw=0.8)
+            a.axhline(0, color=T.AXIS, lw=0.8)
+            a.set_ylim(-lim, lim)
+            a.set_xlim(0, t[-1])
+            stat = f"media {e.mean():+.2f} µm · desvío {e.std():.2f} µm"
+            a.set_title(f"{label(meta, sw)}   —   {stat}", fontsize=9, loc="left")
+            if j == 0:
+                a.set_ylabel("error [µm]", fontsize=8)
+    end = ok[0][0]["end_mm"]
+    axs[0, 0].text(0, 1.45, f"EN MOVIMIENTO: 1 s de la ida a 2 mm/s, en x ≈ {end / 2:g} mm", transform=axs[0, 0].transAxes,
+                   fontsize=11, fontweight="bold")
+    axs[0, 1].text(0, 1.45, f"QUIETO: 1 s parado en X = {end:g} mm (después de la ida)", transform=axs[0, 1].transAxes,
+                   fontsize=11, fontweight="bold")
+    axs[-1, 0].set_xlabel("tiempo [s]")
+    axs[-1, 1].set_xlabel("tiempo [s]")
+    fig.suptitle("El error (objetivo − posición) para cada configuración; misma escala en cada columna",
+                 x=0.01, ha="left", fontsize=12, fontweight="bold")
+    h = 1.7 * n + 1.3
+    fig.subplots_adjust(left=0.06, right=0.98, top=1 - 1.3 / h, bottom=0.5 / h)
+    A.save(fig, out_dir, "trazas.png")
+
+
 def analyze(out_dir):
     runs = load_dir(out_dir)
     if not runs:
         raise SystemExit(f"no hay cfg_*.npz en {out_dir}")
     write_summary(runs, out_dir)
     print("\ngraficos:")
+    fig_simple(runs, out_dir)
+    fig_trazas(runs, out_dir)
     fig_metricas(runs, out_dir)
     fig_eje(runs, out_dir)
     fig_plegado(runs, out_dir)

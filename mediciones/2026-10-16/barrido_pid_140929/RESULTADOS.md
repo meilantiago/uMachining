@@ -19,6 +19,14 @@ configuraciones. 2 mm/s, telemetría a 1 kHz.
 | 750 | 20 mm | 1,77 µm | 7,4 µm | 0,69 µm | 1,76 µm | 0,97 µm | 0,22 µm |
 | 1500 (base final) | 20 mm | 1,77 µm | 8,0 µm | 0,68 µm | 1,73 µm | 0,99 µm | 0,30 µm |
 
+Gráficos, en orden de lectura:
+- `resumen_simple.png`: el error en movimiento (RMS y máximo) y quieto (desvío) contra `POS_KI`.
+- `trazas.png`: 1 s de error en movimiento y 1 s quieto para cada `POS_KI`, con la misma escala.
+- `comparacion_eje.png`, `comparacion_metricas.png`, `comparacion_plegado.png`: el detalle (a lo largo del eje, por componente, plegado).
+
+"Referencia, al inicio / al final" es `POS_KI = 1500` (el valor de `hw_config.h`), medido al principio y al final
+del barrido para comprobar que nada cambió durante la prueba.
+
 ## Conclusiones
 
 - **En movimiento, `POS_KI` entre 0 y 1500 no cambia el error.** RMS de 1,77–1,83 µm, máximo de 7,4–8,0 µm, y las
