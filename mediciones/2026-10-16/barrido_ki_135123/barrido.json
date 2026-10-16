@@ -1,0 +1,71 @@
+{
+ "fecha": "2026-10-16T13:51:23",
+ "param": "POS_KI",
+ "posiciones": [
+  10.0
+ ],
+ "acq_s": 10.0,
+ "decimation": 2,
+ "valores": [
+  {
+   "param": "POS_KI",
+   "value": 0.0,
+   "archivos": {
+    "10": "pos_ki_0_x10.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=0 realimentacion_anticipada=0",
+   "cal_rms_deg": 0.087484,
+   "costura_deg": 0.080624,
+   "conmutacion_deg": 0.3
+  },
+  {
+   "param": "POS_KI",
+   "value": 250.0,
+   "archivos": {
+    "10": "pos_ki_250_x10.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=0 realimentacion_anticipada=0",
+   "cal_rms_deg": 0.086461,
+   "costura_deg": -0.126304,
+   "conmutacion_deg": -2.6
+  },
+  {
+   "param": "POS_KI",
+   "value": 500.0,
+   "archivos": {
+    "10": "pos_ki_500_x10.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=0 realimentacion_anticipada=0",
+   "cal_rms_deg": 0.085504,
+   "costura_deg": -0.105923,
+   "conmutacion_deg": 1.3
+  },
+  {
+   "param": "POS_KI",
+   "value": 750.0,
+   "archivos": {
+    "10": "pos_ki_750_x10.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=0 realimentacion_anticipada=0",
+   "cal_rms_deg": 0.088223,
+   "costura_deg": 0.22933,
+   "conmutacion_deg": 0.9
+  },
+  {
+   "param": "POS_KI",
+   "value": 1000.0,
+   "archivos": {
+    "10": "pos_ki_1000_x10.csv"
+   },
+   "ok": true,
+   "m58": "velocidad_tabla=0 realimentacion_anticipada=0",
+   "cal_rms_deg": 0.086479,
+   "costura_deg": 0.268454,
+   "conmutacion_deg": 1.8
+  }
+ ]
+}
