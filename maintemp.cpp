@@ -76,6 +76,8 @@ bool update_motion_profile_isr(repeating_timer_t* timer) {
   // Lee la posición del encoder lineal y aplica la corrección PI.
   // Con el mock, linear_pos ≈ motor_pos y la corrección es mínima.
   float linear_pos = read_linear_encoder();
+  if (shared_data.cogging_learner.active)
+    shared_data.cogging_learner.add(pos_mm, linear_pos, vel_mm_s);
   float corrected_pos = pos_mm;  // default: sin corrección
   if (shared_data.cascade_corrector_enabled) {
     corrected_pos = cascade_corrector.update(pos_mm, linear_pos, dt);

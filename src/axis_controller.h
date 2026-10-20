@@ -84,6 +84,13 @@ class AxisController {
     // posicion que lee el encoder. Desfase = error de conmutacion +/- atraso del rotor.
     void commutation_sweep(float distance_mm, float speed_mm_s, int decimation);
 
+    // Tabla de compensacion de la retencion del motor (M59): guardar/cargar en flash.
+    bool store_cogging();
+    bool load_cogging();
+    // Angulo de campo [rad electricos] que corresponde a la posicion 0 del motor (para que la PC
+    // calcule el angulo electrico de cada muestra de telemetria).
+    float field_angle_at_zero();
+
     // Acceso directo al ServoController interno, útil para tunear PID en caliente (M55).
     ServoController* get_servo_controller();
 

@@ -28,6 +28,9 @@ constexpr float AXIS_MAX_POSITION_MM = 255.0f;
 // x2.5; G1 X200 llego bien a 0.5 vueltas/s).
 constexpr float DEFAULT_MAX_VELOCITY_MM_S = 2.0f;
 constexpr float DEFAULT_MAX_ACCEL_MM_S2   = 5.0f;
+// Tope de M203 X<mm/s>. Con la realimentacion anticipada de velocidad, el limite de 1 vuelta/s
+// (5 mm/s) del PI de posicion no limita el perfil; lo que limita es el margen de torque.
+constexpr float MAX_VELOCITY_LIMIT_MM_S = 5.0f;
 
 //--- MOTOR ---------------------------------------------------------------------
 // pole pairs del MOTOR paso a paso (no tiene nada que ver con los imanes de la rueda):
@@ -87,6 +90,14 @@ constexpr float CALIBRATION_RANGE = 400.0f;         // [grados] desde la posici�
 constexpr float CALIBRATION_TRANSIENT_SKIP = 15.0f;
 constexpr float CALIBRATION_FIELD_VELOCITY = 20.0f; // velocidad del campo durante calibración
 constexpr int   ENCODER_LUT_SIZE = 1024;             // tamaño de la lookup table (~0.36 grados por celda)
+// Filtrado de la huella del motor en la tabla encoder -> motor (ver docs/CAMBIOS_CALIBRACION_2026-10-20.md).
+// La tabla se arma girando el campo en lazo abierto y supone que el rotor sigue al campo de forma
+// pareja. No es asi: dentro de cada ciclo electrico el rotor adelanta/atrasa (retencion en cada paso,
+// forma de la corriente), y ese patron queda grabado en la tabla como componentes que se repiten
+// 50*m veces por vuelta (100 um y 25 um de carro). La rueda de imanes se repite 30*m veces por vuelta.
+// Con esto se sacan de la tabla los armonicos 50*m que no coinciden con uno de la rueda (150, 300,
+// 450 coinciden y se dejan). Se puede apagar en una calibracion con M56 F0.
+constexpr bool CALIBRATION_FILTER_MOTOR_HARMONICS = true;
 
 //--- VERIFICACION DE CONMUTACION ----------------------------------------------
 // El homing fija el cero del encoder modulo UN periodo del encoder (1/30 de vuelta = 12° de
@@ -124,6 +135,25 @@ constexpr bool VELOCITY_FROM_LUT = true;
 // la tenia que pedir el PI de posicion, y como su integral esta limitada a pi/2 rad/s
 // (1.25 mm/s), a 2 mm/s el resto lo ponia la proporcional con 13 um de atraso constante.
 constexpr bool VELOCITY_FEEDFORWARD = true;
+// Compensacion anticipada de la retencion del motor (anti-cogging, M59; ver
+// docs/CAMBIOS_CALIBRACION_2026-10-20.md). La tabla se aprende con tools/cogging_learn.py y se guarda
+// en flash con M59 W. Si hay una tabla guardada, al arrancar se carga y se activa si esto es true.
+constexpr bool COGGING_ENABLED_AT_BOOT = true;
+// Velocidad [mm/s] a la que se aprende la parte de la tabla que depende del sentido (M59 R la cambia).
+constexpr float COGGING_DIR_REF_MM_S = 2.0f;
+// Las tablas valen para la velocidad a la que se aprendieron: a 4 mm/s empeoraban el error ~2x (RMS 3-4 ->
+// 5-8 um). Por encima de la velocidad de referencia la compensacion baja lineal hasta 0 en
+// COGGING_FADE_END x referencia (3 mm/s).
+constexpr float COGGING_FADE_END = 1.5f;
+// Reaprendizaje de las tablas al final de cada M56 (M56 A0 lo saltea; con M56 H se saltea salvo A1,
+// porque no se sabe si hay recorrido libre). Hace COGGING_RELEARN_PASSES idas y vueltas
+// 0 -> COGGING_RELEARN_END_MM -> 0 a COGGING_DIR_REF_MM_S (~55 s cada una) y deja la tabla de la pasada
+// con menos error. Con M56 S tambien la guarda en flash.
+constexpr bool  COGGING_RELEARN_ON_CALIBRATION = true;
+constexpr int   COGGING_RELEARN_PASSES = 2;
+constexpr float COGGING_RELEARN_END_MM = 50.0f;
+constexpr float COGGING_RELEARN_GAIN = 0.8f;
+constexpr float COGGING_RELEARN_ABORT_UM = 150.0f;   // corta la pasada si el error pasa de esto
 
 constexpr float VEL_LOWPASS_TC = 0.004f;
 constexpr float VEL_KP = 0.2f;

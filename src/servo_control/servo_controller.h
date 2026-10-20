@@ -48,6 +48,21 @@ class ServoController {
     volatile bool velocity_from_lut = true;
     volatile bool feedforward_enabled = true;
 
+    // Compensacion anticipada de la retencion del motor (anti-cogging, M59). Tabla de COGGING_TABLE_SIZE
+    // puntos sobre un ciclo electrico, indexada por el angulo electrico del campo (absoluto: no depende
+    // del homing ni de la calibracion). Se suma como adelanto del campo [rad electricos] a la salida del
+    // PI. 'output' (y la telemetria) sigue siendo solo la salida del PI.
+    static constexpr int COGGING_TABLE_SIZE = 64;
+    float cogging_table[COGGING_TABLE_SIZE] = {};       // parte igual en los dos sentidos [rad el.]
+    // Parte que cambia de signo con el sentido de marcha: el lazo responde distinto a un mismo patron segun
+    // el sentido (ida y vuelta ven el patron con fases conjugadas). Se multiplica por la velocidad del
+    // perfil / cogging_dir_ref, limitado a +-1 (0 quieto, suave al arrancar y al frenar).
+    float cogging_table_dir[COGGING_TABLE_SIZE] = {};
+    volatile float cogging_dir_ref = 1.0f;              // [rad/s de motor] velocidad a la que se aprendio
+    volatile bool cogging_enabled = false;
+    volatile float cogging_gain = 1.0f;
+    float cogging_feedforward(float field_angle, float velocity_ff) const;
+
     // Checks if the motor is at position (uses values from previous update() call).
     bool at_position(float motor_pos_eps);
 

@@ -1,5 +1,6 @@
 #include "command_processor.h"
 #include "servo_control/cascade_corrector.h"
+#include "servo_control/actuator_calibration.h"
 #include "hw_config.h"
 #include "utilities/logging.h"
 #include "utilities/math_constants.h"
@@ -77,6 +78,73 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
     reply = std::string(buf) + "ok\n";
     return;
   }
+  if (c == "M59") {
+    // M59: compensacion de la retencion del motor (anti-cogging). Sin argumentos informa el estado.
+    //   S<0|1> activar/desactivar   G<ganancia>   C borrar las tablas
+    //   I<indice> V<grados el.>  parte igual en los dos sentidos
+    //   J<indice> V<grados el.>  parte que cambia de signo con el sentido (escala con la velocidad, ver R)
+    //   R<mm/s> velocidad de referencia de la parte por sentido
+    //   P imprimir las tablas       W guardar en flash   L cargar de flash
+    ServoController* servo = axis->get_servo_controller();
+    const int n = ServoController::COGGING_TABLE_SIZE;
+    if (cmd.has_word('C')) {
+      for (int i = 0; i < n; i++) servo->cogging_table[i] = servo->cogging_table_dir[i] = 0.0f;
+    }
+    if (cmd.has_word('I') && cmd.has_word('V')) {
+      int i = int(cmd.get_value('I'));
+      if (i < 0 || i >= n) { reply = "error: indice fuera de rango\n"; return; }
+      servo->cogging_table[i] = cmd.get_value('V') * Constants::DEG2RAD;
+    }
+    if (cmd.has_word('J') && cmd.has_word('V')) {
+      int i = int(cmd.get_value('J'));
+      if (i < 0 || i >= n) { reply = "error: indice fuera de rango\n"; return; }
+      servo->cogging_table_dir[i] = cmd.get_value('V') * Constants::DEG2RAD;
+    }
+    if (cmd.has_word('R') && cmd.get_value('R') > 0.0f)
+      servo->cogging_dir_ref = cmd.get_value('R') / LEAD_SCREW_PITCH_MM * Constants::TWO_PI_F;
+    if (cmd.has_word('G')) servo->cogging_gain = cmd.get_value('G');
+    if (cmd.has_word('S')) servo->cogging_enabled = cmd.get_value('S') >= 1.0f;
+    if (cmd.has_word('L') && !axis->load_cogging()) { reply = "error: no hay tabla anti-cogging en flash\n"; return; }
+    if (cmd.has_word('W') && !axis->store_cogging()) { reply = "error: no se pudo guardar\n"; return; }
+    char buf[160];
+    if (cmd.has_word('P')) {
+      for (int i = 0; i < n; i++) {
+        snprintf(buf, sizeof(buf), "cog %d %.4f %.4f\n", i, servo->cogging_table[i] * Constants::RAD2DEG,
+                 servo->cogging_table_dir[i] * Constants::RAD2DEG);
+        reply += buf;
+      }
+    }
+    float amp = 0.0f;
+    float amp_dir = 0.0f;
+    for (int i = 0; i < n; i++) {
+      amp = std::max(amp, fabsf(servo->cogging_table[i]));
+      amp_dir = std::max(amp_dir, fabsf(servo->cogging_table_dir[i]));
+    }
+    snprintf(buf, sizeof(buf), "anti_cogging=%d ganancia=%.3f puntos=%d max=%.3f deg max_sentido=%.3f deg "
+             "ref=%.3f mm/s campo_en_cero=%.6f rad\n",
+             (int)servo->cogging_enabled, (float)servo->cogging_gain, n, amp * Constants::RAD2DEG,
+             amp_dir * Constants::RAD2DEG, servo->cogging_dir_ref / Constants::TWO_PI_F * LEAD_SCREW_PITCH_MM,
+             axis->field_angle_at_zero());
+    reply += std::string(buf) + "ok\n";
+    return;
+  }
+  if (c == "M203") {
+    // M203 X<mm/s>: velocidad maxima de los G0/G1 (por defecto DEFAULT_MAX_VELOCITY_MM_S)
+    if (cmd.has_word('X')) {
+      float v = cmd.get_value('X');
+      if (!(v > 0.0f && v <= MAX_VELOCITY_LIMIT_MM_S)) {
+        char e[80];
+        snprintf(e, sizeof(e), "error: velocidad fuera de rango (0, %.1f] mm/s\n", MAX_VELOCITY_LIMIT_MM_S);
+        reply = e;
+        return;
+      }
+      max_velocity_mm_s = v;
+    }
+    char buf[80];
+    snprintf(buf, sizeof(buf), "max_velocidad=%.3f mm/s\nok\n", max_velocity_mm_s);
+    reply = buf;
+    return;
+  }
   if (c == "M121") { axis->dump_trace(); reply = "ok\n"; return; }
   if (c == "M57") {
     // Diagnostico: M57 X<distancia mm> [F<mm/s>] [P<decimacion>]. Barrido en lazo abierto
@@ -150,6 +218,134 @@ void SingleAxisCommandProcessor::process_move_command(const GCodeCommand& cmd, s
 // El homing contra el tope positivo (D1) no esta implementado: la calibracion barre siempre en
 // sentido positivo desde el home y los mm positivos apuntan siempre para ese lado. Con D1 el
 // eje creeria estar en 0 parado contra el tope del otro extremo.
+// --- reaprendizaje anti-cogging al calibrar (ver COGGING_RELEARN_ON_CALIBRATION) ----------
+
+static void set_cogging_tables(ServoController* servo, const float ts_deg[], const float ta_deg[]) {
+  bool any = false;
+  for (int i = 0; i < ServoController::COGGING_TABLE_SIZE; i++) {
+    servo->cogging_table[i] = ts_deg[i] * Constants::DEG2RAD;
+    servo->cogging_table_dir[i] = ta_deg[i] * Constants::DEG2RAD;
+    any = any || ts_deg[i] != 0.0f || ta_deg[i] != 0.0f;
+  }
+  servo->cogging_gain = 1.0f;
+  servo->cogging_dir_ref = COGGING_DIR_REF_MM_S / LEAD_SCREW_PITCH_MM * Constants::TWO_PI_F;
+  servo->cogging_enabled = any;
+}
+
+// Un tramo a 'dest' a la velocidad de aprendizaje, acumulando el error. false si se corto.
+static bool relearn_leg(AxisController* axis, TrapezoidalProfile* profile, SharedData* shared_data,
+                        float dest, float accel, bool measure = true) {
+  uint32_t irq_state = save_and_disable_interrupts();
+  profile->start(profile->get_current_position(), dest, COGGING_DIR_REF_MM_S, accel);
+  restore_interrupts(irq_state);
+  shared_data->cogging_learner.active = measure;
+  bool ok = true;
+  while (!profile->is_idle()) {
+    sleep_ms(5);
+    float target = profile->get_current_position();
+    float pos = axis->get_position_mm();
+    float err_um = 1000.0f * fabsf(target - pos);
+    if (axis->has_servo_fault() || err_um > COGGING_RELEARN_ABORT_UM) {
+      LOG_ERROR("Reaprendizaje anti-cogging: corte hacia %.1f mm: objetivo %.4f mm, posicion %.4f mm, "
+                "error %.1f um, falla %d", dest, target, pos, err_um, (int)axis->has_servo_fault());
+      ok = false;
+      break;
+    }
+  }
+  shared_data->cogging_learner.active = false;
+  if (!ok) {
+    // frenar donde esta el objetivo ahora
+    irq_state = save_and_disable_interrupts();
+    float p = profile->get_current_position();
+    profile->start(p, p, COGGING_DIR_REF_MM_S, accel);
+    restore_interrupts(irq_state);
+    return false;
+  }
+  sleep_ms(1000);   // reposo en la punta
+  return true;
+}
+
+static bool relearn_cogging(AxisController* axis, TrapezoidalProfile* profile, SharedData* shared_data,
+                            float accel, bool store_to_flash, std::string& reply) {
+  constexpr int N = ServoController::COGGING_TABLE_SIZE;
+  static_assert(N == CoggingLearner::N, "tablas de distinto tamano");
+  ServoController* servo = axis->get_servo_controller();
+  float ts0[N], ta0[N], ts[N], ta[N], best_ts[N], best_ta[N];
+  for (int i = 0; i < N; i++) {
+    ts0[i] = ts[i] = best_ts[i] = servo->cogging_table[i] * Constants::RAD2DEG;
+    ta0[i] = ta[i] = best_ta[i] = servo->cogging_table_dir[i] * Constants::RAD2DEG;
+  }
+  const bool was_enabled = servo->cogging_enabled;
+  CoggingLearner& learner = shared_data->cogging_learner;
+  learner.begin(axis->field_angle_at_zero(), MOTOR_POLE_PAIRS * Constants::TWO_PI_F / LEAD_SCREW_PITCH_MM,
+                COGGING_DIR_REF_MM_S);
+  // la calibracion deja el lazo apagado: rearmarlo quieto donde esta el carro (como M17) e ir a 0
+  float pos_mm = axis->get_position_mm();
+  uint32_t irq_state = save_and_disable_interrupts();
+  profile->start(pos_mm, pos_mm, COGGING_DIR_REF_MM_S, accel);
+  restore_interrupts(irq_state);
+  shared_data->target_position_mm = pos_mm;
+  axis->set_motor_enabled(true);
+  if (!relearn_leg(axis, profile, shared_data, 0.0f, accel, false)) {
+    reply += "anti-cogging: no pudo ir a 0, sin reaprender\n";
+    return false;
+  }
+  // asentar: hasta 200 ms seguidos a menos de 20 um, 5 s como mucho
+  for (int t = 0, quiet = 0; quiet < 40; t++) {
+    sleep_ms(5);
+    float err_um = 1000.0f * fabsf(profile->get_current_position() - axis->get_position_mm());
+    quiet = err_um < 20.0f ? quiet + 1 : 0;
+    if (t > 1000) {
+      LOG_ERROR("Reaprendizaje anti-cogging: el eje no se asienta en 0 (error %.1f um)", err_um);
+      reply += "anti-cogging: no se asienta, sin reaprender\n";
+      return false;
+    }
+  }
+
+  float best_rms = 1e9f;
+  int best_k = -1;
+  char buf[96];
+  reply += "anti-cogging, RMS por pasada [um]:";
+  for (int k = 0; k < COGGING_RELEARN_PASSES; k++) {
+    set_cogging_tables(servo, ts, ta);
+    learner.reset();
+    LOG_INFO("Reaprendizaje anti-cogging: pasada %i de %i", k + 1, COGGING_RELEARN_PASSES);
+    bool ok = relearn_leg(axis, profile, shared_data, COGGING_RELEARN_END_MM, accel) &&
+              relearn_leg(axis, profile, shared_data, 0.0f, accel);
+    float e[2][N];
+    if (ok && !(learner.pattern(0, e[0]) && learner.pattern(1, e[1]))) {
+      LOG_ERROR("Reaprendizaje anti-cogging: pocas muestras en crucero (RMS de %.3f um)", learner.rms_um());
+      ok = false;
+    }
+    if (!ok) {
+      LOG_ERROR("Reaprendizaje anti-cogging: pasada cortada, quedan las tablas de antes");
+      for (int i = 0; i < N; i++) { ts[i] = ts0[i]; ta[i] = ta0[i]; }
+      set_cogging_tables(servo, ts, ta);
+      servo->cogging_enabled = was_enabled;
+      reply += " cortado\n";
+      return false;
+    }
+    float rms = learner.rms_um();
+    LOG_INFO("Reaprendizaje anti-cogging: pasada %i, RMS %.3f um", k + 1, rms);
+    snprintf(buf, sizeof(buf), " %.2f", rms);
+    reply += buf;
+    if (rms < best_rms) {
+      best_rms = rms;
+      best_k = k;
+      for (int i = 0; i < N; i++) { best_ts[i] = ts[i]; best_ta[i] = ta[i]; }
+    }
+    if (k + 1 < COGGING_RELEARN_PASSES)
+      CoggingLearner::newton_step(ts, ta, e, COGGING_RELEARN_GAIN);
+  }
+  set_cogging_tables(servo, best_ts, best_ta);
+  snprintf(buf, sizeof(buf), " -> queda la tabla de la pasada %d\n", best_k + 1);
+  reply += buf;
+  LOG_INFO("Reaprendizaje anti-cogging: queda la tabla de la pasada %i (RMS %.3f um)", best_k + 1, best_rms);
+  if (store_to_flash && best_k > 0)
+    axis->store_cogging();
+  return true;
+}
+
 static bool homing_direction_supported(const GCodeCommand& cmd, std::string& reply) {
   if (cmd.get_value('D', -1.0f) >= 0.0f) {
     reply = "error: solo se puede homear contra el tope negativo (D-1); D1 no esta implementado\n";
@@ -205,6 +401,8 @@ void SingleAxisCommandProcessor::process_calibrate_command(const GCodeCommand& c
   if (!homing_direction_supported(cmd, reply)) return;
   float direction_sign = -1.0f;
   bool search_stop = !cmd.has_word('H');  // M56 H: calibrar aca mismo, sin buscar tope
+  // M56 F<0|1>: filtrar la huella del motor en la tabla (por defecto, CALIBRATION_FILTER_MOTOR_HARMONICS)
+  set_calibration_motor_filter(cmd.has_word('F') ? cmd.get_value('F') >= 1.0f : CALIBRATION_FILTER_MOTOR_HARMONICS);
 
   shared_data->servo_loop_enabled = false;
   sleep_ms(5);
@@ -221,7 +419,13 @@ void SingleAxisCommandProcessor::process_calibrate_command(const GCodeCommand& c
   }
 
   shared_data->servo_loop_enabled = true;
-  reply = ok ? "ok\n" : "error: calibracion fallida\n";
+
+  // M56 A<0|1>: reaprender las tablas anti-cogging despues de calibrar
+  bool relearn = cmd.has_word('A') ? cmd.get_value('A') >= 1.0f : (COGGING_RELEARN_ON_CALIBRATION && search_stop);
+  reply.clear();
+  if (ok && relearn)
+    relearn_cogging(axis, profile, shared_data, max_accel_mm_s2, store_to_flash, reply);
+  reply += ok ? "ok\n" : "error: calibracion fallida\n";
 }
 
 void SingleAxisCommandProcessor::process_report_position_command(std::string& reply) {

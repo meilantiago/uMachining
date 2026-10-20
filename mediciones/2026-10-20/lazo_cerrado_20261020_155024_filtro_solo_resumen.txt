@@ -1,0 +1,10 @@
+comandos previos: M59 S0
+Prueba 2026-10-20T15:50:24: 1 ciclos 0 -> 255 mm a 2 mm/s, telemetria a 1000 Hz
+Resultado: OK, sin cortes   paquetes perdidos: 8839
+
+tramo      dur[s]  max|err|  rms err out medio max|out|   >70° satur.   vmin  coh pp  estado encoder
+                       [um]     [um]     [°el]    [°el]    [%] [mues] [mm/s]     [°]
+ida 1       128.2       6.8      1.6     +42.5     81.0   0.15     12   0.89    49.3  limpio
+vuelta 1    128.2       6.4      1.6     -40.5     81.0   0.12      3   0.94    49.1  limpio
+
+margen de torque: limite de la salida = ±81° electricos; corte por falla con |err| > 1000 um durante 0,5 s

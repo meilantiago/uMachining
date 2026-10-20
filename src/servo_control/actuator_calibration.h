@@ -29,6 +29,10 @@ bool measure_calibration_data(
 // 'consistency' (0..1) mide cuan constante fue el desfase durante el barrido: bajo indica
 // que el encoder no sigue al rotor. El campo y el rotor terminan donde empezaron.
 // Requiere el motor energizado y el lazo servo detenido.
+// Activa/desactiva el filtrado de los armonicos del motor en la proxima calibracion (M56 F<0|1>).
+void set_calibration_motor_filter(bool enable);
+bool get_calibration_motor_filter();
+
 void measure_commutation_offsets(
   ServoController& servo_controller,
   float sweep_sign,

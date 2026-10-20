@@ -1,0 +1,10 @@
+comandos previos: M203 X2, M59 S0
+Prueba 2026-10-20T17:33:30: 1 ciclos 0 -> 50 mm a 2 mm/s, telemetria a 1000 Hz
+Resultado: OK, sin cortes   paquetes perdidos: 1593
+
+tramo      dur[s]  max|err|  rms err out medio max|out|   >70° satur.   vmin  coh pp  estado encoder
+                       [um]     [um]     [°el]    [°el]    [%] [mues] [mm/s]     [°]
+ida 1        25.9       5.5      1.1     +42.4     78.8   0.25      0   0.99    53.9  limpio
+vuelta 1     25.9       9.2      2.1     -43.5     81.0   0.83     40   0.96    53.7  limpio
+
+margen de torque: limite de la salida = ±81° electricos; corte por falla con |err| > 1000 um durante 0,5 s
