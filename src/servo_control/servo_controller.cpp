@@ -49,6 +49,7 @@ void ServoController::init(float max_motor_amplitude) {
   velocity_lowpass.set_time_constant(VEL_LOWPASS_TC);
   velocity_from_lut = VELOCITY_FROM_LUT;
   feedforward_enabled = VELOCITY_FEEDFORWARD;
+  cogging_dir_ref = COGGING_DIR_REF_MM_S / LEAD_SCREW_PITCH_MM * Constants::TWO_PI_F;
 
   pos_controller.set_parameter(POS_KP, POS_KI, 0.0f, Constants::PI_F*2.0F, Constants::PI_F*0.5F);
   velocity_controller.set_parameter(VEL_KP, VEL_KI, 0.0f, Constants::PI_F*0.45f, Constants::PI_F*0.45f);
@@ -154,8 +155,28 @@ void ServoController::update(float target_motor_pos, float dt, float one_over_dt
   // torque controll loop
   output = torque_target;
 
+  // compensacion de la retencion del motor: se suma al adelanto del campo, con el mismo limite
+  float lead = output;
+  if (cogging_enabled)
+    lead = std::clamp(output + cogging_feedforward(field_angle, velocity_ff), -Constants::PI_F * 0.45f,
+                      Constants::PI_F * 0.45f);
+
   // set new field direction
-  motor_driver.set_field_angle(field_angle + output);
+  motor_driver.set_field_angle(field_angle + lead);
+}
+
+float ServoController::cogging_feedforward(float field_angle, float velocity_ff) const {
+  float ph = field_angle * (1.0f / Constants::TWO_PI_F);
+  ph -= floorf(ph);
+  float fi = ph * COGGING_TABLE_SIZE;
+  int i = int(fi);
+  if (i >= COGGING_TABLE_SIZE) i = COGGING_TABLE_SIZE - 1;
+  float w = fi - float(i);
+  int j = (i + 1) % COGGING_TABLE_SIZE;
+  float d = std::clamp(velocity_ff / cogging_dir_ref, -1.0f, 1.0f);
+  float sym = cogging_table[i] * (1.0f - w) + cogging_table[j] * w;
+  float dir = cogging_table_dir[i] * (1.0f - w) + cogging_table_dir[j] * w;
+  return cogging_gain * (sym + d * dir);
 }
 
 void ServoController::resync() {

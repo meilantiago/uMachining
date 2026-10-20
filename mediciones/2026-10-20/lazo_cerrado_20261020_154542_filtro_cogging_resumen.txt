@@ -1,0 +1,9 @@
+Prueba 2026-10-20T15:45:42: 1 ciclos 0 -> 255 mm a 2 mm/s, telemetria a 1000 Hz
+Resultado: OK, sin cortes   paquetes perdidos: 8034
+
+tramo      dur[s]  max|err|  rms err out medio max|out|   >70° satur.   vmin  coh pp  estado encoder
+                       [um]     [um]     [°el]    [°el]    [%] [mues] [mm/s]     [°]
+ida 1       128.2       6.7      1.0     +42.3     77.9   0.13      0   0.88    49.3  limpio
+vuelta 1    128.2       6.4      1.0     -40.2     79.4   0.08      0   0.92    49.1  limpio
+
+margen de torque: limite de la salida = ±81° electricos; corte por falla con |err| > 1000 um durante 0,5 s

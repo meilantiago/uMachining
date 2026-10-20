@@ -43,6 +43,50 @@ static float rms_error_without_direction_offset(const LookupTable& lut,
   return float(sqrt(var / (n[0] + n[1])));
 }
 
+static bool calibration_motor_filter = CALIBRATION_FILTER_MOTOR_HARMONICS;
+void set_calibration_motor_filter(bool enable) { calibration_motor_filter = enable; }
+bool get_calibration_motor_filter() { return calibration_motor_filter; }
+
+// Saca de la tabla encoder -> motor los armonicos que se repiten 50*m veces por vuelta (ciclo
+// electrico del motor y sus armonicos, entre ellos los 200 por vuelta de los pasos), salvo los que
+// tambien son armonicos de la rueda (multiplos de 30 por vuelta). Ver CALIBRATION_FILTER_MOTOR_HARMONICS.
+// Trabaja sobre el residuo de la tabla respecto de la recta de una vuelta; la fase de cada armonico
+// se toma de la salida de la tabla (posicion del motor), que es donde el patron del motor es periodico.
+static void filter_motor_harmonics(LookupTable& lut, float period_in, float period_out, int pole_pairs,
+                                   int ring_periods) {
+  const int n = int(lut.size());
+  float in_min, in_max;
+  lut.get_intput_range(in_min, in_max);
+  const float dx = (in_max - in_min) / float(n - 1);
+  const float slope = period_out / period_in;
+  const float y0 = lut.get_entry(0);
+  std::vector<float> theta(n), r(n);
+  for (int i = 0; i < n; i++) {
+    float y = lut.get_entry(i);
+    theta[i] = (y - y0) * (Constants::TWO_PI_F / period_out);   // fase de la vuelta del motor [rad]
+    r[i] = y - (y0 + slope * dx * float(i));
+  }
+  const float to_um = LEAD_SCREW_PITCH_MM * 1000.0f / Constants::TWO_PI_F;
+  for (int m = 1; pole_pairs * m < n / 2; m++) {
+    const int k = pole_pairs * m;
+    if (k % ring_periods == 0)
+      continue;   // coincide con un armonico de la rueda: no se puede separar
+    double a = 0.0, b = 0.0;
+    for (int i = 0; i < n - 1; i++) {
+      a += r[i] * cos(k * theta[i]);
+      b += r[i] * sin(k * theta[i]);
+    }
+    a *= 2.0 / (n - 1);
+    b *= 2.0 / (n - 1);
+    for (int i = 0; i < n; i++)
+      r[i] -= float(a * cos(k * theta[i]) + b * sin(k * theta[i]));
+    LOG_INFO("Filtro de la huella del motor: armonico %i por vuelta, amplitud %.3f um", k,
+             float(sqrt(a * a + b * b)) * to_um);
+  }
+  for (int i = 0; i < n; i++)
+    lut.set_entry(i, y0 + slope * dx * float(i) + r[i]);
+}
+
 bool measure_calibration_data(
             LookupTable& encoder_raw_to_motor_pos_lut,
             LookupTable& motor_pos_to_field_angle_lut,
@@ -256,6 +300,13 @@ bool measure_calibration_data(
   float seam_error = encoder_raw_to_motor_pos_lut.get_entry(lut_size - 1) - encoder_raw_to_motor_pos_lut.get_entry(0)
                      - period_out * (lut_in_max - lut_in_min) / period_in;
   LOG_INFO("Salto en la costura de la vuelta: %f deg", Constants::RAD2DEG*seam_error);
+
+  if (calibration_motor_filter) {
+    filter_motor_harmonics(encoder_raw_to_motor_pos_lut, period_in, period_out, int(pole_pair_count),
+                           int(ring_periods));
+  } else {
+    LOG_INFO("Filtro de la huella del motor: apagado (M56 F0)");
+  }
   encoder_raw_to_motor_pos_lut.set_period(period_in, period_out);
 
   // 'motor_pos -> field_angle' es lineal por construccion (motor_pos se definio como

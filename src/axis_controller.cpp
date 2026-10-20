@@ -32,6 +32,11 @@ void AxisController::init() {
   servo_controller->set_motor_enabled(false, false);
 
   load_calibration();
+  if (load_cogging()) {
+    servo_controller->cogging_enabled = COGGING_ENABLED_AT_BOOT;
+    LOG_INFO("AxisController: tabla anti-cogging cargada desde flash (%s)",
+             COGGING_ENABLED_AT_BOOT ? "activa" : "inactiva, M59 S1 para activarla");
+  }
 }
 
 bool AxisController::home(float direction_sign, bool search_stop) {
@@ -376,4 +381,62 @@ bool AxisController::store_calibration() {
   if (ok) LOG_INFO("AxisController: calibracion guardada en flash");
   else LOG_ERROR("AxisController: error al guardar la calibracion en flash");
   return ok;
+}
+
+// --- tabla de compensacion de la retencion del motor (M59) ---------------------------
+
+static const char* COGGING_FILE = "axis_cogging.dat";
+static constexpr uint32_t COGGING_MAGIC = 0x434F4732;   // "COG2": tabla, tabla por sentido, velocidad de referencia
+
+float AxisController::field_angle_at_zero() {
+  return servo_controller->motor_pos_to_field_angle(0.0f);
+}
+
+bool AxisController::store_cogging() {
+  // misma precaucion que store_calibration(): Core 1 no puede correr desde la flash mientras se escribe
+  if (!multicore_lockout_start_timeout_us(200000)) {
+    LOG_ERROR("AxisController: no se pudo pausar Core 1, la tabla anti-cogging NO se guardo");
+    return false;
+  }
+  bool ok = false;
+  File f = LittleFS.open(COGGING_FILE, "w");
+  if (f) {
+    uint32_t n = ServoController::COGGING_TABLE_SIZE;
+    float ref = servo_controller->cogging_dir_ref;
+    ok = f.write((const uint8_t*)&COGGING_MAGIC, 4) == 4 && f.write((const uint8_t*)&n, 4) == 4 &&
+         f.write((const uint8_t*)servo_controller->cogging_table, n * sizeof(float)) == n * sizeof(float) &&
+         f.write((const uint8_t*)servo_controller->cogging_table_dir, n * sizeof(float)) == n * sizeof(float) &&
+         f.write((const uint8_t*)&ref, 4) == 4;
+    f.close();
+  }
+  multicore_lockout_end_blocking();
+  if (ok) LOG_INFO("AxisController: tabla anti-cogging guardada en flash");
+  else LOG_ERROR("AxisController: error al guardar la tabla anti-cogging");
+  return ok;
+}
+
+bool AxisController::load_cogging() {
+  if (!LittleFS.exists(COGGING_FILE))
+    return false;
+  File f = LittleFS.open(COGGING_FILE, "r");
+  if (!f)
+    return false;
+  uint32_t magic = 0, n = 0;
+  float tmp[ServoController::COGGING_TABLE_SIZE], tmp_dir[ServoController::COGGING_TABLE_SIZE], ref = 0.0f;
+  bool ok = f.read((uint8_t*)&magic, 4) == 4 && f.read((uint8_t*)&n, 4) == 4 && magic == COGGING_MAGIC &&
+            n == ServoController::COGGING_TABLE_SIZE &&
+            f.read((uint8_t*)tmp, n * sizeof(float)) == n * sizeof(float) &&
+            f.read((uint8_t*)tmp_dir, n * sizeof(float)) == n * sizeof(float) && f.read((uint8_t*)&ref, 4) == 4 &&
+            ref > 0.0f;
+  f.close();
+  if (!ok) {
+    LOG_WARNING("AxisController: el archivo de la tabla anti-cogging no es valido");
+    return false;
+  }
+  for (uint32_t i = 0; i < n; i++) {
+    servo_controller->cogging_table[i] = tmp[i];
+    servo_controller->cogging_table_dir[i] = tmp_dir[i];
+  }
+  servo_controller->cogging_dir_ref = ref;
+  return true;
 }
