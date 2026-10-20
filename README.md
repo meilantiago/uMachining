@@ -112,6 +112,7 @@ simulaciones/   modelo del campo magnético de la rueda
 - [Encoder y calibración](docs/DOCUMENTACION_ENCODER_Y_CALIBRACION.md)
 - [Reporte de la prueba de lazo cerrado](docs/REPORTE_PRUEBA_LAZO_CERRADO_2026-10-16.md)
 - [Método de análisis de errores y plan de caracterización](docs/METODO_DE_ERRORES_Y_PLAN_DE_CARACTERIZACION.md)
+- [Elección de POS_KI](docs/ELECCION_POS_KI.md)
 - [Registro de cambios](docs/CAMBIOS_2026-10-16.md) (y los `CAMBIOS_*.md` anteriores)
 
 ## Créditos
