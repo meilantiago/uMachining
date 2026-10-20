@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include "pico/sync.h"
+#include "servo_control/cogging_learner.h"
 
 //*** TELEMETRY *************************************************************************
 
@@ -128,6 +129,9 @@ struct SharedData {
   // misma posicion del motor que ya corrige el lazo servo. Con eso el integrador solo
   // acumula el error de seguimiento y corre el objetivo hasta +2 mm.
   volatile bool cascade_corrector_enabled = false;
+
+  // Reaprendizaje anti-cogging al calibrar (M56): el ISR del perfil acumula el error plegado.
+  CoggingLearner cogging_learner;
 
   spin_lock_t* lock = nullptr;
 };

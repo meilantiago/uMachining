@@ -685,7 +685,7 @@ def main():
     ap.add_argument("--baud", type=int, default=921600)
     ap.add_argument("--cycles", type=int, default=2, help="cantidad de idas y vueltas")
     ap.add_argument("--end", type=float, default=255.0, help="punta lejana [mm] (maximo 255)")
-    ap.add_argument("--feed", type=float, default=2.0, help="velocidad [mm/s] (el firmware limita a 2)")
+    ap.add_argument("--feed", type=float, default=2.0, help="velocidad [mm/s] (el firmware limita a 2; para mas, --pre \"M203 X4\")")
     ap.add_argument("--decimation", type=int, default=2, help="M120 P: 1 = 2 kHz, 2 = 1 kHz")
     ap.add_argument("--settle", type=float, default=0.5, help="tiempo asentado para dar el tramo por terminado [s]")
     ap.add_argument("--dwell", type=float, default=1.0, help="reposo en cada punta [s]")

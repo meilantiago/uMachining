@@ -1,0 +1,31 @@
+> M120 S0
+I)Telemetria binaria desactivada
+ok
+> M119
+homed=1 calibrated=1 target_mm=0.0000 pos_mm=0.0045 err_mm=0.1524 enc_deg=1730.440 crc_errors=-1
+servo: fault=0 motor_update=0 motor_pos=0.0056 rad vel=0.001 rad/s out=0.000 field=-16033.198 amp=0.60
+ok
+> G90
+ok
+> M203 X2
+max_velocidad=2.000 mm/s
+ok
+> M59 S1
+anti_cogging=1 ganancia=1.000 puntos=64 max=5.409 deg max_sentido=3.999 deg ref=2.000 mm/s campo_en_cero=-16033.195312 rad
+ok
+> M17
+ok
+> M120 S1 P2
+I)Telemetria binaria activada
+ok
+> G1 X50 F2
+ok
+> G1 X0 F2
+ok
+> M120 S0
+I)Telemetria binaria desactivada
+ok
+> M119
+homed=1 calibrated=1 target_mm=0.0000 pos_mm=-0.0000 err_mm=0.0000 enc_deg=1722.743 crc_errors=-1
+servo: fault=0 motor_update=1 motor_pos=-0.0000 rad vel=-0.000 rad/s out=-0.105 field=-16033.350 amp=0.60
+ok

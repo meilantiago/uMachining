@@ -28,6 +28,9 @@ constexpr float AXIS_MAX_POSITION_MM = 255.0f;
 // x2.5; G1 X200 llego bien a 0.5 vueltas/s).
 constexpr float DEFAULT_MAX_VELOCITY_MM_S = 2.0f;
 constexpr float DEFAULT_MAX_ACCEL_MM_S2   = 5.0f;
+// Tope de M203 X<mm/s>. Con la realimentacion anticipada de velocidad, el limite de 1 vuelta/s
+// (5 mm/s) del PI de posicion no limita el perfil; lo que limita es el margen de torque.
+constexpr float MAX_VELOCITY_LIMIT_MM_S = 5.0f;
 
 //--- MOTOR ---------------------------------------------------------------------
 // pole pairs del MOTOR paso a paso (no tiene nada que ver con los imanes de la rueda):
@@ -138,6 +141,19 @@ constexpr bool VELOCITY_FEEDFORWARD = true;
 constexpr bool COGGING_ENABLED_AT_BOOT = true;
 // Velocidad [mm/s] a la que se aprende la parte de la tabla que depende del sentido (M59 R la cambia).
 constexpr float COGGING_DIR_REF_MM_S = 2.0f;
+// Las tablas valen para la velocidad a la que se aprendieron: a 4 mm/s empeoraban el error ~2x (RMS 3-4 ->
+// 5-8 um). Por encima de la velocidad de referencia la compensacion baja lineal hasta 0 en
+// COGGING_FADE_END x referencia (3 mm/s).
+constexpr float COGGING_FADE_END = 1.5f;
+// Reaprendizaje de las tablas al final de cada M56 (M56 A0 lo saltea; con M56 H se saltea salvo A1,
+// porque no se sabe si hay recorrido libre). Hace COGGING_RELEARN_PASSES idas y vueltas
+// 0 -> COGGING_RELEARN_END_MM -> 0 a COGGING_DIR_REF_MM_S (~55 s cada una) y deja la tabla de la pasada
+// con menos error. Con M56 S tambien la guarda en flash.
+constexpr bool  COGGING_RELEARN_ON_CALIBRATION = true;
+constexpr int   COGGING_RELEARN_PASSES = 2;
+constexpr float COGGING_RELEARN_END_MM = 50.0f;
+constexpr float COGGING_RELEARN_GAIN = 0.8f;
+constexpr float COGGING_RELEARN_ABORT_UM = 150.0f;   // corta la pasada si el error pasa de esto
 
 constexpr float VEL_LOWPASS_TC = 0.004f;
 constexpr float VEL_KP = 0.2f;

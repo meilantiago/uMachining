@@ -174,9 +174,12 @@ float ServoController::cogging_feedforward(float field_angle, float velocity_ff)
   float w = fi - float(i);
   int j = (i + 1) % COGGING_TABLE_SIZE;
   float d = std::clamp(velocity_ff / cogging_dir_ref, -1.0f, 1.0f);
+  // por encima de la velocidad de aprendizaje se desvanece (ver COGGING_FADE_END)
+  float over = fabsf(velocity_ff) / cogging_dir_ref - 1.0f;
+  float fade = over <= 0.0f ? 1.0f : std::max(0.0f, 1.0f - over / (COGGING_FADE_END - 1.0f));
   float sym = cogging_table[i] * (1.0f - w) + cogging_table[j] * w;
   float dir = cogging_table_dir[i] * (1.0f - w) + cogging_table_dir[j] * w;
-  return cogging_gain * (sym + d * dir);
+  return cogging_gain * fade * (sym + d * dir);
 }
 
 void ServoController::resync() {
