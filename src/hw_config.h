@@ -107,7 +107,11 @@ constexpr float POS_KP = 60.0f;
 // 13/10/2026: 30000 -> 3000. Con 30000 el lazo quedaba en un ciclo limite en reposo en
 // algunas posiciones (40-50 Hz, +-17 um, salida +-60 grados; contra el tope en X0 se oia).
 // Con 3000 el seguimiento a 2 mm/s es el mismo (~11 um) y el reposo queda en ~1-4 um pico a pico.
-constexpr float POS_KI = 1500.0f;
+// 20/10/2026: 1500 -> 100 (docs/ELECCION_POS_KI.md). Con la realimentacion anticipada, POS_KI no
+// cambia el error en movimiento; en reposo, desde ~250 la integral "caza" contra la friccion estatica
+// (1500: +-0.17 um a 2.7 Hz). Con 100: reposo 0.002 um, margen x2 bajo el umbral, y conserva la
+// integral de posicion para desajustes lentos en movimiento (con 0 el atraso deriva +0.2 um).
+constexpr float POS_KI = 100.0f;
 
 // 16/10/2026 (ver docs/REPORTE_PRUEBA_LAZO_CERRADO_2026-10-16.md, Parte 2). Se cambian en
 // caliente con M58 V<0|1> F<0|1>.
