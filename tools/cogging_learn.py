@@ -107,7 +107,20 @@ def next_tables(history, gain, pi_last, G_mem):
     """Proximas (tabla, tabla_sentido) a partir de la historia [(tabla, tabla_sentido, {d: error}), ...]."""
     ts, ta, _ = history[-1]
     if len(history) == 1:
-        return ts + 0.5 * pi_last, ta.copy()            # prueba
+        if not G_mem:
+            return ts + 0.5 * pi_last, ta.copy()        # prueba: todavia no se sabe como responde cada armonico
+        # ya hay respuestas medidas (--g-from): paso de Newton directo con ellas
+        new = {}
+        for d in DIRS:
+            Tn = np.fft.rfft(ts + d * ta)
+            En = np.fft.rfft(history[-1][2][d])
+            out = Tn.copy()
+            for h in HARMONICS:
+                G = G_mem.get((d, h))
+                if G is not None and abs(G) > 1e-6:
+                    out[h] = Tn[h] - gain * En[h] / G
+            new[d] = np.fft.irfft(out, N_TABLE)
+        return (new[+1] + new[-1]) / 2, (new[+1] - new[-1]) / 2
     ts_p, ta_p, e_p = history[-2]
     e_n = history[-1][2]
     new = {}
@@ -323,6 +336,8 @@ def main():
     ap.add_argument("--dwell", type=float, default=3.0, help="reposo en cada punta [s]")
     ap.add_argument("--start-from-flash", action="store_true", help="arrancar desde las tablas guardadas (M59 L)")
     ap.add_argument("--continue-from", nargs="+", help="seguir desde corridas anteriores, en orden (misma velocidad)")
+    ap.add_argument("--g-from", nargs="+", help="tomar la respuesta de cada armonico (G) de corridas anteriores; "
+                    "sirve para reaprender rapido despues de una calibracion nueva (con --start-from-flash)")
     ap.add_argument("--save", action="store_true", help="guardar en flash las mejores tablas (M59 W)")
     ap.add_argument("--tag", default="")
     ap.add_argument("--from-dir")
@@ -357,6 +372,28 @@ def main():
         T.run_move(link, 0.0, args.feed, 0.5, "aproximacion")
 
         history, G_mem, pi_last = [], {}, np.zeros(N_TABLE)
+        if args.g_from:
+            # solo las respuestas G: dependen del motor y del lazo, no de la calibracion
+            g_hist = []
+            for gdir in args.g_from:
+                prev = json.load(open(os.path.join(gdir, "cogging.json")))
+                if prev.get("G"):                        # respuestas ya guardadas (no hacen falta los .npz)
+                    for key, (re_, im_) in prev["G"].items():
+                        dd_, hh_ = (int(x) for x in key.split(","))
+                        G_mem[(dd_, hh_)] = complex(re_, im_)
+                    continue
+                for it in prev["iteraciones"]:
+                    if not it["ok"]:
+                        continue
+                    dd, mm = load_iter(gdir, it)
+                    e = folds_by_dir(dd, mm, "err_um")
+                    if set(e) != {+1, -1}:
+                        continue
+                    g_hist.append((np.array(it["table_deg"]), np.array(it.get("table_dir_deg", [0.0] * N_TABLE)), e))
+                    if len(g_hist) >= 2:
+                        next_tables(g_hist, args.gain, pi_last, G_mem)
+            summ["g_de"] = args.g_from
+            print(f"respuestas por armonico tomadas de {args.g_from}: {len(G_mem)}")
         prev_runs = []
         for cdir in args.continue_from or []:
             prev = json.load(open(os.path.join(cdir, "cogging.json")))
@@ -381,7 +418,7 @@ def main():
 
         n_pass = args.iters + (0 if args.continue_from else 1)
         for k in range(n_pass):
-            tipo = "secante" if (args.continue_from or k >= 2) else ("prueba" if k == 1 else "referencia")
+            tipo = "secante" if (args.continue_from or k >= 2 or (k == 1 and G_mem)) else ("prueba" if k == 1 else "referencia")
             enabled = upload(link, ts, ta, args.feed)
             print(f"\n=== iteracion {k} ({tipo}): anti-cogging {'activo' if enabled else 'apagado'}, "
                   f"max {np.max(np.abs(ts)):.2f}° + por sentido {np.max(np.abs(ta)):.2f}°")
@@ -412,6 +449,7 @@ def main():
         best = min(ok_iters, key=lambda it: it["rms"])
         print(f"\nmejor iteracion: {best['iter']} (RMS {best['rms']:.2f} µm) -> queda cargada")
         summ["mejor"] = best["iter"]
+        summ["G"] = {f"{dd},{hh}": [g.real, g.imag] for (dd, hh), g in G_mem.items()}
         upload(link, np.array(best["table_deg"]), np.array(best["table_dir_deg"]), args.feed)
         if args.save:
             m59(link, "W")

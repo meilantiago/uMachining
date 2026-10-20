@@ -86,7 +86,7 @@ constexpr float CALIBRATION_RANGE = 400.0f;         // [grados] desde la posici�
 // Lo que queda cubierto en los dos sentidos (RANGE - 2*SKIP) tiene que pasar de 360°.
 constexpr float CALIBRATION_TRANSIENT_SKIP = 15.0f;
 constexpr float CALIBRATION_FIELD_VELOCITY = 20.0f; // velocidad del campo durante calibración
-constexpr int   ENCODER_LUT_SIZE = 1024;
+constexpr int   ENCODER_LUT_SIZE = 1024;             // tamaño de la lookup table (~0.36 grados por celda)
 // Filtrado de la huella del motor en la tabla encoder -> motor (ver docs/CAMBIOS_CALIBRACION_2026-10-20.md).
 // La tabla se arma girando el campo en lazo abierto y supone que el rotor sigue al campo de forma
 // pareja. No es asi: dentro de cada ciclo electrico el rotor adelanta/atrasa (retencion en cada paso,
@@ -94,7 +94,7 @@ constexpr int   ENCODER_LUT_SIZE = 1024;
 // 50*m veces por vuelta (100 um y 25 um de carro). La rueda de imanes se repite 30*m veces por vuelta.
 // Con esto se sacan de la tabla los armonicos 50*m que no coinciden con uno de la rueda (150, 300,
 // 450 coinciden y se dejan). Se puede apagar en una calibracion con M56 F0.
-constexpr bool CALIBRATION_FILTER_MOTOR_HARMONICS = true;             // tamaño de la lookup table (~0.36 grados por celda)
+constexpr bool CALIBRATION_FILTER_MOTOR_HARMONICS = true;
 
 //--- VERIFICACION DE CONMUTACION ----------------------------------------------
 // El homing fija el cero del encoder modulo UN periodo del encoder (1/30 de vuelta = 12° de
