@@ -41,7 +41,7 @@ Recorrido completo (0–255 mm) a 2 mm/s:
 
 ```bash
 # dependencias de las herramientas de PC
-pip install numpy matplotlib pyserial
+pip install numpy matplotlib pyserial PyQt5 pyqtgraph
 
 # compilar y cargar (cerrar antes el monitor serie)
 pio run -t upload
@@ -54,6 +54,12 @@ M56        homing + calibración
 M17        habilitar el lazo cerrado
 G1 X10     ir a X = 10 mm
 M114       posición actual
+```
+
+O con la interfaz gráfica ([guía de uso](docs/GUIA_INTERFAZ.md)):
+
+```bash
+python3 tools/interfaz.py
 ```
 
 O con el script:
@@ -81,6 +87,7 @@ python3 tools/send_gcode.py "M56" "M17" "G1 X10" "M114" --timeout 600
 
 | Script | Descripción |
 |---|---|
+| `tools/interfaz.py` | Interfaz gráfica: control remoto y telemetría en vivo ([guía](docs/GUIA_INTERFAZ.md)) |
 | `tools/send_gcode.py` | Mandar comandos en secuencia |
 | `tools/closed_loop_test.py` | Idas y vueltas con telemetría y gráficos de todo el recorrido |
 | `tools/pid_sweep.py` | Barrido de ganancias en caliente, con el error en movimiento y en reposo |
