@@ -1,0 +1,47 @@
+{
+ "configs": [
+  {
+   "name": "ref1500",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 1500.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ref1500.npz"
+  },
+  {
+   "name": "ki100",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki100.npz"
+  },
+  {
+   "name": "ref1500final",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 1500.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ref1500final.npz"
+  }
+ ],
+ "base": {
+  "pos_kp": 60.0,
+  "pos_ki": 100.0,
+  "vel_kp": 0.2,
+  "vel_ki": 90.0,
+  "vel_tc": 0.004
+ }
+}

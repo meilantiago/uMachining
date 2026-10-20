@@ -22,7 +22,7 @@ Recorrido completo (0–255 mm) a 2 mm/s:
 | | |
 |---|---|
 | Error de seguimiento en movimiento | 1,2–1,9 µm RMS (máx. 4–8 µm) |
-| Error en reposo | 0,1–0,4 µm (desvío estándar) |
+| Error en reposo | 0,002 µm (desvío estándar, `POS_KI = 100`) |
 | Resolución del encoder | 0,08 nm por cuenta |
 
 > Son errores de seguimiento: la posición medida por el encoder contra la pedida. La exactitud absoluta del carro todavía no se midió con una referencia externa.
@@ -103,7 +103,7 @@ simulaciones/   modelo del campo magnético de la rueda
 ## Notas
 
 - **Correr `M56` en cada arranque, no `G28`.** La calibración restaurada desde la flash puede dejar la conmutación corrida.
-- **Elegir bien `POS_KI`.** Con `POS_KI` ≤ 500 el reposo mejora y el movimiento no cambia ([resultados](mediciones/2026-10-16/barrido_pid_140929/RESULTADOS.md)).
+- **`POS_KI = 100`.** Deja el carro quieto en reposo (0,002 µm) sin cambiar el movimiento; por encima de ~200–250 la integral oscila contra la fricción estática ([elección](docs/ELECCION_POS_KI.md)).
 - **Forma de trabajo:** `master` es siempre una versión estable y etiquetada; cada prueba va en una rama `prueba/<nombre>`.
 
 ## Documentación

@@ -1,0 +1,10 @@
+Barrido de PID 2026-10-20T14:59:57: 0 -> 255 mm, 1 ciclo(s), 2 mm/s, velocidad_tabla=1 realimentacion_anticipada=1
+base: pos_kp=60, pos_ki=100, vel_kp=0.2, vel_ki=90, vel_tc=0.004
+
+config         cambio                     estado                    rms    max  const  imán  paso ciclo vuelta resto reposo max out
+                                                                   [µm]   [µm]   [µm]  [µm]  [µm]  [µm]   [µm]  [µm]   [µm]     [°]
+ref1500        POS_KI = 1500              ok                       1.77    4.9   0.69  0.53  2.02  0.40   0.30  0.74   0.16    78.8
+ki100          POS_KI = 100               ok                       1.78    5.2   0.68  0.55  2.04  0.38   0.30  0.75   0.09    80.1
+ref1500final   POS_KI = 1500              ok                       1.76    5.1   0.68  0.55  2.00  0.40   0.34  0.76   0.09    81.0
+
+componentes: amplitud (mitad del pico a pico de la forma plegada), promedio de los tramos; rms, resto y reposo: desvío estándar

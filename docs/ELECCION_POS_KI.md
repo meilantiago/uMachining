@@ -1,6 +1,6 @@
 # Elección de `POS_KI` (20/10/2026)
 
-**Decisión: `POS_KI = 100`** (antes 1500), con `POS_KP = 60` y el lazo de velocidad sin cambios (`VEL_KP 0.2`, `VEL_KI 90`, `VEL_LOWPASS_TC 4 ms`). La velocidad con la tabla y la realimentación anticipada siguen activas (`M58 V1 F1`).
+**Decisión: `POS_KI = 100`** (antes 1500), verificada en el carril completo (sección 6), con `POS_KP = 60` y el lazo de velocidad sin cambios (`VEL_KP 0.2`, `VEL_KI 90`, `VEL_LOWPASS_TC 4 ms`). La velocidad con la tabla y la realimentación anticipada siguen activas (`M58 V1 F1`).
 
 | | `POS_KI = 1500` (antes) | **`POS_KI = 100`** |
 |---|---|---|
@@ -103,13 +103,25 @@ Lo que coincide entre días y posiciones: **el movimiento no depende de `POS_KI`
 
 **Margen.** El umbral de caza más bajo que se vio fue de 200–250. 100 está entre 2 y 2,5 veces por debajo. El umbral depende de la fricción, que cambia con la temperatura, la lubricación, la posición en el carril y la carga, así que un margen ×2 es razonable. Con 150 o 200 quedaríamos a menos de ×1,7 de un umbral que se movió entre días.
 
-## 6. Límites y cómo revisarlo
+## 6. Verificación en el carril completo (20/10)
+
+Se corrió 0 → 255 → 0 mm a 2 mm/s con `POS_KI` = 1500 → 100 → 1500, todo con la misma calibración del ensayo de la sección 4 (`mediciones/2026-10-20/barrido_pid_145957/`). Los criterios se fijaron antes de medir: sin cortes, RMS y máximo dentro de ±5% de la referencia, y una deriva del atraso a lo largo del eje de no más de 0,05 µm.
+
+| | 1500 (inicio) | **100** | 1500 (final) |
+|---|---|---|---|
+| Cortes | no | **no** | no |
+| RMS en movimiento | 1,77 µm | **1,78 µm** | 1,76 µm |
+| Máximo en movimiento | 4,9 µm | **5,2 µm** | 5,1 µm |
+| Atraso medio cada 50 mm, ida | +0,679 … +0,691 µm | **+0,680 … +0,692 µm** | +0,680 … +0,689 µm |
+| Atraso medio cada 50 mm, vuelta | −0,685 … −0,691 µm | **−0,680 … −0,692 µm** | −0,681 … −0,685 µm |
+| Rango del atraso a lo largo del eje | 0,012 / 0,006 µm | **0,012 / 0,012 µm** | 0,009 / 0,004 µm |
+| Quieto después de llegar (sin el primer segundo) | 0,12–0,18 µm, oscilando | **0,006–0,017 µm** | 0,13–0,15 µm, oscilando |
+
+**Se cumplen los tres criterios.** El movimiento es el mismo (+1% de RMS, +4% de máximo, dentro de la variación entre las dos referencias), y **no aparece la deriva del atraso que se vio con `POS_KI = 0`**: el atraso queda plano en todo el carril, igual que con 1500. En el reposo de las puntas, que en esta prueba dura solo ~1,5 s, el carro queda quieto en vez de oscilar. **`POS_KI = 100` queda adoptado** en `src/hw_config.h`.
+
+## 7. Límites y cómo revisarlo
 
 - **No se probó con carga** (fuerza de corte). Según la sección 1, contra una carga constante la integral de velocidad ya asegura error final cero, pero conviene confirmarlo cuando haya un ensayo con carga.
-- **El carril completo con 100 no se midió.** La deriva con 0 y la ausencia de deriva con 250–1500 son del 16/10. Para cerrarlo alcanza una corrida de 4,5 min:
-  ```bash
-  python3 tools/pid_sweep.py --config "ki100:pos_ki=100"
-  ```
 - **El umbral depende de la fricción.** Después de cambios mecánicos (lubricar, arreglar el roce de la rueda, cambiar el acople), repetir el ensayo:
   ```bash
   python3 tools/pid_sweep.py --end 20 --cycles 2 --dwell 10 --config "ki0:pos_ki=0" --config "ki100:pos_ki=100" --config "ki150:pos_ki=150" --config "ki200:pos_ki=200" --config "ki250:pos_ki=250"
@@ -117,7 +129,8 @@ Lo que coincide entre días y posiciones: **el movimiento no depende de `POS_KI`
   ```
 - **El error que queda en movimiento (~1,8 µm RMS) no depende del PID:** viene de la huella de los pasos del motor en la calibración.
 
-## 7. Archivos
+## 8. Archivos
 
+- `mediciones/2026-10-20/barrido_pid_145957/`: verificación en el carril completo (sección 6).
 - `mediciones/2026-10-20/barrido_pid_144225/`: datos y gráficos del ensayo. `eleccion_pos_ki.png`, `reposo_trazas.png` y `eleccion_pos_ki.csv` salen de `tools/ki_eleccion.py`; el resto, de `tools/pid_sweep.py`.
 - Barridos anteriores: tabla de la sección 3.
