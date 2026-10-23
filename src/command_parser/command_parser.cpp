@@ -47,7 +47,7 @@ GCodeCommand::EParseStatus GCodeCommand::from_command_str(const char* gcode_comm
       if(token[1] == '\0')
         set_value(token[0], 0.0f);
       else
-        set_value(token[0], strtof(token + 1, nullptr));
+        set_value(token[0], strtod(token + 1, nullptr));
     } else {
       return EParseStatus::INVALID_PARAMETER;
     }
@@ -59,13 +59,13 @@ GCodeCommand::EParseStatus GCodeCommand::from_command_str(const char* gcode_comm
 
 void GCodeCommand::reset() {
   // Initialize all word values to NaN to represent "not set"
-  for (float& value : word_values) {
-    value = std::numeric_limits<float>::quiet_NaN();
+  for (double& value : word_values) {
+    value = std::numeric_limits<double>::quiet_NaN();
   }
   command[0] = 0;
 }
 
-void GCodeCommand::set_value(char word, float value) {
+void GCodeCommand::set_value(char word, double value) {
   if (word >= 'A' && word <= 'Z') {
     word_values[word-'A'] = value;
   }
@@ -76,8 +76,12 @@ float GCodeCommand::get_value(char word) const {
 }
 
 float GCodeCommand::get_value(char word, float default_value) const {
+  return float(get_value_double(word, default_value));
+}
+
+double GCodeCommand::get_value_double(char word, double default_value) const {
   if (word >= 'A' && word <= 'Z') {
-    float value = word_values[word-'A'];
+    double value = word_values[word-'A'];
     return std::isnan(value) ? default_value : value;
   }
   return default_value;

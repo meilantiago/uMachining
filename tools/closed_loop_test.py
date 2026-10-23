@@ -25,9 +25,10 @@ Requiere el eje homeado y calibrado (G28 o M56). Si salta el corte por falla, la
 detiene, guarda M119 y la traza M121 junto al .npz, y grafica lo capturado hasta ahi.
 Cerrar antes cualquier otro programa que tenga el puerto serie abierto.
 
-Paquete de telemetria (ver src/shared_data.h): 0xAA 0x55 + 28 bytes little endian
-    uint32 t_us, float target_mm, float pos_mm, float vel [rad/s], float out [rad],
+Paquete de telemetria (ver src/shared_data.h): 0xAA 0x56 + 28 bytes little endian
+    uint32 t_us, int32 target [0.25 nm], int32 pos [0.25 nm], float vel [rad/s], float out [rad],
     int32 chip_raw, uint8 status, uint8 flags, uint16 seq
+(hasta el 23/10/2026 era 0xAA 0x55 con target y pos en float [mm])
 """
 import argparse
 import datetime
@@ -56,8 +57,9 @@ OUT_LIMIT_DEG = np.degrees(0.45 * np.pi)   # limite de la salida del lazo de vel
 FAULT_ERR_MM = 1.0                # corte por falla del firmware: >1 mm durante 0.5 s
 TICK_HZ = 2000                    # ISR del perfil
 
-PKT = struct.Struct("<IffffiBBH")
-HEADER = b"\xaa\x55"
+PKT = struct.Struct("<IiiffiBBH")
+HEADER = b"\xaa\x56"
+POS_LSB_MM = 0.25e-6              # unidad de target y pos en el paquete (POSITION_LSB_MM)
 FIELDS = ["t_us", "target_mm", "pos_mm", "vel", "out", "chip_raw", "status", "flags", "seq"]
 
 STATUS_BITS = {0x01: "overspeed", 0x02: "campo debil", 0x04: "subtension", 0x08: "error CRC"}
@@ -127,7 +129,8 @@ class Link:
                 del self.buf[:i]
             if len(self.buf) < 2 + PKT.size:
                 return
-            self.rows.append(PKT.unpack_from(self.buf, 2))
+            t_us, target_q, pos_q, *rest = PKT.unpack_from(self.buf, 2)
+            self.rows.append((t_us, target_q * POS_LSB_MM, pos_q * POS_LSB_MM, *rest))
             self.leg.append(self.current_leg)
             del self.buf[:2 + PKT.size]
 

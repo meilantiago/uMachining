@@ -48,12 +48,12 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
     // ultimo G1 (p.ej. 255 mm tras un corte a mitad de camino): el lazo arrancaba con
     // cientos de mm de error y el corte por falla (>1 mm durante 0.5 s) volvia a saltar
     // a los 0.5 s. Ahora hay que volver a mandar el G1 despues del M17.
-    float pos_mm = axis->get_position_mm();
+    double pos_mm = axis->get_position_mm();
     uint32_t irq_state = save_and_disable_interrupts();
     profile->start(pos_mm, pos_mm, max_velocity_mm_s, max_accel_mm_s2);
     restore_interrupts(irq_state);
     current_target_mm = pos_mm;
-    shared_data->target_position_mm = pos_mm;
+    shared_data->set_target_position_mm(pos_mm);
     cascade_corrector->reset();
     axis->set_motor_enabled(true);
     reply = "ok\n";
@@ -164,12 +164,12 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
     shared_data->servo_loop_enabled = false;
     sleep_ms(5);
     axis->commutation_sweep(dist, speed, decimation);
-    float pos_mm = axis->get_position_mm();
+    double pos_mm = axis->get_position_mm();
     uint32_t irq_state = save_and_disable_interrupts();
     profile->start(pos_mm, pos_mm, max_velocity_mm_s, max_accel_mm_s2);
     restore_interrupts(irq_state);
     current_target_mm = pos_mm;
-    shared_data->target_position_mm = pos_mm;
+    shared_data->set_target_position_mm(pos_mm);
     shared_data->servo_loop_enabled = true;
     reply = "ok\n";
     return;
@@ -189,8 +189,8 @@ void SingleAxisCommandProcessor::process_move_command(const GCodeCommand& cmd, s
     return;
   }
 
-  float x = cmd.get_value('X');
-  float target_mm = absolute_mode ? x : (current_target_mm + x);
+  double x = cmd.get_value_double('X', 0.0);
+  double target_mm = absolute_mode ? x : (current_target_mm + x);
 
   if (target_mm < AXIS_MIN_POSITION_MM || target_mm > AXIS_MAX_POSITION_MM) {
     reply = "error: posicion fuera de rango [" +
@@ -242,9 +242,9 @@ static bool relearn_leg(AxisController* axis, TrapezoidalProfile* profile, Share
   bool ok = true;
   while (!profile->is_idle()) {
     sleep_ms(5);
-    float target = profile->get_current_position();
-    float pos = axis->get_position_mm();
-    float err_um = 1000.0f * fabsf(target - pos);
+    double target = profile->get_current_position();
+    double pos = axis->get_position_mm();
+    float err_um = float(1000.0 * fabs(target - pos));
     if (axis->has_servo_fault() || err_um > COGGING_RELEARN_ABORT_UM) {
       LOG_ERROR("Reaprendizaje anti-cogging: corte hacia %.1f mm: objetivo %.4f mm, posicion %.4f mm, "
                 "error %.1f um, falla %d", dest, target, pos, err_um, (int)axis->has_servo_fault());
@@ -256,7 +256,7 @@ static bool relearn_leg(AxisController* axis, TrapezoidalProfile* profile, Share
   if (!ok) {
     // frenar donde esta el objetivo ahora
     irq_state = save_and_disable_interrupts();
-    float p = profile->get_current_position();
+    double p = profile->get_current_position();
     profile->start(p, p, COGGING_DIR_REF_MM_S, accel);
     restore_interrupts(irq_state);
     return false;
@@ -280,11 +280,11 @@ static bool relearn_cogging(AxisController* axis, TrapezoidalProfile* profile, S
   learner.begin(axis->field_angle_at_zero(), MOTOR_POLE_PAIRS * Constants::TWO_PI_F / LEAD_SCREW_PITCH_MM,
                 COGGING_DIR_REF_MM_S);
   // la calibracion deja el lazo apagado: rearmarlo quieto donde esta el carro (como M17) e ir a 0
-  float pos_mm = axis->get_position_mm();
+  double pos_mm = axis->get_position_mm();
   uint32_t irq_state = save_and_disable_interrupts();
   profile->start(pos_mm, pos_mm, COGGING_DIR_REF_MM_S, accel);
   restore_interrupts(irq_state);
-  shared_data->target_position_mm = pos_mm;
+  shared_data->set_target_position_mm(pos_mm);
   axis->set_motor_enabled(true);
   if (!relearn_leg(axis, profile, shared_data, 0.0f, accel, false)) {
     reply += "anti-cogging: no pudo ir a 0, sin reaprender\n";
@@ -293,7 +293,7 @@ static bool relearn_cogging(AxisController* axis, TrapezoidalProfile* profile, S
   // asentar: hasta 200 ms seguidos a menos de 20 um, 5 s como mucho
   for (int t = 0, quiet = 0; quiet < 40; t++) {
     sleep_ms(5);
-    float err_um = 1000.0f * fabsf(profile->get_current_position() - axis->get_position_mm());
+    float err_um = float(1000.0 * fabs(profile->get_current_position() - axis->get_position_mm()));
     quiet = err_um < 20.0f ? quiet + 1 : 0;
     if (t > 1000) {
       LOG_ERROR("Reaprendizaje anti-cogging: el eje no se asienta en 0 (error %.1f um)", err_um);
@@ -370,7 +370,7 @@ void SingleAxisCommandProcessor::process_home_command(const GCodeCommand& cmd, s
     uint32_t irq_state = save_and_disable_interrupts();
     profile->start(0.0f, 0.0f, max_velocity_mm_s, max_accel_mm_s2); // deja el perfil quieto en 0
     restore_interrupts(irq_state);
-    shared_data->target_position_mm = 0.0f;
+    shared_data->set_target_position_mm(0.0);
     cascade_corrector->reset();  // limpiar integral para evitar windup residual
   }
 
@@ -414,7 +414,7 @@ void SingleAxisCommandProcessor::process_calibrate_command(const GCodeCommand& c
     uint32_t irq_state = save_and_disable_interrupts();
     profile->start(0.0f, 0.0f, max_velocity_mm_s, max_accel_mm_s2);
     restore_interrupts(irq_state);
-    shared_data->target_position_mm = 0.0f;
+    shared_data->set_target_position_mm(0.0);
     cascade_corrector->reset();  // limpiar integral para evitar windup residual
   }
 
@@ -430,9 +430,9 @@ void SingleAxisCommandProcessor::process_calibrate_command(const GCodeCommand& c
 
 void SingleAxisCommandProcessor::process_report_position_command(std::string& reply) {
   // posicion calculada por Core 1: leer el encoder desde aca chocaria con sus lecturas SPI
-  float pos_mm = axis->get_position_mm();
+  double pos_mm = axis->get_position_mm();
   char buf[64];
-  snprintf(buf, sizeof(buf), "X:%.4f\n", pos_mm);
+  snprintf(buf, sizeof(buf), "X:%.6f\n", pos_mm);
   reply = std::string(buf) + "ok\n";
 }
 
@@ -443,7 +443,7 @@ void SingleAxisCommandProcessor::process_report_status_command(std::string& repl
 
   char buf[256];
   snprintf(buf, sizeof(buf),
-    "homed=%d calibrated=%d target_mm=%.4f pos_mm=%.4f err_mm=%.4f enc_deg=%.3f crc_errors=%d\n",
+    "homed=%d calibrated=%d target_mm=%.6f pos_mm=%.6f err_mm=%.6f enc_deg=%.3f crc_errors=%d\n",
     axis->is_homed(), axis->is_calibrated(),
     current_target_mm, axis->get_position_mm(), axis->get_position_error_mm(),
     encoder_angle_deg, (int)crc_errors);

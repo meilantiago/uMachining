@@ -50,7 +50,7 @@ uint64_t last_profile_update_time_us = 0;
 // El sistema real tiene un ÚNICO encoder MT6835 frente a una rueda multipolar magnética.
 // La lectura lineal (el avance real del husillo) se infiere aquí directamente del
 // controlador del eje.
-float read_linear_encoder() {
+double read_linear_encoder() {
   return axis->get_position_mm();
 }
 
@@ -69,18 +69,19 @@ bool update_motion_profile_isr(repeating_timer_t* timer) {
   float dt = float(time_us - last_profile_update_time_us) * 1e-6f;
   last_profile_update_time_us = time_us;
 
-  float pos_mm, vel_mm_s;
+  double pos_mm;
+  float vel_mm_s;
   motion_profile.update(dt, pos_mm, vel_mm_s);
 
   // --- Lazo externo de cascada (encoder lineal) ---
   // Lee la posición del encoder lineal y aplica la corrección PI.
   // Con el mock, linear_pos ≈ motor_pos y la corrección es mínima.
-  float linear_pos = read_linear_encoder();
+  double linear_pos = read_linear_encoder();
   if (shared_data.cogging_learner.active)
     shared_data.cogging_learner.add(pos_mm, linear_pos, vel_mm_s);
-  float corrected_pos = pos_mm;  // default: sin corrección
+  double corrected_pos = pos_mm;  // default: sin corrección
   if (shared_data.cascade_corrector_enabled) {
-    corrected_pos = cascade_corrector.update(pos_mm, linear_pos, dt);
+    corrected_pos = cascade_corrector.update(pos_mm, linear_pos, dt);  // en float: pierde los nm
   }
 
   if (spin_try_lock_unsafe(shared_data.lock)) {
@@ -100,8 +101,8 @@ bool update_motion_profile_isr(repeating_timer_t* timer) {
     ServoController* servo = axis->get_servo_controller();
     TelemetryPoint tp;
     tp.timestamp_us = static_cast<uint32_t>(time_us);   // truncar a 32 bits
-    tp.target_mm    = pos_mm;                            // referencia pre-corrección (perfil puro)
-    tp.motor_pos_mm = linear_pos;                        // = axis->get_position_mm()
+    tp.target_q     = int32_t(lround(pos_mm * (1.0 / POSITION_LSB_MM)));  // referencia pre-corrección (perfil puro)
+    tp.motor_pos_q  = axis->get_position_q();            // = linear_pos, sin pasar por double
     tp.vel          = servo->get_velocity();
     tp.out          = servo->get_output();
     tp.chip_raw     = axis->get_encoder()->get_last_chip_raw_angle();
@@ -130,7 +131,7 @@ void main_core1() {
 
     if (shared_data.servo_loop_enabled) {
       spin_lock_unsafe_blocking(shared_data.lock);
-      float target_mm = shared_data.target_position_mm;
+      double target_mm = shared_data.target_position_mm;
       float target_vel_mm_s = shared_data.target_velocity_mm_s;
       spin_unlock_unsafe(shared_data.lock);
 
@@ -193,7 +194,7 @@ void loop() {
   if (shared_data.telemetry_enabled) {
     static constexpr int TELEMETRY_DRAIN_BATCH_SIZE = 50;
     static constexpr int TELEMETRY_PACKET_SIZE = 2 + sizeof(TelemetryPoint);  // header + 28 bytes
-    static constexpr uint8_t TELEMETRY_HEADER[2] = {0xAA, 0x55};
+    static constexpr uint8_t TELEMETRY_HEADER[2] = {0xAA, 0x56};   // 0x56: posiciones en int32 (ver shared_data.h)
 
     TelemetryPoint tp;
     int drained = 0;

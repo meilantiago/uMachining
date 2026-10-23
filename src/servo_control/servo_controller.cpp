@@ -64,6 +64,7 @@ void ServoController::init(float max_motor_amplitude) {
 
 void ServoController::set_enc_to_pos_lut(LookupTable& lut) {
   ServoController::encoder_raw_to_motor_pos_lut = lut;
+  lut_periods = INT32_MIN;   // recalcular el desplazamiento con la tabla nueva
 }
 
 // get the motor position to field angle lookup table
@@ -99,7 +100,7 @@ static float lut_slope(const LookupTable& lut, ServoController::ENCODER_TYPE::Ab
   return (lut.get_entry(i + 1) - lut.get_entry(i)) / cell;
 }
 
-void ServoController::update(float target_motor_pos, float dt, float one_over_dt, float velocity_ff) {
+void ServoController::update(double target_motor_pos, float dt, float one_over_dt, float velocity_ff) {
   if(encoder_update_enabled == false)
     return;
 
@@ -107,10 +108,18 @@ void ServoController::update(float target_motor_pos, float dt, float one_over_dt
   ENCODER_TYPE::AbsRawAngleType encoder_angle_raw = encoder.read_abs_angle_raw();
 
   // convert encoder angle to motor pos using LUT and compute field angle
-  motor_pos = encoder_angle_to_motor_pos(encoder_angle_raw);
-  float field_angle = motor_pos_to_field_angle(motor_pos);
+  int32_t periods;
+  float local_pos = encoder_raw_to_motor_pos_lut.evaluate_periodic_split(encoder_angle_raw, periods);
+  if (periods != lut_periods) {
+    lut_periods = periods;
+    lut_periods_offset = double(periods) * double(encoder_raw_to_motor_pos_lut.get_period_out());
+  }
+  motor_pos = lut_periods_offset + double(local_pos);
+  // a la conmutacion le alcanza el float (0.002 rad electricos a 320 rad de motor)
+  float field_angle = motor_pos_to_field_angle(float(motor_pos));
 
-  pos_error = target_motor_pos-motor_pos;
+  // la resta en double: el error es chico y entra en float sin perder nada
+  pos_error = float(target_motor_pos - motor_pos);
 
   // velocity estimate
   // Con tabla periodica, la velocidad sale directo de las cuentas del encoder (enteras,
@@ -127,7 +136,7 @@ void ServoController::update(float target_motor_pos, float dt, float one_over_dt
       : encoder_raw_to_motor_pos_lut.get_period_out() / period_in;
     velocity_unfiltered = float(encoder_angle_raw - encoder_angle_raw_prev) * rad_per_count * one_over_dt;
   } else {
-    velocity_unfiltered = (motor_pos - motor_pos_prev)*one_over_dt;
+    velocity_unfiltered = float(motor_pos - motor_pos_prev)*one_over_dt;
   }
   encoder_angle_raw_prev = encoder_angle_raw;
   velocity = velocity_lowpass.update(velocity_unfiltered, dt);
@@ -197,11 +206,11 @@ bool ServoController::at_position(float motor_pos_eps) {
   return fabs(pos_error) < motor_pos_eps;
 }
 
-float ServoController::read_position() {
+double ServoController::read_position() {
   return encoder_angle_to_motor_pos(encoder.read_abs_angle_raw());
 }
 
-float ServoController::get_position() {
+double ServoController::get_position() {
   return motor_pos;
 }
 
@@ -285,7 +294,7 @@ void ServoController::set_motor_enabled(bool enable, bool synchronize_field_angl
   if(enable) {
     // synchronize field angle to motor_pos
     if(synchronize_field_angle) {
-      float start_field_angle = motor_pos_to_field_angle(motor_pos);
+      float start_field_angle = motor_pos_to_field_angle(float(motor_pos));
       motor_driver.set_field_angle(start_field_angle);
     }
 
@@ -313,8 +322,8 @@ void ServoController::set_encoder_update_enabled(bool enable) {
   encoder_update_enabled = enable;
 }
 
-float ServoController::encoder_angle_to_motor_pos(ENCODER_TYPE::AbsRawAngleType encoder_angle_raw) {
-  return encoder_raw_to_motor_pos_lut.evaluate(encoder_angle_raw);
+double ServoController::encoder_angle_to_motor_pos(ENCODER_TYPE::AbsRawAngleType encoder_angle_raw) {
+  return encoder_raw_to_motor_pos_lut.evaluate_periodic(encoder_angle_raw);
 }
 
 float ServoController::motor_pos_to_field_angle(float motor_pos) {

@@ -39,7 +39,8 @@ class ServoController {
 
     // Updates the servo loop. velocity_ff: velocidad del perfil [rad/s] que se suma a la que
     // pide el lazo de posicion (realimentacion anticipada; solo si feedforward_enabled).
-    void update(float target_motor_pos,
+    // Posiciones en double: en float, a 255 mm (320 rad) van de a 3e-5 rad = 24 nm.
+    void update(double target_motor_pos,
                 float dt,
                 float one_over_dt,
                 float velocity_ff = 0.0f);
@@ -67,10 +68,10 @@ class ServoController {
     bool at_position(float motor_pos_eps);
 
     // Reads the current motor position from the encoder.
-    float read_position();
+    double read_position();
 
     // Returns the motor position.
-    float get_position();
+    double get_position();
 
     // Returns the current position error from the last servo loop update.
     float get_position_error();
@@ -116,7 +117,7 @@ class ServoController {
     void resync();
 
   public:
-    float encoder_angle_to_motor_pos(ENCODER_TYPE::AbsRawAngleType encoder_angle_raw);
+    double encoder_angle_to_motor_pos(ENCODER_TYPE::AbsRawAngleType encoder_angle_raw);
     float motor_pos_to_field_angle(float motor_pos);
     float motor_pos_to_field_angle_derivative(float motor_pos);
 
@@ -133,10 +134,14 @@ class ServoController {
 
     float motor_pole_pair_count = 0.0f;   // number as motor pole pairs (as float to avoid repeated conversion)
     float motor_current_amplitude = 0.5f; // motor current in range [0..1]
-    float motor_pos = 0;                  // current motor position
-    float motor_pos_prev = 0;             // previous motor position
+    double motor_pos = 0;                 // current motor position
+    double motor_pos_prev = 0;            // previous motor position
+    // vueltas enteras de la ultima lectura y su desplazamiento en rad: cambia una vez por vuelta,
+    // asi el lazo no hace la multiplicacion en double en cada pasada
+    int32_t lut_periods = INT32_MIN;
+    double lut_periods_offset = 0.0;
     ENCODER_TYPE::AbsRawAngleType encoder_angle_raw_prev = 0; // previous encoder reading
-    float pos_error = 0;                  // current position error as computed by upate()
+    float pos_error = 0;                  // current position error as computed by upate() (diferencia de doubles)
     float velocity = 0;                   // current velocity estimate
     float output = 0.0f;                  // servo loop output (field angle offset)
     volatile bool motor_update_enabled = false; // enables mootor field updates (Core 0 la escribe, Core 1 la lee)

@@ -52,7 +52,7 @@ class SingleAxisCommandProcessor : public ICommandProcessor {
     LinearCascadeCorrector* cascade_corrector;
 
     bool absolute_mode = true;   // G90 (default) vs G91
-    float current_target_mm = 0.0f;
+    double current_target_mm = 0.0;
     float max_velocity_mm_s = 0.0f;
     float max_accel_mm_s2 = 0.0f;
 };

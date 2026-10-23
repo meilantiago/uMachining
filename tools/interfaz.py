@@ -10,9 +10,10 @@ puerto abierto (monitor serie de PlatformIO, otros scripts de tools/).
 No cambia nada del firmware: manda los mismos comandos G-code que se escriben a mano y
 prende la telemetría binaria (M120). Protocolo (ver src/command_processor.cpp y
 src/shared_data.h): una respuesta por comando, terminada en "ok" o "error: ...", con los
-paquetes de telemetría mezclados en el mismo puerto: 0xAA 0x55 + 28 bytes little endian
-    uint32 t_us, float target_mm, float pos_mm, float vel [rad/s], float out [rad],
+paquetes de telemetría mezclados en el mismo puerto: 0xAA 0x56 + 28 bytes little endian
+    uint32 t_us, int32 target [0,25 nm], int32 pos [0,25 nm], float vel [rad/s], float out [rad],
     int32 chip_raw, uint8 status, uint8 flags, uint16 seq
+(hasta el 23/10/2026 era 0xAA 0x55 con objetivo y posición en float [mm]: de a 15 nm a 200 mm)
 """
 import argparse
 import datetime
@@ -54,10 +55,9 @@ import pyqtgraph as pg  # noqa: E402
 BAUD = 921600
 PITCH_MM = 5.0                 # husillo: mm por vuelta de motor
 AXIS_MIN_MM, AXIS_MAX_MM = 0.0, 255.0
-POS_DECIMALS = 5              # 10 nm. El piso real es el float32 del firmware (posición en rad):
-                              # ~3 nm a 30 mm, ~12 nm a 150 mm, ~24 nm de 204 a 255 mm
-POS_PLOT_MIN_SPAN_MM = 5e-5    # 50 nm: con el eje quieto el autoescalado no persigue el escalón
-                              # del float32 (~12 nm a 150 mm) pero se ve un paso de 10 nm
+POS_DECIMALS = 5              # 10 nm en destino, G1 e indicadores (la telemetría viene de a 0,25 nm)
+POS_PLOT_MIN_SPAN_MM = 5e-5    # 50 nm: con el eje quieto el autoescalado no hace zoom al ruido de
+                              # nm (la telemetría viene de a 0,25 nm) pero se ve un paso de 10 nm
 SPEED_DEFAULT = 2.0            # mm/s: la velocidad para la que se aprende el anti-cogging
 SPEED_SAFE = 2.0               # por encima el anti-cogging se desvanece (no está a 3 mm/s)
 SPEED_MAX = 5.0                # MAX_VELOCITY_LIMIT_MM_S (a 4 mm/s ya falta torque)
@@ -68,8 +68,9 @@ TELEMETRY_DECIMATION = 2       # M120 P2: un punto cada 2 ticks de la ISR de 2 k
 HISTORY_S = 130                # lo que se guarda para los gráficos
 STOP_LEAD_S = 0.015            # Detener: frena donde va a estar el objetivo cuando llegue el G1
 
-PKT = struct.Struct("<IffffiBBH")
-HEADER = b"\xaa\x55"
+PKT = struct.Struct("<IiiffiBBH")
+HEADER = b"\xaa\x56"
+POS_LSB_MM = 0.25e-6           # unidad del objetivo y la posición en el paquete (POSITION_LSB_MM)
 STATUS_BITS = {0x01: "sobrevelocidad", 0x02: "campo débil", 0x04: "subtensión", 0x08: "error CRC"}
 LOG_PREFIXES = ("I)", "W)", "E)", "D)")
 # comandos que bloquean el firmware un buen rato (el resto responde en milisegundos)
@@ -251,7 +252,8 @@ class Link(QtCore.QObject):
                 del buf[:i]
             if len(buf) < 2 + PKT.size:
                 break
-            row = PKT.unpack_from(buf, 2)
+            t_us, target_q, pos_q, *rest = PKT.unpack_from(buf, 2)
+            row = (t_us, target_q * POS_LSB_MM, pos_q * POS_LSB_MM, *rest)
             if all(math.isfinite(v) and abs(v) < 1e6 for v in row[1:5]):
                 rows.append(row)
                 del buf[:2 + PKT.size]
@@ -1568,7 +1570,7 @@ class MainWindow(QtWidgets.QMainWindow):
         err = (new[History.TARGET] - new[History.POS]) * 1000.0
         cols = np.vstack([new[History.T], new[History.TARGET], new[History.POS], err, new[History.VEL],
                           new[History.OUT], new[History.STATUS], new[History.FLAGS]]).T
-        np.savetxt(self.rec_file, cols, fmt=["%.4f", "%.6f", "%.6f", "%.3f", "%.4f", "%.2f", "%d", "%d"],
+        np.savetxt(self.rec_file, cols, fmt=["%.4f", "%.7f", "%.7f", "%.4f", "%.4f", "%.2f", "%d", "%d"],
                    delimiter=",")
 
     def closeEvent(self, ev):

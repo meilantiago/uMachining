@@ -1,4 +1,6 @@
 #include <LittleFS.h>
+#include <algorithm>
+#include <cmath>
 #include "pico/multicore.h"
 
 #include "axis_controller.h"
@@ -13,6 +15,9 @@ AxisController::AxisController(MT6835Encoder* encoder, TB6612MotorDriver* motor_
                                float motor_pole_pairs, float lead_screw_pitch_mm)
   : encoder(encoder), motor_driver(motor_driver), lead_screw_pitch_mm(lead_screw_pitch_mm)
 {
+  // mismo 2*pi que motor_pos_rad_to_mm() y que la vuelta de la tabla (period_out)
+  mm_to_rad = double(Constants::TWO_PI_F) / double(lead_screw_pitch_mm);
+  rad_to_q = 1.0 / (mm_to_rad * POSITION_LSB_MM);
   servo_controller = new ServoController(*motor_driver, *encoder, (int32_t)motor_pole_pairs);
 }
 
@@ -81,10 +86,10 @@ bool AxisController::home(float direction_sign, bool search_stop) {
   }
 
   servo_controller->resync();
-  last_position_mm = motor_pos_rad_to_mm(servo_controller->get_position());
+  publish_position();
   homed = true;
   LOG_INFO("AxisController: homing OK (pos = %.4f mm). Lazo cerrado apagado: M17 para habilitarlo.",
-           last_position_mm);
+           get_position_mm());
   return true;
 }
 
@@ -164,7 +169,7 @@ bool AxisController::calibrate(float homing_direction_sign, bool store_to_flash,
     return false;
   }
   servo_controller->resync();
-  last_position_mm = motor_pos_rad_to_mm(servo_controller->get_position());
+  publish_position();
   calibrated = true;
 
   if (store_to_flash) {
@@ -175,12 +180,12 @@ bool AxisController::calibrate(float homing_direction_sign, bool store_to_flash,
   return true;
 }
 
-void AxisController::update_servo(float target_position_mm, float dt, float one_over_dt,
+void AxisController::update_servo(double target_position_mm, float dt, float one_over_dt,
                                   float target_velocity_mm_s) {
-  float target_motor_pos_rad = mm_to_motor_pos_rad(target_position_mm);
+  double target_motor_pos_rad = target_position_mm * mm_to_rad;
   float velocity_ff = target_velocity_mm_s / lead_screw_pitch_mm * Constants::TWO_PI_F;
   servo_controller->update(target_motor_pos_rad, dt, one_over_dt, velocity_ff);
-  last_position_mm = motor_pos_rad_to_mm(servo_controller->get_position());
+  publish_position();
 
   // Corte de seguridad: si el eje queda lejos del objetivo mucho tiempo, el encoder
   // probablemente no sigue al rotor (rueda de imanes patinando, zona de campo debil)
@@ -200,8 +205,8 @@ void AxisController::update_servo(float target_position_mm, float dt, float one_
   if (!trace_frozen && now_us - last_trace_us >= 1000) {
     TracePoint& p = trace[trace_head];
     p.t_us = uint32_t(now_us);
-    p.target_mm = target_position_mm;
-    p.pos_mm = last_position_mm;
+    p.target_mm = float(target_position_mm);
+    p.pos_mm = float(get_position_mm());
     p.vel = servo_controller->get_velocity();
     p.out = servo_controller->get_output();
     p.chip_raw = encoder->get_last_chip_raw_angle();
@@ -213,14 +218,14 @@ void AxisController::update_servo(float target_position_mm, float dt, float one_
     if (trace_count < TRACE_SIZE) trace_count = trace_count + 1;
   }
 
-  if (fabsf(target_position_mm - last_position_mm) < FAULT_ERROR_MM) {
+  if (fabsf(get_position_error_mm()) < FAULT_ERROR_MM) {   // en float: es chico
     fault_since_us = 0;
   } else if (fault_since_us == 0) {
     fault_since_us = now_us;
   } else if (now_us - fault_since_us > FAULT_TIME_US) {
     last_fault.count++;
-    last_fault.target_mm = target_position_mm;
-    last_fault.pos_mm = last_position_mm;
+    last_fault.target_mm = float(target_position_mm);
+    last_fault.pos_mm = float(get_position_mm());
     last_fault.vel = servo_controller->get_velocity();
     last_fault.out = servo_controller->get_output();
     last_fault.status = encoder->get_status();
@@ -273,7 +278,7 @@ void AxisController::commutation_sweep(float distance_mm, float speed_mm_s, int 
   Serial.println("end");
 
   servo_controller->resync();
-  last_position_mm = motor_pos_rad_to_mm(servo_controller->get_position());
+  publish_position();
 }
 
 void AxisController::set_motor_enabled(bool enable) {
@@ -293,8 +298,15 @@ void AxisController::set_motor_enabled(bool enable) {
     servo_controller->set_motor_update_enabled(true);
 }
 
-float AxisController::get_position_mm() const {
-  return last_position_mm;
+double AxisController::get_position_mm() const {
+  return double(position_q) * POSITION_LSB_MM;
+}
+
+void AxisController::publish_position() {
+  // corre en cada vuelta del lazo: una sola multiplicacion en double (por software, ~0.8 us)
+  const double q = servo_controller->get_position() * rad_to_q;
+  const float qf = float(q);   // fuera de rango (+-536 mm) solo antes del homing
+  position_q = fabsf(qf) < 2.1e9f ? int32_t(lround(q)) : (qf > 0.0f ? INT32_MAX : -INT32_MAX);
 }
 
 float AxisController::get_position_error_mm() const {

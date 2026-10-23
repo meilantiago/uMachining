@@ -20,6 +20,11 @@
 
 //*** CLASS *****************************************************************************
 
+// Unidad de la posicion publicada entre nucleos y en la telemetria: 0.25 nm (int32, +-536 mm).
+// Un double no se puede leer de otro nucleo sin riesgo de leer mitad vieja y mitad nueva; un
+// int32 se escribe de una vez.
+constexpr double POSITION_LSB_MM = 0.25e-6;
+
 class AxisController {
   public:
     AxisController(MT6835Encoder* encoder, TB6612MotorDriver* motor_driver,
@@ -48,14 +53,16 @@ class AxisController {
     // Actualiza el lazo servo (llamar tan seguido como se pueda, idealmente Core 1
     // dedicado). target_position_mm es la posición objetivo actual del carro.
     // target_velocity_mm_s: velocidad del perfil, para la realimentacion anticipada.
-    void update_servo(float target_position_mm, float dt, float one_over_dt, float target_velocity_mm_s = 0.0f);
+    void update_servo(double target_position_mm, float dt, float one_over_dt, float target_velocity_mm_s = 0.0f);
 
     // Habilita/deshabilita la corriente del motor.
     void set_motor_enabled(bool enable);
 
     // Posición actual del carro en mm, según la última lectura de encoder usada
-    // en update_servo() (no dispara una lectura nueva).
-    float get_position_mm() const;
+    // en update_servo() (no dispara una lectura nueva). Se puede llamar desde el otro núcleo.
+    double get_position_mm() const;
+    // La misma posición en unidades de POSITION_LSB_MM (para la telemetría)
+    int32_t get_position_q() const { return position_q; }
 
     // Error de posición de la última actualización del lazo, en mm.
     float get_position_error_mm() const;
@@ -107,6 +114,9 @@ class AxisController {
     float mm_to_motor_pos_rad(float pos_mm) const;
     float motor_pos_rad_to_mm(float motor_pos_rad) const;
 
+    // Toma la posicion del servo y la publica en position_q
+    void publish_position();
+
     std::string enc_to_pos_lut_filename() const;
     std::string pos_to_field_lut_filename() const;
 
@@ -119,7 +129,9 @@ class AxisController {
     ServoController* servo_controller;
 
     float lead_screw_pitch_mm;
-    float last_position_mm = 0.0f;
+    double mm_to_rad = 0.0;               // 2*pi / paso (en double: la cuenta del lazo es en double)
+    double rad_to_q = 0.0;                // rad de motor -> unidades de POSITION_LSB_MM
+    volatile int32_t position_q = 0;      // posicion del carro en unidades de POSITION_LSB_MM
 
     bool homed = false;
     bool calibrated = false;
