@@ -1,5 +1,7 @@
 # μMachining
 
+**Español** · [English](README.en.md)
+
 Firmware de control en lazo cerrado para un eje lineal de micromaquinado, sobre un RP2040.
 
 Un motor paso a paso mueve un carro con un husillo de bolas. Un encoder magnético sobre el eje del motor cierra el lazo, y el control es por campo (FOC), no por pasos. El firmware está adaptado de [MicroManipulatorStepper](docs/README_ORIGEN_DEL_CODIGO.md).
