@@ -114,7 +114,7 @@ class AxisController {
     float mm_to_motor_pos_rad(float pos_mm) const;
     float motor_pos_rad_to_mm(float motor_pos_rad) const;
 
-    // Toma la posicion del servo y la publica en last_position_mm y position_q
+    // Toma la posicion del servo y la publica en position_q
     void publish_position();
 
     std::string enc_to_pos_lut_filename() const;
@@ -130,9 +130,8 @@ class AxisController {
 
     float lead_screw_pitch_mm;
     double mm_to_rad = 0.0;               // 2*pi / paso (en double: la cuenta del lazo es en double)
-    double rad_to_mm = 0.0;
-    double last_position_mm = 0.0;        // solo para el nucleo que corre el lazo
-    volatile int32_t position_q = 0;      // last_position_mm en unidades de POSITION_LSB_MM
+    double rad_to_q = 0.0;                // rad de motor -> unidades de POSITION_LSB_MM
+    volatile int32_t position_q = 0;      // posicion del carro en unidades de POSITION_LSB_MM
 
     bool homed = false;
     bool calibrated = false;

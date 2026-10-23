@@ -17,7 +17,7 @@ AxisController::AxisController(MT6835Encoder* encoder, TB6612MotorDriver* motor_
 {
   // mismo 2*pi que motor_pos_rad_to_mm() y que la vuelta de la tabla (period_out)
   mm_to_rad = double(Constants::TWO_PI_F) / double(lead_screw_pitch_mm);
-  rad_to_mm = 1.0 / mm_to_rad;
+  rad_to_q = 1.0 / (mm_to_rad * POSITION_LSB_MM);
   servo_controller = new ServoController(*motor_driver, *encoder, (int32_t)motor_pole_pairs);
 }
 
@@ -89,7 +89,7 @@ bool AxisController::home(float direction_sign, bool search_stop) {
   publish_position();
   homed = true;
   LOG_INFO("AxisController: homing OK (pos = %.4f mm). Lazo cerrado apagado: M17 para habilitarlo.",
-           last_position_mm);
+           get_position_mm());
   return true;
 }
 
@@ -205,8 +205,8 @@ void AxisController::update_servo(double target_position_mm, float dt, float one
   if (!trace_frozen && now_us - last_trace_us >= 1000) {
     TracePoint& p = trace[trace_head];
     p.t_us = uint32_t(now_us);
-    p.target_mm = target_position_mm;
-    p.pos_mm = last_position_mm;
+    p.target_mm = float(target_position_mm);
+    p.pos_mm = float(get_position_mm());
     p.vel = servo_controller->get_velocity();
     p.out = servo_controller->get_output();
     p.chip_raw = encoder->get_last_chip_raw_angle();
@@ -218,14 +218,14 @@ void AxisController::update_servo(double target_position_mm, float dt, float one
     if (trace_count < TRACE_SIZE) trace_count = trace_count + 1;
   }
 
-  if (fabs(target_position_mm - last_position_mm) < FAULT_ERROR_MM) {
+  if (fabsf(get_position_error_mm()) < FAULT_ERROR_MM) {   // en float: es chico
     fault_since_us = 0;
   } else if (fault_since_us == 0) {
     fault_since_us = now_us;
   } else if (now_us - fault_since_us > FAULT_TIME_US) {
     last_fault.count++;
-    last_fault.target_mm = target_position_mm;
-    last_fault.pos_mm = last_position_mm;
+    last_fault.target_mm = float(target_position_mm);
+    last_fault.pos_mm = float(get_position_mm());
     last_fault.vel = servo_controller->get_velocity();
     last_fault.out = servo_controller->get_output();
     last_fault.status = encoder->get_status();
@@ -303,10 +303,10 @@ double AxisController::get_position_mm() const {
 }
 
 void AxisController::publish_position() {
-  // multiplicaciones y no divisiones: esto corre en cada vuelta del lazo, en double por software
-  last_position_mm = servo_controller->get_position() * rad_to_mm;
-  constexpr double LIMIT = 2147483647.0 * POSITION_LSB_MM;   // fuera de rango solo antes del homing
-  position_q = int32_t(lround(std::clamp(last_position_mm, -LIMIT, LIMIT) * (1.0 / POSITION_LSB_MM)));
+  // corre en cada vuelta del lazo: una sola multiplicacion en double (por software, ~0.8 us)
+  const double q = servo_controller->get_position() * rad_to_q;
+  const float qf = float(q);   // fuera de rango (+-536 mm) solo antes del homing
+  position_q = fabsf(qf) < 2.1e9f ? int32_t(lround(q)) : (qf > 0.0f ? INT32_MAX : -INT32_MAX);
 }
 
 float AxisController::get_position_error_mm() const {

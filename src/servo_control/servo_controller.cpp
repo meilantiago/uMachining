@@ -64,6 +64,7 @@ void ServoController::init(float max_motor_amplitude) {
 
 void ServoController::set_enc_to_pos_lut(LookupTable& lut) {
   ServoController::encoder_raw_to_motor_pos_lut = lut;
+  lut_periods = INT32_MIN;   // recalcular el desplazamiento con la tabla nueva
 }
 
 // get the motor position to field angle lookup table
@@ -107,7 +108,13 @@ void ServoController::update(double target_motor_pos, float dt, float one_over_d
   ENCODER_TYPE::AbsRawAngleType encoder_angle_raw = encoder.read_abs_angle_raw();
 
   // convert encoder angle to motor pos using LUT and compute field angle
-  motor_pos = encoder_angle_to_motor_pos(encoder_angle_raw);
+  int32_t periods;
+  float local_pos = encoder_raw_to_motor_pos_lut.evaluate_periodic_split(encoder_angle_raw, periods);
+  if (periods != lut_periods) {
+    lut_periods = periods;
+    lut_periods_offset = double(periods) * double(encoder_raw_to_motor_pos_lut.get_period_out());
+  }
+  motor_pos = lut_periods_offset + double(local_pos);
   // a la conmutacion le alcanza el float (0.002 rad electricos a 320 rad de motor)
   float field_angle = motor_pos_to_field_angle(float(motor_pos));
 

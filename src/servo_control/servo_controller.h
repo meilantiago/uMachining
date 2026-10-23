@@ -136,6 +136,10 @@ class ServoController {
     float motor_current_amplitude = 0.5f; // motor current in range [0..1]
     double motor_pos = 0;                 // current motor position
     double motor_pos_prev = 0;            // previous motor position
+    // vueltas enteras de la ultima lectura y su desplazamiento en rad: cambia una vez por vuelta,
+    // asi el lazo no hace la multiplicacion en double en cada pasada
+    int32_t lut_periods = INT32_MIN;
+    double lut_periods_offset = 0.0;
     ENCODER_TYPE::AbsRawAngleType encoder_angle_raw_prev = 0; // previous encoder reading
     float pos_error = 0;                  // current position error as computed by upate() (diferencia de doubles)
     float velocity = 0;                   // current velocity estimate

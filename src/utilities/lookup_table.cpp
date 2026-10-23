@@ -213,6 +213,9 @@ bool LookupTable::optimize_lut(const std::vector<std::pair<float, float>>& in_ou
 void LookupTable::set_period(float period_in, float period_out) {
   LookupTable::period_in = period_in;
   LookupTable::period_out = period_out;
+  period_in_counts = int64_t(period_in);
+  input_min_counts = int64_t(std::floor(input_min));
+  one_over_period_in = period_in > 0.0f ? 1.0f / period_in : 0.0f;
 }
 
 void LookupTable::clear() {
@@ -255,17 +258,23 @@ float LookupTable::evaluate(float x) const {
 }
 
 double LookupTable::evaluate_periodic(int64_t x) const {
+  int32_t n;
+  float local = evaluate_periodic_split(x, n);
+  return double(local) + double(n) * double(period_out);
+}
+
+float LookupTable::evaluate_periodic_split(int64_t x, int32_t& periods) const {
+  periods = 0;
   if (period_in <= 0.0f || lookup_table.size() < 2)
     return evaluate(float(x));
 
   // n = floor(u / periodo) con una cuenta en float (la division de 64 bits es lenta en el
   // M0+) y corregido en enteros: el resto queda exacto en [0, periodo)
-  const int64_t period = int64_t(period_in);
-  const int64_t u = x - int64_t(std::floor(input_min));
-  int64_t n = int64_t(std::floor(float(u) / period_in));
-  int64_t r = u - n * period;
-  if (r < 0) { r += period; n--; }
-  else if (r >= period) { r -= period; n++; }
+  const int64_t u = x - input_min_counts;
+  int64_t n = int64_t(std::floor(float(u) * one_over_period_in));
+  int64_t r = u - n * period_in_counts;
+  if (r < 0) { r += period_in_counts; n--; }
+  else if (r >= period_in_counts) { r -= period_in_counts; n++; }
 
   int idx_a, idx_b;
   float weight_a, weight_b;
@@ -273,7 +282,8 @@ double LookupTable::evaluate_periodic(int64_t x) const {
 
   float a = lookup_table[idx_a];
   float b = lookup_table[idx_b];
-  return double(a + weight_b * (b - a)) + double(n) * double(period_out);
+  periods = int32_t(n);
+  return a + weight_b * (b - a);
 }
 
 void LookupTable::linear_interpolate(float x, int& idx_a, int& idx_b, 

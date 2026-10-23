@@ -56,6 +56,9 @@ class LookupTable {
     // float: evaluate(float(x)) redondea x a 24 bits (por encima de 2^31 cuentas, de a 256 =
     // 20 nm) y su salida, a cientos de rad, va de a 3e-5 rad (24 nm). Sin periodo es evaluate().
     double evaluate_periodic(int64_t x) const;
+    // Lo mismo partido en dos, para el lazo: devuelve la parte dentro de la vuelta y deja en
+    // 'periods' las vueltas enteras (resultado = periods * period_out + lo devuelto).
+    float evaluate_periodic_split(int64_t x, int32_t& periods) const;
 
     // evaluate the inverse of the lookup table function (very slow), the LUT must be monotonic
     float evaluate_inverse(float y) const;
@@ -89,6 +92,10 @@ class LookupTable {
     float one_over_input_range = 1.0f;
     float period_in = 0.0f;
     float period_out = 0.0f;
+    // lo que usa evaluate_periodic(), calculado una vez en set_period()
+    int64_t period_in_counts = 0;
+    int64_t input_min_counts = 0;
+    float one_over_period_in = 0.0f;
     std::vector<float> lookup_table;
 
     friend bool save_lut_to_file(const LookupTable& lut, const char* filename);
