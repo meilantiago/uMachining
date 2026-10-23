@@ -62,6 +62,8 @@ SPEED_DEFAULT = 2.0            # mm/s: la velocidad para la que se aprende el an
 SPEED_SAFE = 2.0               # por encima el anti-cogging se desvanece (no está a 3 mm/s)
 SPEED_MAX = 5.0                # MAX_VELOCITY_LIMIT_MM_S (a 4 mm/s ya falta torque)
 OUT_LIMIT_DEG = 81.0           # límite de la salida del lazo de velocidad (0.45 pi)
+STEP_EXP_MIN = -POS_DECIMALS   # paso más chico: la resolución del G1
+STEP_EXP_MAX = 1               # 10 mm
 TELEMETRY_DECIMATION = 2       # M120 P2: un punto cada 2 ticks de la ISR de 2 kHz = 1 kHz
 HISTORY_S = 130                # lo que se guarda para los gráficos
 STOP_LEAD_S = 0.015            # Detener: frena donde va a estar el objetivo cuando llegue el G1
@@ -380,6 +382,12 @@ class History:
 # Widgets
 # ======================================================================================
 
+def fmt_len(exp):
+    """10^exp mm en la unidad que le queda: 100 nm, 10 µm, 1 mm."""
+    unit, e = ("mm", exp) if exp >= 0 else ("µm", exp + 3) if exp >= -3 else ("nm", exp + 6)
+    return f"{10 ** e} {unit}"
+
+
 class SpinBox(QtWidgets.QDoubleSpinBox):
     """Acepta coma o punto como separador decimal."""
 
@@ -586,7 +594,7 @@ class GcodeLine(QtWidgets.QLineEdit):
 
 
 class KeyFilter(QtCore.QObject):
-    """Atajos: ←/→ un paso, Espacio detener, Esc apagar el motor. Las flechas y el espacio no
+    """Atajos: ←/→ un paso, ↑/↓ paso ×10 / ÷10, Espacio detener, Esc apagar el motor. Las flechas y el espacio no
     se toman mientras se escribe en un campo de texto o número."""
 
     def __init__(self, win):
@@ -610,6 +618,9 @@ class KeyFilter(QtCore.QObject):
                     self.win.stop_motion()
                 else:
                     self.win.jog(+1 if key == Qt.Key_Right else -1)
+            return True
+        if key in (Qt.Key_Up, Qt.Key_Down):
+            self.win.step_scale(+1 if key == Qt.Key_Up else -1)
             return True
         return False
 
@@ -808,16 +819,20 @@ class MainWindow(QtWidgets.QMainWindow):
         steps = QtWidgets.QHBoxLayout()
         steps.setSpacing(4)
         steps.addWidget(QtWidgets.QLabel("Paso:"))
-        self.step_group = QtWidgets.QButtonGroup(self)
-        for i, (label, mm) in enumerate((("1 µm", 0.001), ("10 µm", 0.01), ("0,1 mm", 0.1),
-                                         ("1 mm", 1.0), ("10 mm", 10.0))):
-            btn = QtWidgets.QPushButton(label, checkable=True)
-            btn.setObjectName("seg")
-            btn.setProperty("step_mm", mm)
-            btn.setChecked(mm == 1.0)
-            self.step_group.addButton(btn, i)
-            steps.addWidget(btn)
+        self.step_exp = 0                                  # paso = 10^step_exp mm
+        self.btn_step_down = QtWidgets.QPushButton("÷10")
+        self.btn_step_up = QtWidgets.QPushButton("×10")
+        self.lbl_step = QtWidgets.QLabel(alignment=Qt.AlignCenter)
+        self.lbl_step.setObjectName("stepValue")
+        self.lbl_step.setMinimumWidth(QtGui.QFontMetrics(self.lbl_step.font()).horizontalAdvance("0000 µm") * 2)
+        for btn, k in ((self.btn_step_down, -1), (self.btn_step_up, +1)):
+            btn.setToolTip(f"Paso {btn.text()} (teclas ↑ ↓), de {fmt_len(STEP_EXP_MIN)} a {fmt_len(STEP_EXP_MAX)}")
+            btn.clicked.connect(lambda _, k=k: self.step_scale(k))
+        steps.addWidget(self.btn_step_down)
+        steps.addWidget(self.lbl_step, 1)
+        steps.addWidget(self.btn_step_up)
         b.addLayout(steps)
+        self.step_scale(0)
         jog = QtWidgets.QHBoxLayout()
         self.btn_minus = QtWidgets.QPushButton("◀  − paso")
         self.btn_plus = QtWidgets.QPushButton("+ paso  ▶")
@@ -983,6 +998,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for y in (OUT_LIMIT_DEG, -OUT_LIMIT_DEG):
             self.p_out.addLine(y=y, pen=pg.mkPen(RED, width=1, style=Qt.DashLine))
         self.c_out = self.p_out.plot(pen=pg.mkPen(BLUE, width=1))
+        glw.scene().sigMouseClicked.connect(self._plot_clicked)
         lay.addWidget(glw, 1)
         return panel
 
@@ -1138,8 +1154,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.move_to(self.spin_dest.value())
 
     def step_mm(self):
-        btn = self.step_group.checkedButton()
-        return btn.property("step_mm") if btn else 1.0
+        return 10.0 ** self.step_exp
+
+    def step_scale(self, k):
+        self.step_exp = clamp(self.step_exp + k, STEP_EXP_MIN, STEP_EXP_MAX)
+        self.lbl_step.setText(fmt_len(self.step_exp))
+        self.btn_step_down.setEnabled(self.step_exp > STEP_EXP_MIN)
+        self.btn_step_up.setEnabled(self.step_exp < STEP_EXP_MAX)
 
     def jog(self, sign):
         if not self.can_move():
@@ -1331,8 +1352,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.c_err.setData(t, err)
         self.c_out.setData(t, d[History.OUT])
         self.p_pos.setXRange(-win, 0, padding=0.01)
+        for p, y in ((self.p_pos, d[History.POS, -1] - off), (self.p_err, err[-1]), (self.p_out, d[History.OUT, -1])):
+            self._follow(p, y)
         self._win_err = err
         self._win_out = d[History.OUT]
+
+    @staticmethod
+    def _follow(p, y):
+        """Un toque de rueda o un arrastre apaga el autoescalado de pyqtgraph para siempre: con
+        zoom a mano se vuelve a autoescalar en cuanto el último punto se sale de la vista."""
+        vb = p.getViewBox()
+        if not vb.autoRangeEnabled()[1] and np.isfinite(y):
+            y0, y1 = vb.viewRange()[1]
+            if not y0 <= y <= y1:
+                vb.enableAutoRange(y=True)
+
+    def _plot_clicked(self, ev):
+        if ev.double():                # doble clic: volver al autoescalado
+            for p in (self.p_pos, self.p_err, self.p_out):
+                if p.sceneBoundingRect().contains(ev.scenePos()):
+                    p.getViewBox().enableAutoRange(y=True)
 
     @staticmethod
     def _set_title(p, title, note=""):
@@ -1559,6 +1598,7 @@ QPushButton#stop {{ padding: 10px; font-weight: 600; background: #fdf1dc; border
 QPushButton#stop:disabled {{ background: #f3f2ef; border-color: #e1e0d9; color: #b5b3ac; }}
 QPushButton#danger {{ background: {RED}; color: white; border-color: #a82e2e; font-weight: 700; padding: 8px 16px; }}
 QPushButton#danger:disabled {{ background: #e9b3b3; border-color: #e9b3b3; }}
+QLabel#stepValue {{ font-family: 'DejaVu Sans Mono', monospace; font-size: 12pt; font-weight: 600; }}
 QPushButton#seg {{ padding: 4px 6px; }}
 QPushButton#seg:checked {{ background: {BLUE}; color: white; border-color: #256abf; }}
 QPushButton:checked {{ background: #fbe3e3; border-color: {RED}; color: {RED}; }}
