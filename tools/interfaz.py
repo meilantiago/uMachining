@@ -54,6 +54,10 @@ import pyqtgraph as pg  # noqa: E402
 BAUD = 921600
 PITCH_MM = 5.0                 # husillo: mm por vuelta de motor
 AXIS_MIN_MM, AXIS_MAX_MM = 0.0, 255.0
+POS_DECIMALS = 5              # 10 nm. El piso real es el float32 del firmware (posición en rad):
+                              # ~3 nm a 30 mm, ~12 nm a 150 mm, ~24 nm de 204 a 255 mm
+POS_PLOT_MIN_SPAN_MM = 5e-5    # 50 nm: con el eje quieto el autoescalado no persigue el escalón
+                              # del float32 (~12 nm a 150 mm) pero se ve un paso de 10 nm
 SPEED_DEFAULT = 2.0            # mm/s: la velocidad para la que se aprende el anti-cogging
 SPEED_SAFE = 2.0               # por encima el anti-cogging se desvanece (no está a 3 mm/s)
 SPEED_MAX = 5.0                # MAX_VELOCITY_LIMIT_MM_S (a 4 mm/s ya falta torque)
@@ -396,6 +400,53 @@ class SpinBox(QtWidgets.QDoubleSpinBox):
         return super().valueFromText(text.replace(",", "."))
 
 
+class OffsetAxis(pg.AxisItem):
+    """Eje de posición para datos graficados respecto de `offset` (mm, un número redondo).
+
+    Con zoom de µm o nm sobre ~150 mm los rótulos absolutos (149.99996) no entran en el eje y
+    pyqtgraph los esconde: con menos de 10 µm entre marcas rotula en µm sobre `offset`.
+    `on_reference(texto)` avisa cuándo mostrar la referencia (texto vacío: rótulos absolutos).
+    """
+
+    def __init__(self, unit, on_reference):
+        super().__init__("left")
+        self.unit = unit
+        self.on_reference = on_reference
+        self.offset = 0.0
+        self.offset_places = 0
+        self.relative = False
+
+    def set_offset(self, offset, step):
+        if offset != self.offset:
+            self.offset = offset
+            self.offset_places = max(0, -round(math.log10(step)))
+            self._update_label()
+            self.picture = None
+            self.update()
+
+    def _update_label(self):
+        text = "µm" if self.relative else self.unit
+        if self.labelText != text:
+            self.setLabel(text)
+        self.on_reference(f"µm sobre {self.offset:.{self.offset_places}f} {self.unit}" if self.relative else "")
+
+    def tickValues(self, minVal, maxVal, size):
+        # se decide acá y no en tickStrings, que se llama por separado para mayores y menores
+        levels = super().tickValues(minVal, maxVal, size)
+        relative = bool(levels) and min(spacing for spacing, _ in levels) < 1e-2
+        if relative != self.relative:
+            self.relative = relative
+            self._update_label()
+        return levels
+
+    def tickStrings(self, values, scale, spacing):
+        if self.relative:
+            places = max(0, math.ceil(-math.log10(spacing * 1000)))
+            return [f"{v * 1000:.{places}f}" for v in values]
+        places = max(0, math.ceil(-math.log10(spacing)))
+        return [f"{self.offset + v:.{places}f}" for v in values]
+
+
 class RailWidget(QtWidgets.QWidget):
     """El carril de 0 a 255 mm con el carro (azul) y el destino (triángulo naranja).
     Un clic elige ese punto como destino (no mueve nada)."""
@@ -600,6 +651,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._spin_init = False
         self.user_relative = False     # el usuario mandó G91 por la consola
         self._win_err = None
+        self._pos_note = ""            # referencia del gráfico de posición cuando rotula en µm
 
         self._build_ui()
         self.keyfilter = KeyFilter(self)
@@ -716,7 +768,7 @@ class MainWindow(QtWidgets.QMainWindow):
         box, b = self._group("2 · Ir a una posición")
         form = QtWidgets.QGridLayout()
         form.setHorizontalSpacing(8)
-        self.spin_dest = SpinBox(AXIS_MIN_MM, AXIS_MAX_MM, 4, 1.0, " mm")
+        self.spin_dest = SpinBox(AXIS_MIN_MM, AXIS_MAX_MM, POS_DECIMALS, 1.0, " mm")
         self.spin_dest.setToolTip("Destino absoluto (0 a 255 mm). Enter = Ir.\nTambién se elige con un clic en el carril.")
         self.spin_dest.lineEdit().returnPressed.connect(self.go)
         self.spin_speed = SpinBox(0.01, SPEED_MAX, 2, 0.1, " mm/s")
@@ -899,14 +951,15 @@ class MainWindow(QtWidgets.QMainWindow):
         pg.setConfigOptions(antialias=False, background=SURFACE, foreground=INK2)
         glw = pg.GraphicsLayoutWidget()
         glw.ci.setSpacing(4)
-        self.p_pos = glw.addPlot(row=0, col=0)
+        self.pos_axis = OffsetAxis("mm", self._pos_title)
+        self.p_pos = glw.addPlot(row=0, col=0, axisItems={"left": self.pos_axis})
         self.p_err = glw.addPlot(row=1, col=0)
         self.p_out = glw.addPlot(row=2, col=0)
         tick_font = QtGui.QFont()
         tick_font.setPointSize(8)
         for p, title, unit in ((self.p_pos, "Posición", "mm"), (self.p_err, "Error de seguimiento", "µm"),
                                (self.p_out, "Salida del lazo", "° el.")):
-            p.setTitle(f"<span style='color:{INK};font-weight:600'>{title}</span>", justify="left", size="9pt")
+            self._set_title(p, title)
             p.setLabel("left", unit)
             p.showGrid(x=True, y=True, alpha=0.25)
             p.setDownsampling(auto=True, mode="peak")
@@ -920,6 +973,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 p.getAxis("bottom").setStyle(showValues=False)
             if p is not self.p_pos:
                 p.setXLink(self.p_pos)
+        self.p_pos.setLimits(minYRange=POS_PLOT_MIN_SPAN_MM)
         self.p_out.setLabel("bottom", "tiempo", "s")
         self.p_pos.addLegend(offset=(8, 4), labelTextColor=INK2)
         self.c_target = self.p_pos.plot(pen=pg.mkPen(MUTED, width=1.5, style=Qt.DashLine), name="objetivo")
@@ -1055,7 +1109,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.fw_max_speed = v
         self.link.send("G90", silent=True)
         self.moves_pending += 1
-        self.link.send(f"G1 X{target_mm:.4f} F{v:g}", silent=quiet, on_done=self._move_done)
+        self.link.send(f"G1 X{target_mm:.{POS_DECIMALS}f} F{v:g}", silent=quiet, on_done=self._move_done)
         if self.user_relative:
             self.link.send("G91", silent=True)
         self.dest = target_mm
@@ -1092,7 +1146,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.message(self.why_cannot_move(), AMBER)
             return
         base = self.dest if self.dest is not None else (self.last[2] if self.last is not None else 0.0)
-        target = clamp(round(base + sign * self.step_mm(), 4), AXIS_MIN_MM, AXIS_MAX_MM)
+        target = clamp(round(base + sign * self.step_mm(), POS_DECIMALS), AXIS_MIN_MM, AXIS_MAX_MM)
         if target == base:
             self.message("Fin del recorrido", AMBER)
             return
@@ -1117,7 +1171,7 @@ class MainWindow(QtWidgets.QMainWindow):
         stop_at = clamp(self.last[1] + self.cmd_vel * STOP_LEAD_S, AXIS_MIN_MM, AXIS_MAX_MM)
         self.moves_pending += 1
         self.link.send_urgent(["G90"], silent=True)
-        self.link.send(f"G1 X{stop_at:.4f} F{self.spin_speed.value():g}", on_done=self._move_done)
+        self.link.send(f"G1 X{stop_at:.{POS_DECIMALS}f} F{self.spin_speed.value():g}", on_done=self._move_done)
         if self.user_relative:
             self.link.send("G91", silent=True)
         self.dest = stop_at
@@ -1270,14 +1324,53 @@ class MainWindow(QtWidgets.QMainWindow):
         if d.shape[1] < 2:
             return
         t = d[History.T] - self.hist.t
-        self.c_target.setData(t, d[History.TARGET])
-        self.c_pos.setData(t, d[History.POS])
+        off = self._pos_offset(d)
+        self.c_target.setData(t, d[History.TARGET] - off)
+        self.c_pos.setData(t, d[History.POS] - off)
         err = (d[History.TARGET] - d[History.POS]) * 1000.0
         self.c_err.setData(t, err)
         self.c_out.setData(t, d[History.OUT])
         self.p_pos.setXRange(-win, 0, padding=0.01)
         self._win_err = err
         self._win_out = d[History.OUT]
+
+    @staticmethod
+    def _set_title(p, title, note=""):
+        if note:
+            note = f"&nbsp;&nbsp;<span style='color:{MUTED}'>{note}</span>"
+        p.setTitle(f"<span style='color:{INK};font-weight:600'>{title}</span>{note}", justify="left", size="9pt")
+
+    def _pos_title(self, note):
+        if note != self._pos_note:
+            self._pos_note = note
+            self._set_title(self.p_pos, "Posición", note)
+
+    def _pos_offset(self, d):
+        """Referencia (redonda) que se resta a la posición para graficarla cerca de cero.
+
+        Se queda quieta mientras sirva, para que los rótulos no bailen: tiene que ser múltiplo
+        de la potencia de 10 que cubre lo que se ve (así las marcas caen en números redondos)
+        y estar a menos de 5 de esas potencias del centro.
+        """
+        vb = self.p_pos.getViewBox()
+        old = self.pos_axis.offset
+        if vb.autoRangeEnabled()[1]:
+            lo = min(np.nanmin(d[History.TARGET]), np.nanmin(d[History.POS]))
+            hi = max(np.nanmax(d[History.TARGET]), np.nanmax(d[History.POS]))
+            if not (np.isfinite(lo) and np.isfinite(hi)):
+                return old
+        else:
+            lo, hi = (v + old for v in vb.viewRange()[1])
+        step = 10.0 ** math.ceil(math.log10(max(hi - lo, POS_PLOT_MIN_SPAN_MM)))
+        center = (lo + hi) / 2
+        if abs(old / step - round(old / step)) < 1e-6 and abs(center - old) <= 5 * step:
+            return old
+        new = round(center / step) * step
+        if not vb.autoRangeEnabled()[1]:      # zoom a mano: que la vista no salte
+            y0, y1 = vb.viewRange()[1]
+            vb.setYRange(y0 + old - new, y1 + old - new, padding=0)
+        self.pos_axis.set_offset(new, step)
+        return new
 
     def tick_ui(self):
         now = time.monotonic()
@@ -1301,8 +1394,8 @@ class MainWindow(QtWidgets.QMainWindow):
             vel = float(np.mean(d[History.VEL]))
             out = float(np.mean(d[History.OUT]))
             status = int(self.last[History.STATUS])
-            self.r_pos.set(f"{pos:.4f}")
-            self.r_err.set(f"{err:+.2f}", RED if abs(err) > 100 else AMBER if abs(err) > 10 else INK)
+            self.r_pos.set(f"{pos:.{POS_DECIMALS}f}")
+            self.r_err.set(f"{err:+.3f}", RED if abs(err) > 100 else AMBER if abs(err) > 10 else INK)
             self.r_vel.set(f"{vel:+.3f}")
             pct = abs(out) / OUT_LIMIT_DEG * 100
             self.bar_out.setValue(int(min(100, pct)))
@@ -1324,7 +1417,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.bar_out.setValue(0)
             self.lbl_out.setText("—")
             self.rail.set_state(None, self.dest)
-        self.r_dest.set(f"{self.dest:.4f}" if self.dest is not None else "—")
+        self.r_dest.set(f"{self.dest:.{POS_DECIMALS}f}" if self.dest is not None else "—")
         self.update_controls()
 
     def update_controls(self):
