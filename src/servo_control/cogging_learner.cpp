@@ -34,13 +34,13 @@ void CoggingLearner::reset() {
   sq_cnt = 0;
 }
 
-void CoggingLearner::add(float target_mm, float pos_mm, float vel_mm_s) {
+void CoggingLearner::add(double target_mm, double pos_mm, float vel_mm_s) {
   // crucero: velocidad del perfil a menos del 2 % de la pedida (como closed_loop_test.py)
   if (fabsf(fabsf(vel_mm_s) - feed) >= 0.02f * feed)
     return;
   const int d = vel_mm_s > 0.0f ? 0 : 1;
-  const float err_um = 1000.0f * (target_mm - pos_mm);
-  float ph = (field_at_zero + pos_mm * field_per_mm) * (1.0f / Constants::TWO_PI_F);
+  const float err_um = float(1000.0 * (target_mm - pos_mm));
+  float ph = (field_at_zero + float(pos_mm) * field_per_mm) * (1.0f / Constants::TWO_PI_F);
   ph -= floorf(ph);
   const int b = int(floorf(ph * N + 0.5f)) % N;   // intervalos centrados en i/N, como la tabla
   sum[d][b] += err_um;

@@ -17,12 +17,15 @@
 //*** TELEMETRY *************************************************************************
 
 // 16/10/2026: se agregaron vel, out, chip_raw, status, flags y seq (antes 16 bytes, con
-// linear_pos_mm que repetia motor_pos_mm). Paquete: 0xAA 0x55 + 28 bytes, little endian.
-// Lo lee tools/closed_loop_test.py.
+// linear_pos_mm que repetia motor_pos_mm).
+// 23/10/2026: objetivo y posicion pasan de float [mm] a int32 en unidades de 0.25 nm
+// (POSITION_LSB_MM). En float, a 200 mm, iban de a 15 nm y el error (su resta) salia en escalones.
+// Cambia el encabezado (0xAA 0x55 -> 0xAA 0x56) para que un script viejo no los lea como float.
+// Paquete: 0xAA 0x56 + 28 bytes, little endian. Lo leen tools/closed_loop_test.py y tools/interfaz.py.
 struct TelemetryPoint {
   uint32_t timestamp_us;   // time_us_64() truncado a 32 bits (wraps ~71 min)
-  float    target_mm;      // posición objetivo (salida del perfil trapezoidal)
-  float    motor_pos_mm;   // posición del motor (última lectura de encoder, cacheada)
+  int32_t  target_q;       // posición objetivo (salida del perfil trapezoidal) [0.25 nm]
+  int32_t  motor_pos_q;    // posición del motor (última lectura de encoder, cacheada) [0.25 nm]
   float    vel;            // velocidad del motor [rad/s]
   float    out;            // salida del lazo de velocidad [rad electricos], limite +-0.45*pi
   int32_t  chip_raw;       // angulo crudo del MT6835 (0..2^21-1)
@@ -104,8 +107,16 @@ struct SharedData {
     lock = spin_lock_instance(hw_spinlock_id);
   }
 
-  // posición objetivo actual del carro, en mm (ya interpolada por el perfil trapezoidal)
-  volatile float target_position_mm = 0.0f;
+  // posición objetivo actual del carro, en mm (ya interpolada por el perfil trapezoidal).
+  // double: se lee y escribe siempre con 'lock' tomado (64 bits no se escriben de una vez).
+  volatile double target_position_mm = 0.0;
+  // escribirla desde Core 0 fuera de la ISR (la ISR usa spin_try_lock_unsafe y si lo encuentra
+  // tomado se saltea ese tick)
+  void set_target_position_mm(double mm) {
+    uint32_t irq = spin_lock_blocking(lock);
+    target_position_mm = mm;
+    spin_unlock(lock, irq);
+  }
   // velocidad del perfil en ese mismo instante [mm/s], para la realimentacion anticipada
   volatile float target_velocity_mm_s = 0.0f;
 

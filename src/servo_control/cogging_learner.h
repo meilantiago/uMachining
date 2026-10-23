@@ -18,7 +18,7 @@ class CoggingLearner {
 
     // Desde el ISR del perfil (Core 0, 2 kHz): solo acumula mientras 'active' y en crucero.
     volatile bool active = false;
-    void add(float target_mm, float pos_mm, float vel_mm_s);
+    void add(double target_mm, double pos_mm, float vel_mm_s);
 
     // Patron del error [um] sobre el ciclo electrico, sin la media; dir 0 = ida (+), 1 = vuelta (-).
     // Devuelve false si hubo pocas muestras en ese sentido.

@@ -254,11 +254,39 @@ float LookupTable::evaluate(float x) const {
   return a + weight_b * (b - a) + offset;
 }
 
+double LookupTable::evaluate_periodic(int64_t x) const {
+  if (period_in <= 0.0f || lookup_table.size() < 2)
+    return evaluate(float(x));
+
+  // n = floor(u / periodo) con una cuenta en float (la division de 64 bits es lenta en el
+  // M0+) y corregido en enteros: el resto queda exacto en [0, periodo)
+  const int64_t period = int64_t(period_in);
+  const int64_t u = x - int64_t(std::floor(input_min));
+  int64_t n = int64_t(std::floor(float(u) / period_in));
+  int64_t r = u - n * period;
+  if (r < 0) { r += period; n--; }
+  else if (r >= period) { r -= period; n++; }
+
+  int idx_a, idx_b;
+  float weight_a, weight_b;
+  linear_interpolate_from_min(float(r), idx_a, idx_b, weight_a, weight_b);
+
+  float a = lookup_table[idx_a];
+  float b = lookup_table[idx_b];
+  return double(a + weight_b * (b - a)) + double(n) * double(period_out);
+}
+
 void LookupTable::linear_interpolate(float x, int& idx_a, int& idx_b, 
                                      float& weight_a, float& weight_b) const 
 {
+  linear_interpolate_from_min(x - input_min, idx_a, idx_b, weight_a, weight_b);
+}
+
+void LookupTable::linear_interpolate_from_min(float dx, int& idx_a, int& idx_b,
+                                              float& weight_a, float& weight_b) const
+{
   int32_t table_size = lookup_table.size();
-  float t = (x - input_min) * one_over_input_range;
+  float t = dx * one_over_input_range;
   float pos = t * (table_size - 1);
   float frac;
   size_t index;

@@ -10,9 +10,10 @@ puerto abierto (monitor serie de PlatformIO, otros scripts de tools/).
 No cambia nada del firmware: manda los mismos comandos G-code que se escriben a mano y
 prende la telemetría binaria (M120). Protocolo (ver src/command_processor.cpp y
 src/shared_data.h): una respuesta por comando, terminada en "ok" o "error: ...", con los
-paquetes de telemetría mezclados en el mismo puerto: 0xAA 0x55 + 28 bytes little endian
-    uint32 t_us, float target_mm, float pos_mm, float vel [rad/s], float out [rad],
+paquetes de telemetría mezclados en el mismo puerto: 0xAA 0x56 + 28 bytes little endian
+    uint32 t_us, int32 target [0,25 nm], int32 pos [0,25 nm], float vel [rad/s], float out [rad],
     int32 chip_raw, uint8 status, uint8 flags, uint16 seq
+(hasta el 23/10/2026 era 0xAA 0x55 con objetivo y posición en float [mm]: de a 15 nm a 200 mm)
 """
 import argparse
 import datetime
@@ -54,6 +55,10 @@ import pyqtgraph as pg  # noqa: E402
 BAUD = 921600
 PITCH_MM = 5.0                 # husillo: mm por vuelta de motor
 AXIS_MIN_MM, AXIS_MAX_MM = 0.0, 255.0
+POS_DECIMALS = 5              # 10 nm. El piso real es el float32 del firmware (posición en rad):
+                              # ~3 nm a 30 mm, ~12 nm a 150 mm, ~24 nm de 204 a 255 mm
+POS_PLOT_MIN_SPAN_MM = 0.01    # con el eje quieto el autoescalado haría zoom al ruido de nm y los
+                              # rótulos (149.99996) no entran en el eje; el detalle fino va en el error
 SPEED_DEFAULT = 2.0            # mm/s: la velocidad para la que se aprende el anti-cogging
 SPEED_SAFE = 2.0               # por encima el anti-cogging se desvanece (no está a 3 mm/s)
 SPEED_MAX = 5.0                # MAX_VELOCITY_LIMIT_MM_S (a 4 mm/s ya falta torque)
@@ -62,8 +67,9 @@ TELEMETRY_DECIMATION = 2       # M120 P2: un punto cada 2 ticks de la ISR de 2 k
 HISTORY_S = 130                # lo que se guarda para los gráficos
 STOP_LEAD_S = 0.015            # Detener: frena donde va a estar el objetivo cuando llegue el G1
 
-PKT = struct.Struct("<IffffiBBH")
-HEADER = b"\xaa\x55"
+PKT = struct.Struct("<IiiffiBBH")
+HEADER = b"\xaa\x56"
+POS_LSB_MM = 0.25e-6           # unidad del objetivo y la posición en el paquete (POSITION_LSB_MM)
 STATUS_BITS = {0x01: "sobrevelocidad", 0x02: "campo débil", 0x04: "subtensión", 0x08: "error CRC"}
 LOG_PREFIXES = ("I)", "W)", "E)", "D)")
 # comandos que bloquean el firmware un buen rato (el resto responde en milisegundos)
@@ -245,7 +251,8 @@ class Link(QtCore.QObject):
                 del buf[:i]
             if len(buf) < 2 + PKT.size:
                 break
-            row = PKT.unpack_from(buf, 2)
+            t_us, target_q, pos_q, *rest = PKT.unpack_from(buf, 2)
+            row = (t_us, target_q * POS_LSB_MM, pos_q * POS_LSB_MM, *rest)
             if all(math.isfinite(v) and abs(v) < 1e6 for v in row[1:5]):
                 rows.append(row)
                 del buf[:2 + PKT.size]
@@ -716,7 +723,7 @@ class MainWindow(QtWidgets.QMainWindow):
         box, b = self._group("2 · Ir a una posición")
         form = QtWidgets.QGridLayout()
         form.setHorizontalSpacing(8)
-        self.spin_dest = SpinBox(AXIS_MIN_MM, AXIS_MAX_MM, 4, 1.0, " mm")
+        self.spin_dest = SpinBox(AXIS_MIN_MM, AXIS_MAX_MM, POS_DECIMALS, 1.0, " mm")
         self.spin_dest.setToolTip("Destino absoluto (0 a 255 mm). Enter = Ir.\nTambién se elige con un clic en el carril.")
         self.spin_dest.lineEdit().returnPressed.connect(self.go)
         self.spin_speed = SpinBox(0.01, SPEED_MAX, 2, 0.1, " mm/s")
@@ -920,6 +927,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 p.getAxis("bottom").setStyle(showValues=False)
             if p is not self.p_pos:
                 p.setXLink(self.p_pos)
+        self.p_pos.setLimits(minYRange=POS_PLOT_MIN_SPAN_MM)
         self.p_out.setLabel("bottom", "tiempo", "s")
         self.p_pos.addLegend(offset=(8, 4), labelTextColor=INK2)
         self.c_target = self.p_pos.plot(pen=pg.mkPen(MUTED, width=1.5, style=Qt.DashLine), name="objetivo")
@@ -1055,7 +1063,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.fw_max_speed = v
         self.link.send("G90", silent=True)
         self.moves_pending += 1
-        self.link.send(f"G1 X{target_mm:.4f} F{v:g}", silent=quiet, on_done=self._move_done)
+        self.link.send(f"G1 X{target_mm:.{POS_DECIMALS}f} F{v:g}", silent=quiet, on_done=self._move_done)
         if self.user_relative:
             self.link.send("G91", silent=True)
         self.dest = target_mm
@@ -1092,7 +1100,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.message(self.why_cannot_move(), AMBER)
             return
         base = self.dest if self.dest is not None else (self.last[2] if self.last is not None else 0.0)
-        target = clamp(round(base + sign * self.step_mm(), 4), AXIS_MIN_MM, AXIS_MAX_MM)
+        target = clamp(round(base + sign * self.step_mm(), POS_DECIMALS), AXIS_MIN_MM, AXIS_MAX_MM)
         if target == base:
             self.message("Fin del recorrido", AMBER)
             return
@@ -1117,7 +1125,7 @@ class MainWindow(QtWidgets.QMainWindow):
         stop_at = clamp(self.last[1] + self.cmd_vel * STOP_LEAD_S, AXIS_MIN_MM, AXIS_MAX_MM)
         self.moves_pending += 1
         self.link.send_urgent(["G90"], silent=True)
-        self.link.send(f"G1 X{stop_at:.4f} F{self.spin_speed.value():g}", on_done=self._move_done)
+        self.link.send(f"G1 X{stop_at:.{POS_DECIMALS}f} F{self.spin_speed.value():g}", on_done=self._move_done)
         if self.user_relative:
             self.link.send("G91", silent=True)
         self.dest = stop_at
@@ -1301,8 +1309,8 @@ class MainWindow(QtWidgets.QMainWindow):
             vel = float(np.mean(d[History.VEL]))
             out = float(np.mean(d[History.OUT]))
             status = int(self.last[History.STATUS])
-            self.r_pos.set(f"{pos:.4f}")
-            self.r_err.set(f"{err:+.2f}", RED if abs(err) > 100 else AMBER if abs(err) > 10 else INK)
+            self.r_pos.set(f"{pos:.{POS_DECIMALS}f}")
+            self.r_err.set(f"{err:+.3f}", RED if abs(err) > 100 else AMBER if abs(err) > 10 else INK)
             self.r_vel.set(f"{vel:+.3f}")
             pct = abs(out) / OUT_LIMIT_DEG * 100
             self.bar_out.setValue(int(min(100, pct)))
@@ -1324,7 +1332,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.bar_out.setValue(0)
             self.lbl_out.setText("—")
             self.rail.set_state(None, self.dest)
-        self.r_dest.set(f"{self.dest:.4f}" if self.dest is not None else "—")
+        self.r_dest.set(f"{self.dest:.{POS_DECIMALS}f}" if self.dest is not None else "—")
         self.update_controls()
 
     def update_controls(self):
@@ -1436,7 +1444,7 @@ class MainWindow(QtWidgets.QMainWindow):
         err = (new[History.TARGET] - new[History.POS]) * 1000.0
         cols = np.vstack([new[History.T], new[History.TARGET], new[History.POS], err, new[History.VEL],
                           new[History.OUT], new[History.STATUS], new[History.FLAGS]]).T
-        np.savetxt(self.rec_file, cols, fmt=["%.4f", "%.6f", "%.6f", "%.3f", "%.4f", "%.2f", "%d", "%d"],
+        np.savetxt(self.rec_file, cols, fmt=["%.4f", "%.7f", "%.7f", "%.4f", "%.4f", "%.2f", "%d", "%d"],
                    delimiter=",")
 
     def closeEvent(self, ev):

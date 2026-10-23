@@ -51,6 +51,12 @@ class LookupTable {
     // evaluate the lookup table at a given position with linear interpolation
     float evaluate(float x) const;
 
+    // Igual que evaluate(), para una tabla periodica con entrada entera (cuentas del encoder) y
+    // salida en double. Las vueltas enteras se sacan con aritmetica entera antes de pasar a
+    // float: evaluate(float(x)) redondea x a 24 bits (por encima de 2^31 cuentas, de a 256 =
+    // 20 nm) y su salida, a cientos de rad, va de a 3e-5 rad (24 nm). Sin periodo es evaluate().
+    double evaluate_periodic(int64_t x) const;
+
     // evaluate the inverse of the lookup table function (very slow), the LUT must be monotonic
     float evaluate_inverse(float y) const;
 
@@ -74,6 +80,8 @@ class LookupTable {
 
   private:
     void linear_interpolate(float x, int& idx_a, int& idx_b, float& weight_a, float& weight_b) const;
+    // lo mismo, con la entrada ya medida desde input_min
+    void linear_interpolate_from_min(float dx, int& idx_a, int& idx_b, float& weight_a, float& weight_b) const;
 
   private:
     float input_min = 0.0f;
