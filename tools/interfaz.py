@@ -55,7 +55,7 @@ import pyqtgraph as pg  # noqa: E402
 BAUD = 921600
 PITCH_MM = 5.0                 # husillo: mm por vuelta de motor
 AXIS_MIN_MM, AXIS_MAX_MM = 0.0, 255.0
-POS_DECIMALS = 5              # 10 nm en destino, G1 e indicadores (la telemetría viene de a 0,25 nm)
+POS_DECIMALS = 6              # 1 nm en destino, G1 e indicadores (el firmware lee el G1 en double)
 POS_PLOT_MIN_SPAN_MM = 5e-5    # 50 nm: con el eje quieto el autoescalado no hace zoom al ruido de
                               # nm (la telemetría viene de a 0,25 nm) pero se ve un paso de 10 nm
 SPEED_DEFAULT = 2.0            # mm/s: la velocidad para la que se aprende el anti-cogging
