@@ -104,7 +104,6 @@ int GCodeCommand::get_word_count() const {
 }
 
 bool GCodeCommand::contains_unsupported_words(const std::string& supported_words_str) const {
-    // Parse supported words from the string into a fixed-size lookup table
     bool supported[LETTER_COUNT] = {false};
 
     // Parse the supported letters from the comma-separated string
@@ -142,13 +141,12 @@ void CommandParser::update() {
   if(command_ready == false)
     return;
 
-  // Call user callback with parsed command
+  // Hand the parsed command to the processor
   if(command_processor->can_process_command(command)) {
     std::string reply;
     command_processor->process_command(command, reply);
     command_processor->send_reply(reply.c_str());
 
-    // mark command as processed
     command_ready = false;
   }
 }
@@ -157,7 +155,6 @@ bool CommandParser::is_command_ready() {
   return command_ready;
 }
 
-// Feed input chars one by one
 void CommandParser::add_input_character(char c) {
   if (c == '\n' || c == '\r') {
     if (buffer_index > 0) {
@@ -173,7 +170,6 @@ void CommandParser::add_input_character(char c) {
 bool CommandParser::parse_line(const char* line) {
   command_ready = false;
 
-  // reset and parse gcode command from string
   GCodeCommand::EParseStatus ret = command.from_command_str(line);
 
   if(ret == GCodeCommand::EParseStatus::MALFORMED_COMMAND) {

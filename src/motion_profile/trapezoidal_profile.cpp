@@ -6,32 +6,32 @@ void TrapezoidalProfile::start(double new_start_pos, double new_target_pos, floa
   start_pos = new_start_pos;
   target_pos = new_target_pos;
   current_pos = new_start_pos;
-  distance = std::fabs(target_pos - start_pos);   // double
+  distance = std::fabs(target_pos - start_pos);
   direction = (target_pos >= start_pos) ? 1.0f : -1.0f;
 
   max_accel = std::max(requested_max_accel, 1e-6f);
   elapsed = 0.0;
 
   if (distance < 1e-7) {
-    // ya estamos en el destino, no hay nada que mover
+    // already at the target
     max_vel = 0.0f;
     t_accel = t_cruise = t_total = 0.0f;
     active = false;
     return;
   }
 
-  // distancia recorrida acelerando desde 0 hasta requested_max_vel
+  // distance needed to accelerate from 0 to requested_max_vel
   float accel_distance = 0.5f * requested_max_vel * requested_max_vel / max_accel;
 
-  const float dist = float(distance);   // para los tiempos alcanza el float
+  const float dist = float(distance);   // float is enough for the durations
   if (2.0f * accel_distance <= dist) {
-    // perfil trapezoidal: alcanza velocidad de crucero
+    // trapezoidal: reaches cruise velocity
     max_vel = requested_max_vel;
     t_accel = max_vel / max_accel;
     float cruise_distance = dist - 2.0f * accel_distance;
     t_cruise = cruise_distance / max_vel;
   } else {
-    // recorrido corto: perfil triangular, no llega a la velocidad pedida
+    // short move: triangular, requested velocity not reached
     max_vel = std::sqrt(max_accel * dist);
     t_accel = max_vel / max_accel;
     t_cruise = 0.0f;
@@ -50,27 +50,27 @@ bool TrapezoidalProfile::update(float dt, double& out_pos, float& out_vel) {
 
   elapsed += dt;
 
-  double pos_along_path = 0.0; // distancia recorrida desde start_pos, en [0, distance]
+  double pos_along_path = 0.0; // distance from start_pos, in [0, distance]
   float vel_along_path = 0.0f;
 
   if (elapsed >= t_total) {
-    // movimiento terminado
+    // finished
     pos_along_path = distance;
     vel_along_path = 0.0f;
     active = false;
   } else if (elapsed < t_accel) {
-    // rampa de aceleración
+    // acceleration ramp
     float te = float(elapsed);
     pos_along_path = 0.5f * max_accel * te * te;
     vel_along_path = max_accel * te;
   } else if (elapsed < t_accel + t_cruise) {
-    // tramo a velocidad constante
+    // cruise
     float accel_distance = 0.5f * max_accel * t_accel * t_accel;
     double t_in_cruise = elapsed - t_accel;
     pos_along_path = accel_distance + double(max_vel) * t_in_cruise;
     vel_along_path = max_vel;
   } else {
-    // rampa de desaceleración
+    // deceleration ramp
     float t_in_decel = float(elapsed - t_accel - t_cruise);
     float accel_distance = 0.5f * max_accel * t_accel * t_accel;
     double cruise_distance = double(max_vel) * double(t_cruise);

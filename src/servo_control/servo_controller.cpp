@@ -29,9 +29,8 @@ ServoController::ServoController(
   ServoController::motor_pos = 0.0f;
   ServoController::pos_error = 0.0f;
 
-  // set default encoder lut (hasta calibrar): una vuelta de motor = ENCODER_PERIODS_PER_REV
-  // periodos del encoder (30 con la rueda de 60 imanes). Antes estaba fija en un anillo de
-  // radio 30 mm y paso 3 mm (31.4 periodos por vuelta).
+  // default encoder LUT until calibrated: one motor revolution = ENCODER_PERIODS_PER_REV
+  // encoder periods
   using namespace Constants;
   float g = float(encoder.get_rawcounts_per_rev())*float(ENCODER_PERIODS_PER_REV);
   build_linear_lut(encoder_raw_to_motor_pos_lut, -g, g, -TWO_PI_F, TWO_PI_F);
@@ -53,21 +52,14 @@ void ServoController::init(float max_motor_amplitude) {
 
   pos_controller.set_parameter(POS_KP, POS_KI, 0.0f, Constants::PI_F*2.0F, Constants::PI_F*0.5F);
   velocity_controller.set_parameter(VEL_KP, VEL_KI, 0.0f, Constants::PI_F*0.45f, Constants::PI_F*0.45f);
-
-  // large 0.9° steppers
-//  pos_controller.set_parameter(75.0f, 50000.0f, 0.0f, Constants::PI_F*2.0F, Constants::PI_F*0.5F);
-//  velocity_controller.set_parameter(0.2f, 150.0f, 0.0f, Constants::PI_F*0.45f, Constants::PI_F*0.45f);
-
- // pos_controller.set_parameter(75.0f, 2000.0f, 0.0f, Constants::PI_F*2.0F, Constants::PI_F*0.5F);
- // velocity_controller.set_parameter(0.2f, 0.0f, 0.0f, Constants::PI_F*0.45f, Constants::PI_F*0.45f);
 }
 
 void ServoController::set_enc_to_pos_lut(LookupTable& lut) {
   ServoController::encoder_raw_to_motor_pos_lut = lut;
-  lut_periods = INT32_MIN;   // recalcular el desplazamiento con la tabla nueva
+  lut_periods = INT32_MIN;   // recompute the period offset with the new table
 }
 
-// get the motor position to field angle lookup table
+// get the encoder raw angle to motor position lookup table
 const LookupTable& ServoController::get_enc_to_pos_lut() const {
   return encoder_raw_to_motor_pos_lut;
 }
@@ -82,9 +74,9 @@ const LookupTable& ServoController::get_pos_to_field_lut() const {
 }
 
 
-// Pendiente local [rad de motor por cuenta] de la tabla encoder -> motor en la posicion raw: la
-// del tramo de la tabla que la contiene (1024 tramos por vuelta, ~17 por iman). Con tabla
-// periodica, raw se lleva primero a la vuelta que cubre la tabla.
+// Local slope [motor rad per count] of the encoder -> motor table at 'raw', i.e. the slope of the
+// table segment containing it. With a periodic table, 'raw' is first wrapped into the
+// revolution covered by the table.
 static float lut_slope(const LookupTable& lut, ServoController::ENCODER_TYPE::AbsRawAngleType raw) {
   int32_t n = lut.size();
   float in_min, in_max;
@@ -115,22 +107,21 @@ void ServoController::update(double target_motor_pos, float dt, float one_over_d
     lut_periods_offset = double(periods) * double(encoder_raw_to_motor_pos_lut.get_period_out());
   }
   motor_pos = lut_periods_offset + double(local_pos);
-  // a la conmutacion le alcanza el float (0.002 rad electricos a 320 rad de motor)
+  // float is sufficient for commutation (0.002 electrical rad at 320 motor rad)
   float field_angle = motor_pos_to_field_angle(float(motor_pos));
 
-  // la resta en double: el error es chico y entra en float sin perder nada
+  // subtract in double; the small error then fits in a float without loss
   pos_error = float(target_motor_pos - motor_pos);
 
   // velocity estimate
-  // Con tabla periodica, la velocidad sale directo de las cuentas del encoder (enteras,
-  // sin la costura de la tabla ni la perdida de resolucion del float a cientos de rad).
+  // With a periodic table, velocity comes straight from the (integer) encoder counts, avoiding
+  // the table seam and the float resolution loss at hundreds of rad.
   float velocity_unfiltered;
   float period_in = encoder_raw_to_motor_pos_lut.get_period_in();
   if (period_in > 0.0f) {
-    // 16/10/2026: por defecto con la pendiente local de la tabla. Con un factor constante, las
-    // cuentas crudas traen la no linealidad del encoder (+-3.8 um por iman) y la velocidad salia
-    // ondulada aunque el motor girara parejo; el lazo la "corregia" y ondulaba el movimiento real.
-    // La diferencia de cuentas sigue siendo entera.
+    // By default the counts are scaled by the local table slope. With a constant factor the raw
+    // counts carry the encoder non-linearity (a few um per magnet), so the velocity estimate
+    // ripples at constant speed and the loop would "correct" it, rippling the real motion.
     float rad_per_count = velocity_from_lut
       ? lut_slope(encoder_raw_to_motor_pos_lut, encoder_angle_raw)
       : encoder_raw_to_motor_pos_lut.get_period_out() / period_in;
@@ -142,10 +133,9 @@ void ServoController::update(double target_motor_pos, float dt, float one_over_d
   velocity = velocity_lowpass.update(velocity_unfiltered, dt);
   motor_pos_prev = motor_pos;
 
-  // Con el lazo apagado (motor sin lazo, corte por falla) los PID se mantienen en cero desde
-  // aca mismo, en Core 1. Antes integraban igual y Core 0 los reseteaba al habilitar mientras
-  // este update() podia estar corriendo: el integrador de posicion (KI = 30000) podia quedar
-  // saturado al arrancar.
+  // With the loop disabled (open loop, fault cut-off) the PIDs are held at zero here on Core 1,
+  // so they never integrate while disabled and Core 0 never has to reset them concurrently with
+  // update(); otherwise the position integrator could start out saturated.
   if(!motor_update_enabled) {
     pos_controller.reset();
     velocity_controller.reset();
@@ -153,18 +143,18 @@ void ServoController::update(double target_motor_pos, float dt, float one_over_d
     return;
   }
 
-  // position controll loop
+  // position control loop
   float velocity_target = pos_controller.compute(pos_error, dt, one_over_dt);
   if (feedforward_enabled)
     velocity_target += velocity_ff;
 
-  // velocity controll loop
+  // velocity control loop
   float torque_target = velocity_controller.compute(velocity_target-velocity, dt, one_over_dt);
 
-  // torque controll loop
+  // torque control loop
   output = torque_target;
 
-  // compensacion de la retencion del motor: se suma al adelanto del campo, con el mismo limite
+  // anti-cogging: added to the field lead, with the same limit
   float lead = output;
   if (cogging_enabled)
     lead = std::clamp(output + cogging_feedforward(field_angle, velocity_ff), -Constants::PI_F * 0.45f,
@@ -183,7 +173,7 @@ float ServoController::cogging_feedforward(float field_angle, float velocity_ff)
   float w = fi - float(i);
   int j = (i + 1) % COGGING_TABLE_SIZE;
   float d = std::clamp(velocity_ff / cogging_dir_ref, -1.0f, 1.0f);
-  // por encima de la velocidad de aprendizaje se desvanece (ver COGGING_FADE_END)
+  // fades out above the learning velocity (see COGGING_FADE_END)
   float over = fabsf(velocity_ff) / cogging_dir_ref - 1.0f;
   float fade = over <= 0.0f ? 1.0f : std::max(0.0f, 1.0f - over / (COGGING_FADE_END - 1.0f));
   float sym = cogging_table[i] * (1.0f - w) + cogging_table[j] * w;
@@ -227,7 +217,7 @@ bool ServoController::move_to(float target_motor_pos, float at_pos_eps, float se
   uint32_t timeout_us = timeout_s*1e6f;
 
   do {
-    // get time and detla time
+    // get time and delta time
     time_us = time_us_64();
     float dt = float(time_us - last_time)*1e-6f;
     last_time = time_us;
@@ -235,7 +225,7 @@ bool ServoController::move_to(float target_motor_pos, float at_pos_eps, float se
     float pos_error;
     update(target_motor_pos, dt, 1.0f/dt);
 
-    // check if traget position reached
+    // check if target position reached
     if(pos_reached_time_us == 0) {
       if(at_position(at_pos_eps))
         pos_reached_time_us = time_us;
@@ -268,7 +258,7 @@ void ServoController::move_to_open_loop(float delta_motor_pos, float motor_angul
     // update motor position
     pos += moving_forward ? motor_angular_velocity * dt : -motor_angular_velocity * dt;
 
-    // set field ange to new position
+    // set field angle to new position
     float clamped_motor_pos = moving_forward ? std::min(pos, delta_motor_pos) : 
                                                std::max(pos, -delta_motor_pos);
     motor_driver.set_field_angle(clamped_motor_pos*motor_pole_pair_count);
@@ -309,8 +299,8 @@ void ServoController::set_motor_enabled(bool enable, bool synchronize_field_angl
   }
 }
 
-// enable or disable servo loop update. Solo cambia la bandera: update() deja los PID en cero
-// mientras esta apagado, asi esto se puede llamar desde el otro nucleo.
+// enable or disable servo loop update. Only sets the flag: update() holds the PIDs at zero
+// while disabled, so this can be called from the other core.
 void ServoController::set_motor_update_enabled(bool enable) {
   motor_update_enabled = enable;
 }

@@ -9,7 +9,6 @@
 
 #include <stdint.h>
 #include <functional>
-// #include <Arduino.h>
 
 class TB6612MotorDriver {
   public:
@@ -18,7 +17,7 @@ class TB6612MotorDriver {
       uint8_t pin_en_b, uint8_t pin_pos_b, uint8_t pin_neg_b, uint8_t pin_pwm_b,
       uint8_t ch_pos_a=0, uint8_t ch_neg_a=1,
       uint8_t ch_pos_b=2, uint8_t ch_neg_b=3,
-      uint16_t pwm_freq = 20000,    // might not be hit exactly and may be rounded to nearby freq.
+      uint16_t pwm_freq = 20000,    // Hz; actual frequency may be rounded
       uint8_t pwm_resolution = 12
     );
 
@@ -27,12 +26,12 @@ class TB6612MotorDriver {
     void  disable();
     void  set_field_angle(float angle_rad);
     float get_field_angle();
-    void  set_amplitude(float amplitude, bool immediate_update);  // Input in range 0.0–1.0
+    void  set_amplitude(float amplitude, bool immediate_update);  // 0.0 to 1.0
     void  set_amplitude_smooth(float amplitude, int ramp_time_ms);
     float get_amplitude() const;
 
     // Rotate the magnetic field by the given angle delta.
-    // For longer moves, use on_step callback to update encoders.
+    // For longer moves, use the on_step callback to update encoders.
     void  rotate_field(float delta_angle, float rad_per_s, const std::function<void()>& on_step);
 
   private:

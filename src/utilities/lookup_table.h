@@ -45,25 +45,25 @@ class LookupTable {
     // set an entry of the lookup table
     void set_entry(int32_t idx, float v);
 
-    // set an entry of the lookup table
+    // get an entry of the lookup table
     float get_entry(int32_t idx) const;
 
     // evaluate the lookup table at a given position with linear interpolation
     float evaluate(float x) const;
 
-    // Igual que evaluate(), para una tabla periodica con entrada entera (cuentas del encoder) y
-    // salida en double. Las vueltas enteras se sacan con aritmetica entera antes de pasar a
-    // float: evaluate(float(x)) redondea x a 24 bits (por encima de 2^31 cuentas, de a 256 =
-    // 20 nm) y su salida, a cientos de rad, va de a 3e-5 rad (24 nm). Sin periodo es evaluate().
+    // Like evaluate(), for a periodic table with integer input (encoder counts) and double
+    // output. Whole periods are removed with integer arithmetic before converting to float,
+    // because float(x) keeps only 24 bits and a float output of hundreds of rad only resolves
+    // ~3e-5 rad. Without a period it falls back to evaluate().
     double evaluate_periodic(int64_t x) const;
-    // Lo mismo partido en dos, para el lazo: devuelve la parte dentro de la vuelta y deja en
-    // 'periods' las vueltas enteras (resultado = periods * period_out + lo devuelto).
+    // Same, split for the control loop: returns the part within one period and writes the
+    // whole periods to 'periods' (result = periods * period_out + return value).
     float evaluate_periodic_split(int64_t x, int32_t& periods) const;
 
     // evaluate the inverse of the lookup table function (very slow), the LUT must be monotonic
     float evaluate_inverse(float y) const;
 
-    // inverts the lookup table so it represents the funcion x = fi(y) given y = f(x) 
+    // inverts the lookup table so it represents the function x = fi(y) given y = f(x) 
     bool invert(int new_size);
 
     // check if the lookup table is monotonic
@@ -83,7 +83,7 @@ class LookupTable {
 
   private:
     void linear_interpolate(float x, int& idx_a, int& idx_b, float& weight_a, float& weight_b) const;
-    // lo mismo, con la entrada ya medida desde input_min
+    // same, with the input already measured from input_min
     void linear_interpolate_from_min(float dx, int& idx_a, int& idx_b, float& weight_a, float& weight_b) const;
 
   private:
@@ -92,7 +92,7 @@ class LookupTable {
     float one_over_input_range = 1.0f;
     float period_in = 0.0f;
     float period_out = 0.0f;
-    // lo que usa evaluate_periodic(), calculado una vez en set_period()
+    // precomputed in set_period() for evaluate_periodic()
     int64_t period_in_counts = 0;
     int64_t input_min_counts = 0;
     float one_over_period_in = 0.0f;

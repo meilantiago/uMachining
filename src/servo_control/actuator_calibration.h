@@ -21,18 +21,18 @@ bool measure_calibration_data(
   size_t size,
   bool print_measurements);
 
-// Mide el desfase de conmutacion: gira el campo en lazo abierto 'cycles' ciclos electricos
-// en el sentido 'sweep_sign' y vuelve, leyendo el encoder. Para cada corrimiento del
-// contador del encoder de k = -1, 0, +1 periodos devuelve en offset_rad[k+1] el desfase
-// medio entre el campo comandado y el que da la tabla (el atraso del rotor se cancela
-// promediando ida y vuelta). Con la referencia correcta da ~0; un periodo corrido da ~120°.
-// 'consistency' (0..1) mide cuan constante fue el desfase durante el barrido: bajo indica
-// que el encoder no sigue al rotor. El campo y el rotor terminan donde empezaron.
-// Requiere el motor energizado y el lazo servo detenido.
-// Activa/desactiva el filtrado de los armonicos del motor en la proxima calibracion (M56 F<0|1>).
+// Enables/disables motor-harmonic filtering for the next calibration (M56 F<0|1>).
 void set_calibration_motor_filter(bool enable);
 bool get_calibration_motor_filter();
 
+// Measures the commutation offset: rotates the field open loop by 'cycles' electrical cycles
+// in direction 'sweep_sign' and back while reading the encoder. For each encoder period shift
+// k = -1, 0, +1, offset_rad[k+1] receives the mean offset between the commanded field angle and
+// the one given by the LUT (rotor lag cancels by averaging both directions). The correct
+// reference yields ~0; a one-period shift yields ~120 deg electrical.
+// 'consistency' (0..1) measures how constant the offset was during the sweep; a low value means
+// the encoder is not tracking the rotor. Field and rotor end where they started.
+// Requires the motor to be energized and the servo loop to be stopped.
 void measure_commutation_offsets(
   ServoController& servo_controller,
   float sweep_sign,

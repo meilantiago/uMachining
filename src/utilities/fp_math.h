@@ -11,7 +11,7 @@
 #include <limits>
 #include "math_constants.h"
 
-// #define CHECK_FP_MATH_ERRORS
+// Define CHECK_FP_MATH_ERRORS to report fixed-point overflows on Serial.
 #ifdef CHECK_FP_MATH_ERRORS
   #include "Arduino.h"
 #endif

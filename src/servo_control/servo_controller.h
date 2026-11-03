@@ -16,7 +16,7 @@
 
 class ServoController {
   public:
-    // use defines instead of virtual functions for speed
+    // use typedefs instead of virtual functions for speed
     // TODO: check if this makes any difference and change accordingly
     typedef TB6612MotorDriver MOTOR_DRIVER_TYPE;
     typedef MT6835Encoder ENCODER_TYPE;
@@ -37,29 +37,28 @@ class ServoController {
     // get the motor position to field angle lookup table
     const LookupTable& get_pos_to_field_lut() const;
 
-    // Updates the servo loop. velocity_ff: velocidad del perfil [rad/s] que se suma a la que
-    // pide el lazo de posicion (realimentacion anticipada; solo si feedforward_enabled).
-    // Posiciones en double: en float, a 255 mm (320 rad) van de a 3e-5 rad = 24 nm.
+    // Updates the servo loop. velocity_ff: profile velocity [rad/s] added to the position loop
+    // output (velocity feed-forward; only if feedforward_enabled).
+    // Positions are double: at 255 mm (320 rad) a float only resolves 3e-5 rad = 24 nm.
     void update(double target_motor_pos,
                 float dt,
                 float one_over_dt,
                 float velocity_ff = 0.0f);
 
-    // M58: como se estima la velocidad y si se usa la realimentacion anticipada (ver hw_config.h)
+    // M58: velocity estimation method and velocity feed-forward enable (see hw_config.h)
     volatile bool velocity_from_lut = true;
     volatile bool feedforward_enabled = true;
 
-    // Compensacion anticipada de la retencion del motor (anti-cogging, M59). Tabla de COGGING_TABLE_SIZE
-    // puntos sobre un ciclo electrico, indexada por el angulo electrico del campo (absoluto: no depende
-    // del homing ni de la calibracion). Se suma como adelanto del campo [rad electricos] a la salida del
-    // PI. 'output' (y la telemetria) sigue siendo solo la salida del PI.
+    // Anti-cogging feed-forward (M59). COGGING_TABLE_SIZE points over one electrical cycle, indexed
+    // by the absolute electrical field angle (independent of homing and calibration). Added as field
+    // lead [electrical rad] to the PI output; 'output' (and telemetry) remains the PI output only.
     static constexpr int COGGING_TABLE_SIZE = 64;
-    float cogging_table[COGGING_TABLE_SIZE] = {};       // parte igual en los dos sentidos [rad el.]
-    // Parte que cambia de signo con el sentido de marcha: el lazo responde distinto a un mismo patron segun
-    // el sentido (ida y vuelta ven el patron con fases conjugadas). Se multiplica por la velocidad del
-    // perfil / cogging_dir_ref, limitado a +-1 (0 quieto, suave al arrancar y al frenar).
+    float cogging_table[COGGING_TABLE_SIZE] = {};       // direction-independent part [electrical rad]
+    // Part that changes sign with the direction of travel: the loop responds differently to the same
+    // pattern in each direction (forward and backward see it with conjugate phases). Scaled by
+    // profile velocity / cogging_dir_ref, clamped to +-1 (0 at standstill, smooth on start/stop).
     float cogging_table_dir[COGGING_TABLE_SIZE] = {};
-    volatile float cogging_dir_ref = 1.0f;              // [rad/s de motor] velocidad a la que se aprendio
+    volatile float cogging_dir_ref = 1.0f;              // motor velocity [rad/s] at which the table was learned
     volatile bool cogging_enabled = false;
     volatile float cogging_gain = 1.0f;
     float cogging_feedforward(float field_angle, float velocity_ff) const;
@@ -87,7 +86,7 @@ class ServoController {
                  float settle_time_ms,
                  float timeout_us);
 
-    // Moves to a new motor position using open loop controll (blocking).
+    // Moves to a new motor position using open loop control (blocking).
     // Motor updates must be disabled if servo loop is running in background.
     void move_to_open_loop(float target_motor_angle, 
                            float angular_velocity);
@@ -111,9 +110,9 @@ class ServoController {
     // enable or disable encoder reads
     void set_encoder_update_enabled(bool enable);
 
-    // Relee el encoder y reinicia posicion previa, filtro de velocidad y PID. Llamar con el
-    // lazo servo detenido, despues de mover el motor por fuera de update() (homing,
-    // calibracion), para que el primer update() no vea un salto enorme de cuentas.
+    // Re-reads the encoder and resets previous position, velocity filter and PIDs. Call with the
+    // servo loop stopped after moving the motor outside update() (homing, calibration), so the
+    // first update() does not see a huge jump in counts.
     void resync();
 
   public:
@@ -132,18 +131,18 @@ class ServoController {
     LookupTable encoder_raw_to_motor_pos_lut;
     LookupTable motor_pos_to_field_angle_lut;
 
-    float motor_pole_pair_count = 0.0f;   // number as motor pole pairs (as float to avoid repeated conversion)
+    float motor_pole_pair_count = 0.0f;   // number of motor pole pairs (as float to avoid repeated conversion)
     float motor_current_amplitude = 0.5f; // motor current in range [0..1]
     double motor_pos = 0;                 // current motor position
     double motor_pos_prev = 0;            // previous motor position
-    // vueltas enteras de la ultima lectura y su desplazamiento en rad: cambia una vez por vuelta,
-    // asi el lazo no hace la multiplicacion en double en cada pasada
+    // whole LUT periods of the last reading and their offset [rad]: changes once per revolution,
+    // so the loop avoids a double multiplication on every pass
     int32_t lut_periods = INT32_MIN;
     double lut_periods_offset = 0.0;
     ENCODER_TYPE::AbsRawAngleType encoder_angle_raw_prev = 0; // previous encoder reading
-    float pos_error = 0;                  // current position error as computed by upate() (diferencia de doubles)
+    float pos_error = 0;                  // current position error as computed by update() (difference of doubles)
     float velocity = 0;                   // current velocity estimate
     float output = 0.0f;                  // servo loop output (field angle offset)
-    volatile bool motor_update_enabled = false; // enables mootor field updates (Core 0 la escribe, Core 1 la lee)
+    volatile bool motor_update_enabled = false; // enables motor field updates (written by Core 0, read by Core 1)
     bool encoder_update_enabled = true;   // enables encoder reads
 };

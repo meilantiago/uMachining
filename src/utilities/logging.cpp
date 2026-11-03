@@ -68,7 +68,7 @@ void Logger::raw(const char* fmt, ...) {
 }
 
 void Logger::log(ELogLevel level, const char* fmt, va_list args) {
-  char buf[128];  // Adjust size as needed
+  char buf[128];  // longer messages are truncated
   vsnprintf(buf, sizeof(buf), fmt, args);
 
   Serial.print(log_prefix(level));

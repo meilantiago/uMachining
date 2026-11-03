@@ -24,8 +24,8 @@ void SingleAxisCommandProcessor::send_reply(const char* str) {
 }
 
 bool SingleAxisCommandProcessor::can_process_command(const GCodeCommand& cmd) {
-  // siempre aceptamos el comando: si no lo reconocemos, process_command()
-  // responde con un error explícito en vez de dejarlo colgado reintentando.
+  // Always accept: unknown commands get an explicit error from process_command()
+  // instead of being retried forever.
   return true;
 }
 
@@ -38,16 +38,14 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
   if (c == "G91") { absolute_mode = false; reply = "ok\n"; return; }
 
   if (c == "M17") {
-    // sin calibracion la conmutacion no sabe donde esta el rotor y el lazo se dispara
+    // Without calibration commutation does not know the rotor angle and the loop runs away.
     if (!axis->is_calibrated()) { reply = "error: eje no calibrado, correr M56 primero\n"; return; }
-    // Sin homing (p.ej. recien encendido con la calibracion de flash) el contador del encoder
-    // puede estar corrido un periodo respecto de la tabla: conmutacion desfasada 120/240 grados
-    // y el motor empuja para el lado contrario. G28 verifica y corrige eso.
+    // Without homing (e.g. after boot with the calibration loaded from flash) the encoder
+    // count may be off by one period relative to the table, shifting commutation by 120/240
+    // electrical degrees so the motor pushes the wrong way. G28 checks and fixes that.
     if (!axis->is_homed()) { reply = "error: eje no homeado, correr G28 (o M56) primero\n"; return; }
-    // Rearmar quieto donde esta el carro. Antes el objetivo seguia siendo el destino del
-    // ultimo G1 (p.ej. 255 mm tras un corte a mitad de camino): el lazo arrancaba con
-    // cientos de mm de error y el corte por falla (>1 mm durante 0.5 s) volvia a saltar
-    // a los 0.5 s. Ahora hay que volver a mandar el G1 despues del M17.
+    // Re-arm holding the carriage where it is, so the loop does not start with the stale
+    // target of an interrupted G1 and immediately trip the fault cutoff. Resend G1 after M17.
     double pos_mm = axis->get_position_mm();
     uint32_t irq_state = save_and_disable_interrupts();
     profile->start(pos_mm, pos_mm, max_velocity_mm_s, max_accel_mm_s2);
@@ -67,8 +65,8 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
   if (c == "M119") { process_report_status_command(reply); return; }
   if (c == "M120") { process_telemetry_command(cmd, reply); return; }
   if (c == "M58") {
-    // M58 [V<0|1>] [F<0|1>]: V = velocidad con la pendiente de la tabla (1) o con cuentas crudas
-    // (0, como antes del 16/10); F = realimentacion anticipada de la velocidad del perfil.
+    // M58 [V<0|1>] [F<0|1>]: V = velocity from the LUT slope (1) or raw counts (0);
+    // F = profile velocity feedforward.
     ServoController* servo = axis->get_servo_controller();
     if (cmd.has_word('V')) servo->velocity_from_lut = cmd.get_value('V') >= 1.0f;
     if (cmd.has_word('F')) servo->feedforward_enabled = cmd.get_value('F') >= 1.0f;
@@ -79,12 +77,12 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
     return;
   }
   if (c == "M59") {
-    // M59: compensacion de la retencion del motor (anti-cogging). Sin argumentos informa el estado.
-    //   S<0|1> activar/desactivar   G<ganancia>   C borrar las tablas
-    //   I<indice> V<grados el.>  parte igual en los dos sentidos
-    //   J<indice> V<grados el.>  parte que cambia de signo con el sentido (escala con la velocidad, ver R)
-    //   R<mm/s> velocidad de referencia de la parte por sentido
-    //   P imprimir las tablas       W guardar en flash   L cargar de flash
+    // M59: anti-cogging compensation. Without arguments it reports the status.
+    //   S<0|1> enable/disable       G<gain>          C clear tables
+    //   I<idx> V<el. deg>  direction-independent part
+    //   J<idx> V<el. deg>  part that flips sign with direction (scales with speed, see R)
+    //   R<mm/s> reference speed of the direction-dependent part
+    //   P print tables              W store to flash L load from flash
     ServoController* servo = axis->get_servo_controller();
     const int n = ServoController::COGGING_TABLE_SIZE;
     if (cmd.has_word('C')) {
@@ -129,7 +127,7 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
     return;
   }
   if (c == "M203") {
-    // M203 X<mm/s>: velocidad maxima de los G0/G1 (por defecto DEFAULT_MAX_VELOCITY_MM_S)
+    // M203 X<mm/s>: maximum G0/G1 velocity (default DEFAULT_MAX_VELOCITY_MM_S)
     if (cmd.has_word('X')) {
       float v = cmd.get_value('X');
       if (!(v > 0.0f && v <= MAX_VELOCITY_LIMIT_MM_S)) {
@@ -147,9 +145,8 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
   }
   if (c == "M121") { axis->dump_trace(); reply = "ok\n"; return; }
   if (c == "M57") {
-    // Diagnostico: M57 X<distancia mm> [F<mm/s>] [P<decimacion>]. Barrido en lazo abierto
-    // (solo ida) imprimiendo el desfase de conmutacion. Deja el motor energizado con el
-    // lazo cerrado apagado: despues mandar M17.
+    // Diagnostic: M57 X<distance mm> [F<mm/s>] [P<decimation>]. One-way open-loop sweep
+    // printing the commutation offset. Leaves the motor energized; send M17 afterwards.
     if (!axis->is_homed() || !axis->is_calibrated()) { reply = "error: eje no homeado/calibrado\n"; return; }
     if (!cmd.has_word('X')) { reply = "error: falta X (distancia en mm)\n"; return; }
     float dist = cmd.get_value('X');
@@ -202,11 +199,9 @@ void SingleAxisCommandProcessor::process_move_command(const GCodeCommand& cmd, s
   float feedrate = cmd.get_value('F', max_velocity_mm_s);
   feedrate = std::min(feedrate, max_velocity_mm_s);
 
-  // El timer de Core 0 llama a profile->update() de forma asíncrona (ISR). Evitamos
-  // que profile->start() sea interrumpido a mitad de escritura deshabilitando IRQs
-  // brevemente (mismo tipo de precaución que el spinlock usado para SharedData).
-  // El movimiento nuevo arranca desde donde va el objetivo ahora. Antes arrancaba desde el
-  // destino del G1 anterior: un G1 mandado a mitad de otro hacia saltar el objetivo de golpe.
+  // The Core 0 timer ISR calls profile->update(); disable IRQs briefly so start() is not
+  // interrupted halfway. The new move starts from the current profile position so a G1
+  // issued during another move does not make the target jump.
   uint32_t irq_state = save_and_disable_interrupts();
   profile->start(profile->get_current_position(), target_mm, feedrate, max_accel_mm_s2);
   restore_interrupts(irq_state);
@@ -215,10 +210,7 @@ void SingleAxisCommandProcessor::process_move_command(const GCodeCommand& cmd, s
   reply = "ok\n";
 }
 
-// El homing contra el tope positivo (D1) no esta implementado: la calibracion barre siempre en
-// sentido positivo desde el home y los mm positivos apuntan siempre para ese lado. Con D1 el
-// eje creeria estar en 0 parado contra el tope del otro extremo.
-// --- reaprendizaje anti-cogging al calibrar (ver COGGING_RELEARN_ON_CALIBRATION) ----------
+//--- Anti-cogging relearn after calibration (see COGGING_RELEARN_ON_CALIBRATION) -------
 
 static void set_cogging_tables(ServoController* servo, const float ts_deg[], const float ta_deg[]) {
   bool any = false;
@@ -232,7 +224,7 @@ static void set_cogging_tables(ServoController* servo, const float ts_deg[], con
   servo->cogging_enabled = any;
 }
 
-// Un tramo a 'dest' a la velocidad de aprendizaje, acumulando el error. false si se corto.
+// One leg to 'dest' at the learning speed, accumulating the error. Returns false if aborted.
 static bool relearn_leg(AxisController* axis, TrapezoidalProfile* profile, SharedData* shared_data,
                         float dest, float accel, bool measure = true) {
   uint32_t irq_state = save_and_disable_interrupts();
@@ -254,14 +246,14 @@ static bool relearn_leg(AxisController* axis, TrapezoidalProfile* profile, Share
   }
   shared_data->cogging_learner.active = false;
   if (!ok) {
-    // frenar donde esta el objetivo ahora
+    // stop at the current profile position
     irq_state = save_and_disable_interrupts();
     double p = profile->get_current_position();
     profile->start(p, p, COGGING_DIR_REF_MM_S, accel);
     restore_interrupts(irq_state);
     return false;
   }
-  sleep_ms(1000);   // reposo en la punta
+  sleep_ms(1000);   // dwell at the end of the leg
   return true;
 }
 
@@ -279,7 +271,7 @@ static bool relearn_cogging(AxisController* axis, TrapezoidalProfile* profile, S
   CoggingLearner& learner = shared_data->cogging_learner;
   learner.begin(axis->field_angle_at_zero(), MOTOR_POLE_PAIRS * Constants::TWO_PI_F / LEAD_SCREW_PITCH_MM,
                 COGGING_DIR_REF_MM_S);
-  // la calibracion deja el lazo apagado: rearmarlo quieto donde esta el carro (como M17) e ir a 0
+  // Calibration leaves the loop disabled: re-arm in place (like M17), then go to 0.
   double pos_mm = axis->get_position_mm();
   uint32_t irq_state = save_and_disable_interrupts();
   profile->start(pos_mm, pos_mm, COGGING_DIR_REF_MM_S, accel);
@@ -290,7 +282,7 @@ static bool relearn_cogging(AxisController* axis, TrapezoidalProfile* profile, S
     reply += "anti-cogging: no pudo ir a 0, sin reaprender\n";
     return false;
   }
-  // asentar: hasta 200 ms seguidos a menos de 20 um, 5 s como mucho
+  // settle: 200 ms in a row below 20 um, 5 s timeout
   for (int t = 0, quiet = 0; quiet < 40; t++) {
     sleep_ms(5);
     float err_um = float(1000.0 * fabs(profile->get_current_position() - axis->get_position_mm()));
@@ -346,6 +338,8 @@ static bool relearn_cogging(AxisController* axis, TrapezoidalProfile* profile, S
   return true;
 }
 
+// Homing against the positive stop (D1) is not implemented: calibration always sweeps in the
+// positive direction from home, so with D1 the axis would think it is at 0 at the far end.
 static bool homing_direction_supported(const GCodeCommand& cmd, std::string& reply) {
   if (cmd.get_value('D', -1.0f) >= 0.0f) {
     reply = "error: solo se puede homear contra el tope negativo (D-1); D1 no esta implementado\n";
@@ -357,21 +351,21 @@ static bool homing_direction_supported(const GCodeCommand& cmd, std::string& rep
 void SingleAxisCommandProcessor::process_home_command(const GCodeCommand& cmd, std::string& reply) {
   if (!homing_direction_supported(cmd, reply)) return;
   float direction_sign = -1.0f;
-  bool search_stop = !cmd.has_word('H');  // G28 H: home aca mismo, sin tope (motor desacoplado)
+  bool search_stop = !cmd.has_word('H');  // G28 H: home here without a stop (motor uncoupled)
 
-  // Core 1 no debe tocar el encoder/driver mientras homing corre bloqueante en Core 0.
+  // Core 1 must not touch the encoder/driver while homing blocks Core 0.
   shared_data->servo_loop_enabled = false;
-  sleep_ms(5); // margen para que Core 1 termine cualquier update() en curso
+  sleep_ms(5); // let Core 1 finish any update() in progress
 
   bool ok = axis->home(direction_sign, search_stop);
 
   if (ok) {
     current_target_mm = 0.0f;
     uint32_t irq_state = save_and_disable_interrupts();
-    profile->start(0.0f, 0.0f, max_velocity_mm_s, max_accel_mm_s2); // deja el perfil quieto en 0
+    profile->start(0.0f, 0.0f, max_velocity_mm_s, max_accel_mm_s2); // hold the profile at 0
     restore_interrupts(irq_state);
     shared_data->set_target_position_mm(0.0);
-    cascade_corrector->reset();  // limpiar integral para evitar windup residual
+    cascade_corrector->reset();  // clear integrators to avoid residual windup
   }
 
   shared_data->servo_loop_enabled = true;
@@ -400,8 +394,8 @@ void SingleAxisCommandProcessor::process_calibrate_command(const GCodeCommand& c
   bool print_measurements = cmd.has_word('P');
   if (!homing_direction_supported(cmd, reply)) return;
   float direction_sign = -1.0f;
-  bool search_stop = !cmd.has_word('H');  // M56 H: calibrar aca mismo, sin buscar tope
-  // M56 F<0|1>: filtrar la huella del motor en la tabla (por defecto, CALIBRATION_FILTER_MOTOR_HARMONICS)
+  bool search_stop = !cmd.has_word('H');  // M56 H: calibrate here without searching the stop
+  // M56 F<0|1>: filter motor harmonics out of the table (default CALIBRATION_FILTER_MOTOR_HARMONICS)
   set_calibration_motor_filter(cmd.has_word('F') ? cmd.get_value('F') >= 1.0f : CALIBRATION_FILTER_MOTOR_HARMONICS);
 
   shared_data->servo_loop_enabled = false;
@@ -415,12 +409,12 @@ void SingleAxisCommandProcessor::process_calibrate_command(const GCodeCommand& c
     profile->start(0.0f, 0.0f, max_velocity_mm_s, max_accel_mm_s2);
     restore_interrupts(irq_state);
     shared_data->set_target_position_mm(0.0);
-    cascade_corrector->reset();  // limpiar integral para evitar windup residual
+    cascade_corrector->reset();  // clear integrators to avoid residual windup
   }
 
   shared_data->servo_loop_enabled = true;
 
-  // M56 A<0|1>: reaprender las tablas anti-cogging despues de calibrar
+  // M56 A<0|1>: relearn the anti-cogging tables after calibrating
   bool relearn = cmd.has_word('A') ? cmd.get_value('A') >= 1.0f : (COGGING_RELEARN_ON_CALIBRATION && search_stop);
   reply.clear();
   if (ok && relearn)
@@ -429,7 +423,7 @@ void SingleAxisCommandProcessor::process_calibrate_command(const GCodeCommand& c
 }
 
 void SingleAxisCommandProcessor::process_report_position_command(std::string& reply) {
-  // posicion calculada por Core 1: leer el encoder desde aca chocaria con sus lecturas SPI
+  // Position computed by Core 1: reading the encoder here would collide with its SPI reads.
   double pos_mm = axis->get_position_mm();
   char buf[64];
   snprintf(buf, sizeof(buf), "X:%.6f\n", pos_mm);

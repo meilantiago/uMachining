@@ -37,65 +37,13 @@ bool LookupTable::init(int32_t table_size, float input_min, float input_max) {
   return true;
 }
 
-/*
-bool LookupTable::init_approximating(std::vector<std::pair<float, float>> in_out_pairs, int table_size, float sigma) {
-    const int N = int(in_out_pairs.size());
-    if (N < 2 || table_size < 2)
-        return false;
-
-    // Sort by x ascending
-    std::sort(in_out_pairs.begin(), in_out_pairs.end(),
-              [](const auto& a, const auto& b) { return a.first < b.first; });
-
-    input_min = in_out_pairs.front().first;
-    input_max = in_out_pairs.back().first;
-    if (input_min >= input_max)
-        return false;
-
-    one_over_input_range = 1.0f / (input_max - input_min);
-    lookup_table.resize(table_size, 0.0f);
-
-    int start = 0;
-    int end = 0;
-    const float hw_size = (sigma*3.0f)*0.5f;
-    const float two_sigma_sq = 2.0f * powf(sigma, 2.0f);
-
-    for (int i = 0; i < table_size; ++i) {
-      // compute current evaluation position
-      float t = static_cast<float>(i) / (table_size - 1);
-      float x = input_min + t * (input_max - input_min);
-
-      // Advance window start and end index
-      float x_min = x - hw_size;
-      while (start < N - 1 && in_out_pairs[start].first < x_min) start++;
-      float x_max = x + hw_size;
-      while (end < N - 1 && in_out_pairs[end].first < x_max) end++;
-
-      // compute weighted average in window range
-      float sum = 0.0f;
-      float wcount = 0;
-      for (int idx = start; idx <= end; idx++) {
-        float dx = in_out_pairs[idx].first - x;
-        float w = std::exp(-(dx * dx) / two_sigma_sq);
-        sum += in_out_pairs[idx].second * w;
-        wcount += w;
-      }
-
-      // store weighted average value
-      lookup_table[i] = sum / wcount;
-    }
-
-    return true;
-}
-*/
-
 bool LookupTable::init_interpolating(std::vector<std::pair<float, float>> in_out_pairs, 
                                      int table_size, bool sort_input)
 {
   if (in_out_pairs.size() < 2)
     return false;
 
-  // If input is in descending order, reverse it
+  // Sort, or reverse if the input is in descending order
   if(sort_input) {
     std::sort(in_out_pairs.begin(), in_out_pairs.end(), 
               [](const auto& a, const auto& b) { return a.first < b.first; });
@@ -104,7 +52,7 @@ bool LookupTable::init_interpolating(std::vector<std::pair<float, float>> in_out
     std::reverse(in_out_pairs.begin(), in_out_pairs.end());
   }
 
-  // check if values are now ascending (i.e the original input values where monotonic)
+  // check if values are now ascending (i.e. the original input values were monotonic)
   bool is_ascending = std::is_sorted(in_out_pairs.begin(), in_out_pairs.end(),
                                      [](const auto& a, const auto& b) { return a.first < b.first; });
   if(is_ascending == false) {
@@ -156,10 +104,9 @@ bool LookupTable::optimize_lut(const std::vector<std::pair<float, float>>& in_ou
 
   LOG_DEBUG("Optimizing lookup table...");
 
-  // Minimos cuadrados exactos. Cada muestra toca solo dos entradas vecinas de la
-  // tabla, asi que las ecuaciones normales son tridiagonales y se resuelven en O(N)
-  // (algoritmo de Thomas). Un termino chico que tira hacia el valor actual de cada
-  // entrada deja definidas las celdas sin muestras.
+  // Exact least squares. Each sample touches only two neighbouring entries, so the normal
+  // equations are tridiagonal and solved in O(N) (Thomas algorithm). A small term pulling
+  // each entry towards its current value keeps cells without samples well defined.
   const double lambda = 1e-4;
   std::vector<double> diag(N, lambda), off(N - 1, 0.0), rhs(N);
   for (int i = 0; i < N; i++)
@@ -183,7 +130,7 @@ bool LookupTable::optimize_lut(const std::vector<std::pair<float, float>>& in_ou
     }
   }
 
-  // algoritmo de Thomas (matriz simetrica: sub y super diagonal = off)
+  // Thomas algorithm (symmetric matrix: sub- and super-diagonal = off)
   std::vector<double> c(N - 1), d(N);
   c[0] = off[0] / diag[0];
   d[0] = rhs[0] / diag[0];
@@ -222,7 +169,6 @@ void LookupTable::clear() {
   lookup_table.clear();
 }
 
-// returns the size of the lookup table
 uint32_t LookupTable::size() const {
   return (uint32_t)lookup_table.size();
 }
@@ -231,7 +177,6 @@ void LookupTable::set_entry(int32_t idx, float v) {
   lookup_table[idx] = v;
 }
 
-// set an entry of the lookup table
 float LookupTable::get_entry(int32_t idx) const {
   return lookup_table[idx];
 }
@@ -240,7 +185,7 @@ float LookupTable::evaluate(float x) const {
   if (lookup_table.size() < 2)
     return 0.0f;
 
-  // con periodo, se evalua siempre dentro de la primera vuelta [input_min, input_min+period)
+  // periodic: always evaluate within the first period [input_min, input_min+period)
   float offset = 0.0f;
   if (period_in > 0.0f) {
     float n = std::floor((x - input_min) / period_in);
@@ -268,8 +213,8 @@ float LookupTable::evaluate_periodic_split(int64_t x, int32_t& periods) const {
   if (period_in <= 0.0f || lookup_table.size() < 2)
     return evaluate(float(x));
 
-  // n = floor(u / periodo) con una cuenta en float (la division de 64 bits es lenta en el
-  // M0+) y corregido en enteros: el resto queda exacto en [0, periodo)
+  // n = floor(u / period) estimated in float (64-bit division is slow on the M0+) and
+  // corrected in integers, so the remainder is exact in [0, period)
   const int64_t u = x - input_min_counts;
   int64_t n = int64_t(std::floor(float(u) * one_over_period_in));
   int64_t r = u - n * period_in_counts;
@@ -359,7 +304,6 @@ float LookupTable::evaluate_inverse(float y) const {
   bool increasing = lookup_table.front() < lookup_table.back();
 
   // Clamp y outside the range
-  // Clamp y outside the range
   if ((increasing && y <= lookup_table.front()) || 
       (!increasing && y >= lookup_table.front()))
     return input_min;
@@ -394,7 +338,6 @@ float LookupTable::evaluate_inverse(float y) const {
   return input_min + pos * (input_max - input_min);
 }
 
-// inverts the lookup table so it represents the funcion x = fi(y) given y = f(x) 
 bool LookupTable::invert(int new_size) {
   if (lookup_table.empty() || new_size <= 0) {
     LOG_ERROR("invert_lut(): lut size is zero");
@@ -476,13 +419,12 @@ bool save_lut_to_file(const LookupTable& lut, const char* filename) {
     if (file.write((uint8_t*)&v, sizeof(v)) != sizeof(v)) return false;
   }
 
-  // periodo (agregado al final: los archivos viejos sin estos campos siguen cargando)
+  // period, appended last so files written without it still load
   if (file.write((uint8_t*)&lut.period_in, sizeof(float)) != sizeof(float)) return false;
   if (file.write((uint8_t*)&lut.period_out, sizeof(float)) != sizeof(float)) return false;
 
   file.close();
 
-  // LOG_DEBUG("Saving Lookup table to file successful");
   return true;
 }
 
@@ -527,7 +469,6 @@ bool load_lut_from_file(LookupTable& lut, const char* filename) {
   lut.set_period(period_in, period_out);
 
   file.close();
-  // LOG_DEBUG("Loading Lookup table from file successful");
 
   return true;
 }

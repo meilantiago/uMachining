@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------------------
-// This code is a modified version of the MT6835 Driver from the SimpleFOC project
-// being distributed under the MIT liscence as well. Thank you SimpleFOC !
+// Modified version of the MT6835 driver from the SimpleFOC project,
+// distributed under the MIT license. Thank you SimpleFOC!
 // --------------------------------------------------------------------------------------
 
 #include "MT6835_encoder.h"
@@ -10,7 +10,6 @@
 #include "utilities/logging.h"
 
 void MT6835Encoder::setup_spi(spi_inst_t* spi, uint pin_sck, uint pin_mosi, uint pin_miso, int32_t baudrate_hz) {
-  // Set GPIO functions to SPI
   gpio_set_function(pin_sck, GPIO_FUNC_SPI);
   gpio_set_function(pin_mosi, GPIO_FUNC_SPI);
   gpio_set_function(pin_miso, GPIO_FUNC_SPI);
@@ -31,7 +30,6 @@ MT6835Encoder::MT6835Encoder(spi_inst_t* spi, int32_t cs_pin) : spi(spi), cs_pin
 }
 
 MT6835Encoder::~MT6835Encoder() {
-  // nop
 }
 
 bool MT6835Encoder::init(uint8_t bandwidth, uint8_t hysteresis) {
@@ -87,7 +85,7 @@ MT6835Encoder::AbsRawAngleType MT6835Encoder::read_abs_angle_raw() {
   uint8_t data[6] = {0};
   data[0] = MT6835_OP_ANGLE << 4;
   data[1] = MT6835_REG_ANGLE1;
-  // rest zero
+  // Response: data[2..4] = 21-bit angle (MSB first) + 3 status bits, data[5] = CRC8
 
   spi_begin_transaction();
   spi_transfer(data, 6);
@@ -102,8 +100,6 @@ MT6835Encoder::AbsRawAngleType MT6835Encoder::read_abs_angle_raw() {
       if (last_crc != calc_crc(raw_angle, last_status)) {
           last_status |= MT6835_CRC_ERROR;
           crc_error_count++;
-          // LOG_ERROR("chip_crc: %i - calc_crc: %i", last_crc, calc_crc(raw_angle, last_status));
-     //     return -1.0f; // CRC error indicator
       }
   }
 
@@ -335,15 +331,14 @@ MT6835Encoder::AbsRawAngleType MT6835Encoder::update_abs_raw_angle(int32_t raw_a
     return abs_raw_angle;
 }
 
-// Helper SPI transaction helpers for CS handling and SPI transfer
+// SPI transaction helpers (CS handling and full-duplex transfer)
 void MT6835Encoder::spi_begin_transaction() {
-    // No real beginTransaction in Pico SDK; just pull CS low if used
+    // The Pico SDK has no beginTransaction; just pull CS low if used
     if (cs_pin >= 0)
         gpio_put(cs_pin, 0);
 }
 
 void MT6835Encoder::spi_transfer(uint8_t* data, size_t length) {
-    // Full-duplex transfer, sending and receiving on SPI
     spi_write_read_blocking(spi, data, data, length);
 }
 
@@ -352,6 +347,7 @@ void MT6835Encoder::spi_end_transaction() {
         gpio_put(cs_pin, 1);
 }
 
+// CRC-8, polynomial x^8 + x^2 + x + 1 (0x07), over angle[20:0] and status[2:0]
 uint8_t MT6835Encoder::calc_crc(uint32_t angle, uint8_t status) {
     uint8_t crc = 0x00;
     uint8_t input;

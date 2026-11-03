@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Manda comandos G-code al firmware, uno por uno, e imprime las respuestas.
+"""Send G-code commands to the firmware one at a time and print the replies.
 
-Uso:
-    python3 tools/send_gcode.py "M56" "M17" "G1 X0.2" "wait 3" "M114"
+Usage:
+    python3 tools/send_gcode.py [--port /dev/ttyACM0] [--baud 921600] [--timeout 120] \
+        "M56" "M17" "G1 X0.2" "wait 3" "M114"
 
-'wait N' espera N segundos sin mandar nada (mientras sigue mostrando lo que llega).
-Cerrar antes cualquier otro programa que tenga el puerto abierto.
+Each command waits for an "ok"/"error" reply (up to --timeout seconds).
+"wait N" sends nothing for N seconds while still printing incoming lines.
+Close any other program holding the serial port first.
 """
 import argparse
 import time

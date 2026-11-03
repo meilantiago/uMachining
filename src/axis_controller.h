@@ -1,14 +1,12 @@
 // --------------------------------------------------------------------------------------
-// AxisController: equivalente simplificado de 'RobotJoint' del proyecto original,
-// pero para un único eje lineal (carro + husillo) en vez de una junta rotativa de
-// un brazo delta. Se encarga de:
-//   - inicializar encoder MT6835 + driver TB6612
-//   - convertir entre posición lineal del carro (mm) y posición angular del motor (rad),
-//     usando el paso del husillo (LEAD_SCREW_PITCH_MM)
-//   - homing contra el tope mecánico (reusa HomingController tal cual)
-//   - calibración de las lookup tables encoder<->motor y motor<->campo (reusa
-//     measure_calibration_data() tal cual)
-//   - persistencia de esas LUT en flash (LittleFS)
+// AxisController: simplified counterpart of 'RobotJoint' from MicroManipulatorStepper (0x23),
+// for a single linear axis (carriage + ball screw) instead of a delta-arm rotary joint.
+// Responsibilities:
+//   - initialize the MT6835 encoder and TB6612 driver
+//   - convert between carriage position [mm] and motor angle [rad] via LEAD_SCREW_PITCH_MM
+//   - homing against the mechanical end stop (HomingController)
+//   - calibration of the encoder->motor and motor->field lookup tables (measure_calibration_data())
+//   - persisting those LUTs to flash (LittleFS)
 // --------------------------------------------------------------------------------------
 
 #pragma once
@@ -20,9 +18,8 @@
 
 //*** CLASS *****************************************************************************
 
-// Unidad de la posicion publicada entre nucleos y en la telemetria: 0.25 nm (int32, +-536 mm).
-// Un double no se puede leer de otro nucleo sin riesgo de leer mitad vieja y mitad nueva; un
-// int32 se escribe de una vez.
+// Unit of the position shared between cores and sent in telemetry: 0.25 nm (int32, +-536 mm).
+// A double read from the other core can tear (half old, half new); an int32 is written atomically.
 constexpr double POSITION_LSB_MM = 0.25e-6;
 
 class AxisController {
@@ -31,90 +28,85 @@ class AxisController {
                    float motor_pole_pairs, float lead_screw_pitch_mm);
     ~AxisController();
 
-    // Inicializa el hardware (encoder + driver) y carga calibración guardada, si existe.
+    // Initialize encoder and driver, and load the stored calibration if present.
     void init();
 
-    // Corre el homing contra el tope mecánico del husillo. Direction_sign define
-    // el sentido de búsqueda (+1 o -1). BLOQUEANTE: no debe correr en paralelo
-    // con update_servo() -- coordinar deshabilitando el update en Core 1 antes de
-    // llamar a esto (ver comentario en homing_controller.h del módulo reusado).
-    // search_stop = false: toma como home el lugar donde esta el rotor, sin buscar tope
-    // (para probar con el motor desacoplado).
-    // Si hay calibracion, al final verifica la conmutacion y corrige el periodo del
-    // encoder (ver verify_commutation); si no coincide, el homing falla.
+    // Home against the mechanical end stop; direction_sign (+1/-1) is the search direction.
+    // BLOCKING: must not run concurrently with update_servo() (disable the Core 1 update first,
+    // see homing_controller.h). search_stop = false homes at the current rotor position without
+    // seeking the stop (for testing with the motor decoupled).
+    // If calibrated, commutation is verified afterwards and the encoder period corrected
+    // (see verify_commutation); homing fails on mismatch.
     bool home(float direction_sign, bool search_stop = true);
 
-    // Corre la secuencia de calibración completa (homing + medición de LUTs).
-    // store_to_flash: si true, graba las LUT resultantes en LittleFS para no
-    // tener que recalibrar en cada reset.
+    // Full calibration sequence (homing + LUT measurement).
+    // store_to_flash: save the LUTs to LittleFS so they survive a reset.
     bool calibrate(float homing_direction_sign, bool store_to_flash, bool print_measurements,
                    bool search_stop = true);
 
-    // Actualiza el lazo servo (llamar tan seguido como se pueda, idealmente Core 1
-    // dedicado). target_position_mm es la posición objetivo actual del carro.
-    // target_velocity_mm_s: velocidad del perfil, para la realimentacion anticipada.
+    // One servo loop iteration; call as often as possible (dedicated Core 1 loop).
+    // target_position_mm [mm]; target_velocity_mm_s [mm/s] is the profile velocity for feed-forward.
     void update_servo(double target_position_mm, float dt, float one_over_dt, float target_velocity_mm_s = 0.0f);
 
-    // Habilita/deshabilita la corriente del motor.
     void set_motor_enabled(bool enable);
 
-    // Posición actual del carro en mm, según la última lectura de encoder usada
-    // en update_servo() (no dispara una lectura nueva). Se puede llamar desde el otro núcleo.
+    // Carriage position [mm] from the last encoder reading used by update_servo() (no new read).
+    // Safe to call from the other core.
     double get_position_mm() const;
-    // La misma posición en unidades de POSITION_LSB_MM (para la telemetría)
+    // Same position in POSITION_LSB_MM units (for telemetry)
     int32_t get_position_q() const { return position_q; }
 
-    // Error de posición de la última actualización del lazo, en mm.
+    // Position error of the last loop update [mm]
     float get_position_error_mm() const;
 
     bool is_homed() const;
     bool is_calibrated() const;
 
-    // true si el lazo se corto solo por error de seguimiento sostenido (ver update_servo)
+    // true if the loop tripped on sustained following error (see update_servo)
     bool has_servo_fault() const { return servo_fault; }
 
-    // Estado del lazo en el instante del ultimo corte por falla (lo muestra M119)
+    // Loop state at the last fault trip (reported by M119)
     struct FaultInfo {
-      uint32_t count = 0;   // cortes desde el arranque
+      uint32_t count = 0;   // trips since boot
       float target_mm = 0.0f, pos_mm = 0.0f, vel = 0.0f, out = 0.0f;
-      uint8_t status = 0;   // bits de estado del encoder
+      uint8_t status = 0;   // encoder status bits
     };
     const FaultInfo& get_last_fault() const { return last_fault; }
 
-    // Imprime por serie (CSV) la traza del lazo cerrado: una muestra por ms de los
-    // ultimos ~2 s con el lazo activo. Se congela cuando salta el corte por falla.
+    // Print the closed-loop trace as CSV over serial: one sample per ms over the last ~2 s
+    // with the loop active. The trace freezes when a fault trips.
     void dump_trace();
 
-    // Diagnostico (M57): con el lazo servo detenido, gira el campo en lazo abierto
-    // 'distance_mm' desde la posicion actual (solo ida) e imprime por serie (CSV), cada
-    // 'decimation' pasos, el desfase entre el campo comandado y el que da la tabla para la
-    // posicion que lee el encoder. Desfase = error de conmutacion +/- atraso del rotor.
+    // Diagnostic (M57): with the servo loop stopped, rotate the field open-loop over
+    // 'distance_mm' [mm] (one way) and print as CSV, every 'decimation' steps, the offset between
+    // the commanded field and the table's field for the encoder position.
+    // Offset = commutation error +/- rotor lag.
     void commutation_sweep(float distance_mm, float speed_mm_s, int decimation);
 
-    // Tabla de compensacion de la retencion del motor (M59): guardar/cargar en flash.
+    // Anti-cogging compensation table (M59): store/load in flash.
     bool store_cogging();
     bool load_cogging();
-    // Angulo de campo [rad electricos] que corresponde a la posicion 0 del motor (para que la PC
-    // calcule el angulo electrico de cada muestra de telemetria).
+    // Field angle [electrical rad] at motor position 0, so the PC can compute the electrical
+    // angle of each telemetry sample.
     float field_angle_at_zero();
 
-    // Acceso directo al ServoController interno, útil para tunear PID en caliente (M55).
+    // Direct access to the internal ServoController, e.g. for live PID tuning (M55).
     ServoController* get_servo_controller();
 
-    // Acceso al encoder, útil para telemetría (M119: ángulo crudo, errores de CRC, etc.)
+    // Encoder access for diagnostics (M119: raw angle, CRC errors, ...)
     MT6835Encoder* get_encoder();
 
   private:
-    // Mide en lazo abierto el desfase entre el campo y la tabla de calibracion (motor
-    // energizado, lazo servo detenido). allow_period_correction: si el desfase indica que el
-    // contador del encoder quedo corrido un periodo (120°/240°), lo corrige; si no, solo
-    // acepta el contador como esta. Devuelve false si el desfase no es aceptable.
+    // Measure open-loop the offset between field and calibration table (motor energized, servo
+    // loop stopped). allow_period_correction: if the offset shows the encoder counter is off by one
+    // period (120°/240° electrical), fix it; otherwise accept the counter as is.
+    // Returns false if the offset is out of tolerance.
     bool verify_commutation(float away_from_stop_sign, bool allow_period_correction);
 
     float mm_to_motor_pos_rad(float pos_mm) const;
     float motor_pos_rad_to_mm(float motor_pos_rad) const;
 
-    // Toma la posicion del servo y la publica en position_q
+    // Convert the servo position and publish it in position_q
     void publish_position();
 
     std::string enc_to_pos_lut_filename() const;
@@ -129,9 +121,9 @@ class AxisController {
     ServoController* servo_controller;
 
     float lead_screw_pitch_mm;
-    double mm_to_rad = 0.0;               // 2*pi / paso (en double: la cuenta del lazo es en double)
-    double rad_to_q = 0.0;                // rad de motor -> unidades de POSITION_LSB_MM
-    volatile int32_t position_q = 0;      // posicion del carro en unidades de POSITION_LSB_MM
+    double mm_to_rad = 0.0;               // 2*pi / pitch [rad/mm] (double: the loop math is done in double)
+    double rad_to_q = 0.0;                // motor rad -> POSITION_LSB_MM units
+    volatile int32_t position_q = 0;      // carriage position in POSITION_LSB_MM units
 
     bool homed = false;
     bool calibrated = false;
@@ -143,7 +135,7 @@ class AxisController {
       uint32_t t_us;
       float target_mm, pos_mm, vel, out;
       int32_t chip_raw;
-      uint16_t loops;   // iteraciones del lazo desde la muestra anterior
+      uint16_t loops;   // loop iterations since the previous sample
       uint8_t status;
     };
     static constexpr int TRACE_SIZE = 2000;

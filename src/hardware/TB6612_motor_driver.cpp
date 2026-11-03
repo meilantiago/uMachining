@@ -15,7 +15,7 @@
 #include "hardware/clocks.h"
 #include "pico/time.h"
 
-// Helper rounding function
+// Round to nearest, half away from zero
 int32_t round_int32(float val) {
   return (val >= 0.0f) ? (int32_t)(val + 0.5f) : (int32_t)(val - 0.5f);
 }
@@ -49,16 +49,14 @@ void TB6612MotorDriver::begin() {
   init_output_pin(pin_en_a, false);
   init_output_pin(pin_en_b, false);
 
-  // Enable pwm pins, see TB6612 documentation for how the PWM pins work,
-  // for slow decay mode they are constantly enabled.
+  // The TB6612 PWMx inputs are held high (slow-decay mode); the PWM signal
+  // is applied to the INx pins instead.
   init_output_pin(pin_pwm_a, true);
   init_output_pin(pin_pwm_b, true);
 
-  // Read system clock dynamically
   uint32_t sys_clk = clock_get_hz(clk_sys);
   float clkdiv = (float)sys_clk / (pwm_freq * max_pwm);
 
-  // Setup helper
   auto setup_pwm_pin = [&](uint8_t pin) {
     gpio_set_function(pin, GPIO_FUNC_PWM);
     uint slice = pwm_gpio_to_slice_num(pin);
@@ -128,7 +126,6 @@ void TB6612MotorDriver::rotate_field(float delta_angle, float rad_per_s, const s
       if (elapsed_us >= duration_us)
           break;
 
-      // Update the field
       set_field_angle(start + rad_per_µs * elapsed_us);
       
       if(on_step)

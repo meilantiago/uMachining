@@ -32,7 +32,7 @@ class GCodeCommand {
     void                set_value(char word, double value);
     float               get_value(char word) const;
     float               get_value(char word, float default_value) const;
-    // el valor con toda la precision del texto (posiciones: un float a 255 mm va de a 15 nm)
+    // full precision of the parsed text (for positions: a float at 255 mm has 15 nm resolution)
     double              get_value_double(char word, double default_value) const;
     bool                has_word(char word) const;
     int                 get_word_count() const;

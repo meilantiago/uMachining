@@ -1,21 +1,20 @@
 // --------------------------------------------------------------------------------------
-// LinearCascadeCorrector: controlador PI lento para lazo externo de cascada.
-// Compara la posición comandada (salida del perfil trapezoidal) con la lectura
-// de un encoder lineal externo montado en el carro, y genera una corrección
-// aditiva para compensar backlash, derivas térmicas, flexiones mecánicas, etc.
+// LinearCascadeCorrector: slow PI controller for an outer cascade loop.
+// Compares the commanded position (trapezoidal profile output) with an external linear
+// encoder mounted on the carriage and produces an additive correction that compensates
+// backlash, thermal drift, mechanical deflection, etc.
 //
-// Topología en el firmware:
-//   TrapezoidalProfile.update() → pos_mm (referencia)
-//   read_linear_encoder()       → linear_pos_mm (medición)
-//   LinearCascadeCorrector.update(pos_mm, linear_pos_mm, dt) → corrected_pos_mm
+// Signal flow:
+//   TrapezoidalProfile.update() -> pos_mm (reference)
+//   read_linear_encoder()       -> linear_pos_mm (measurement)
+//   LinearCascadeCorrector.update(pos_mm, linear_pos_mm, dt) -> corrected_pos_mm
 //   SharedData.target_position_mm = corrected_pos_mm
 //
-// Fórmula:
+// Formula:
 //   Error  = target_pos - linear_pos
 //   Output = target_pos + Kp * Error + Ki * Integral(Error)
 //
-// El integrador tiene anti-windup por clamp para evitar saturación al arranque
-// o tras una perturbación grande. Llamar a reset() al homear o calibrar.
+// The integrator is clamped (anti-windup). Call reset() when homing or calibrating.
 // --------------------------------------------------------------------------------------
 
 #pragma once
@@ -24,27 +23,23 @@ class LinearCascadeCorrector {
   public:
     LinearCascadeCorrector() = default;
 
-    // Configura las ganancias del controlador PI y el límite de anti-windup.
-    //   kp:              ganancia proporcional
-    //   ki:              ganancia integral
-    //   integral_limit:  clamp simétrico del acumulador integral [mm] (anti-windup)
+    // Sets the PI gains and the anti-windup limit.
+    //   integral_limit:  symmetric clamp of the integral accumulator [mm*s]
     void set_gains(float kp, float ki, float integral_limit);
 
-    // Calcula la posición corregida.
-    //   target_pos:  posición objetivo actual [mm] (salida del perfil trapezoidal)
-    //   linear_pos:  posición real del encoder lineal [mm]
-    //   dt:          tiempo desde la última llamada [s]
-    //   Retorna:     posición corregida [mm] (target + corrección PI)
+    // Returns the corrected position [mm] (target + PI correction).
+    //   target_pos:  current target position [mm] (trapezoidal profile output)
+    //   linear_pos:  measured linear encoder position [mm]
+    //   dt:          time since the last call [s]
     float update(float target_pos, float linear_pos, float dt);
 
-    // Resetea el acumulador integral a cero.
-    // Llamar antes de homing (G28) y calibración (M56) para evitar windup residual.
+    // Clears the integral accumulator. Call before homing (G28) and calibration (M56).
     void reset();
 
   private:
-    float kp_ = 0.5f;              // ganancia proporcional (conservadora por defecto)
-    float ki_ = 2.0f;              // ganancia integral
-    float integral_limit_ = 1.0f;  // ±mm, clamp anti-windup
+    float kp_ = 0.5f;              // conservative default
+    float ki_ = 2.0f;
+    float integral_limit_ = 1.0f;  // anti-windup clamp
 
-    float integral_ = 0.0f;        // acumulador integral [mm·s → convertido a mm por ki]
+    float integral_ = 0.0f;        // integral of the error [mm*s]
 };

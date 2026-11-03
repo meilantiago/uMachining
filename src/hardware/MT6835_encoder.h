@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------------------
-// This code is a modified version of the MT6835 Driver from the SimpleFOC project
-// being distributed under the MIT liscence as well. Thank you SimpleFOC !
+// Modified version of the MT6835 driver from the SimpleFOC project,
+// distributed under the MIT license. Thank you SimpleFOC!
 // --------------------------------------------------------------------------------------
 
 #pragma once
@@ -133,17 +133,17 @@ union MT6835Command {
 
 class MT6835Encoder {
   public:
-    // 64 bits: 260 mm de recorrido = 130 vueltas x 30 periodos x 2^21 cuentas = ~8.2e9,
-    // que desborda un int32 (2.1e9) pasados ~68 mm
+    // 64-bit: 260 mm of travel = 130 rev x 30 magnetic periods x 2^21 counts = ~8.2e9,
+    // which overflows int32 (2.1e9) after ~68 mm.
     typedef int64_t AbsRawAngleType;
 
   public:
       static constexpr float RAW_TO_ANGLE = (2.0f*3.14159265358979323846f)/float(MT6835_CPR);
 
-      // use this to setup a HW spi. It can then be used by multiple instances of MT6835
+      // Sets up a hardware SPI port; it can be shared by multiple MT6835 instances.
       static void setup_spi(spi_inst_t* spi, uint pin_sck, uint pin_mosi, uint pin_miso, int32_t baudrate_hz);
 
-      // Constructor: pass SPI instance (spi0 or spi1), CS pin
+      // spi: spi0 or spi1; cs_pin < 0 disables chip-select handling.
       MT6835Encoder(spi_inst_t *spi, int32_t cs_pin);
       virtual ~MT6835Encoder();
 
@@ -151,8 +151,8 @@ class MT6835Encoder {
       bool is_connected();
       bool is_initialized();
 
-      void reset_abs_angle(AbsRawAngleType abs_raw_angle=0);  // resets the total revolutions of abs angle
-      void reset_abs_angle_period();                  // Brings abs angle into [0..2pi)
+      void reset_abs_angle(AbsRawAngleType abs_raw_angle=0);  // resets the accumulated absolute angle
+      void reset_abs_angle_period();                  // wraps abs angle into [0, 2pi)
       float read_abs_angle();                         // returns the absolute angle in radians
       float get_last_abs_angle() const;               // returns the last read abs angle
       AbsRawAngleType read_abs_angle_raw();           // returns the absolute angle in raw counts
@@ -195,7 +195,7 @@ class MT6835Encoder {
 
       uint8_t get_status();
 
-      // ultimo angulo crudo que devolvio el chip (0..CPR-1)
+      // last raw angle returned by the chip (0..CPR-1)
       int32_t get_last_chip_raw_angle() const { return last_chip_raw_angle; }
       void set_crc_enabled(bool enable);
       bool is_crc_enabled();
@@ -204,7 +204,7 @@ class MT6835Encoder {
       uint8_t get_calibration_status();
 
       bool set_zero_from_current_position();
-      bool write_eeprom();  // takes ~6s to complete after calling
+      bool write_eeprom();  // takes ~6 s to complete after the call
 
       bool check_crc = false;
 

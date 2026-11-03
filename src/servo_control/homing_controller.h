@@ -13,7 +13,7 @@
 
 /**
  * This class implements the homing procedure for a single actuator. To allow for parallel 
- * homing the class is stateful and has an update() function, that can be called togeather
+ * homing the class is stateful and has an update() function, that can be called together
  * with the updates of other homing controllers inside a loop.
  * 
  * Homing procedure:
@@ -84,16 +84,16 @@ class HomingController {
 
     // Timing
     uint64_t last_time = 0;
-    uint64_t start_time = 0;   // para la rampa de arranque
-    int stall_checks = 0;      // ventanas lentas seguidas (confirmacion del tope)
+    uint64_t start_time = 0;   // start of the velocity ramp
+    int stall_checks = 0;      // consecutive slow windows (hard-stop confirmation)
 
     // Offsets and tracking
     float start_field_angle = 0.0f;
-    // double: con todo el recorrido (130 vueltas) llega a ~41000 rad, donde un float
-    // ya no puede sumar los incrementos de cada iteracion (~0.005 rad)
+    // double: over the full travel this reaches tens of thousands of rad, where a float
+    // can no longer accumulate the per-iteration increments (~0.005 rad)
     double field_angle_offset = 0.0;
     double last_eval_field_angle_offset = 0.0;
-    int incoherent_checks = 0;             // chequeos seguidos con el encoder sin seguir al campo
+    int incoherent_checks = 0;             // consecutive checks with the encoder not following the field
     float last_eval_encoder_angle = 0.0f;
     float eval_field_angle_delta = 0.0f;
     float expected_encoder_delta = 0.0f;

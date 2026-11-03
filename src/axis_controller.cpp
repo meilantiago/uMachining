@@ -15,7 +15,7 @@ AxisController::AxisController(MT6835Encoder* encoder, TB6612MotorDriver* motor_
                                float motor_pole_pairs, float lead_screw_pitch_mm)
   : encoder(encoder), motor_driver(motor_driver), lead_screw_pitch_mm(lead_screw_pitch_mm)
 {
-  // mismo 2*pi que motor_pos_rad_to_mm() y que la vuelta de la tabla (period_out)
+  // Same 2*pi constant as motor_pos_rad_to_mm() and the LUT period (period_out)
   mm_to_rad = double(Constants::TWO_PI_F) / double(lead_screw_pitch_mm);
   rad_to_q = 1.0 / (mm_to_rad * POSITION_LSB_MM);
   servo_controller = new ServoController(*motor_driver, *encoder, (int32_t)motor_pole_pairs);
@@ -45,7 +45,7 @@ void AxisController::init() {
 }
 
 bool AxisController::home(float direction_sign, bool search_stop) {
-  // el homing maneja el campo directamente: el lazo cerrado queda apagado (M17 lo rearma)
+  // Homing drives the field directly, so the closed loop stays off afterwards (M17 re-enables it)
   servo_controller->set_motor_update_enabled(false);
   homed = false;
 
@@ -70,14 +70,14 @@ bool AxisController::home(float direction_sign, bool search_stop) {
   } else {
     LOG_WARNING("AxisController: home en la posicion actual, SIN buscar tope. Solo para pruebas con el "
                 "motor desacoplado: con el carro puesto, 0..255 mm no corresponde al recorrido real.");
-    servo_controller->set_motor_enabled(true, false);  // energiza con el campo actual: el rotor se alinea
+    servo_controller->set_motor_enabled(true, false);  // energize with the current field so the rotor aligns
     sleep_ms(200);
     encoder->read_abs_angle_raw();
     encoder->reset_abs_angle_period();
   }
 
-  // El homing fija el contador del encoder modulo un periodo, y eso alcanza para la posicion
-  // pero no para la conmutacion (ver COMMUTATION_CHECK_CYCLES en hw_config.h).
+  // Homing fixes the encoder counter only modulo one period: enough for position, not for
+  // commutation (see COMMUTATION_CHECK_CYCLES in hw_config.h).
   if (calibrated && !verify_commutation(-direction_sign, true)) {
     LOG_ERROR("AxisController: la conmutacion no coincide con la calibracion guardada. Correr M56.");
     servo_controller->set_motor_enabled(false, false);
@@ -98,7 +98,7 @@ bool AxisController::verify_commutation(float away_from_stop_sign, bool allow_pe
   measure_commutation_offsets(*servo_controller, away_from_stop_sign, COMMUTATION_CHECK_CYCLES,
                               CALIBRATION_FIELD_VELOCITY, offset, lag, consistency);
 
-  // offset[1] = contador como esta; offset[0] / offset[2] = corrido -1 / +1 periodo
+  // offset[1]: counter as is; offset[0] / offset[2]: counter shifted by -1 / +1 period
   int best = 1;
   if (allow_period_correction) {
     for (int i = 0; i < 3; i++)
@@ -134,7 +134,7 @@ bool AxisController::verify_commutation(float away_from_stop_sign, bool allow_pe
 
 bool AxisController::calibrate(float homing_direction_sign, bool store_to_flash, bool print_measurements,
                                bool search_stop) {
-  // la tabla nueva se arma sobre la referencia de este homing: no se verifica contra la anterior
+  // The new table is built on this homing's reference, so don't verify against the old one
   calibrated = false;
   if (!home(homing_direction_sign, search_stop)) {
     return false;
@@ -162,7 +162,7 @@ bool AxisController::calibrate(float homing_direction_sign, bool store_to_flash,
   servo_controller->set_enc_to_pos_lut(encoder_raw_to_motor_pos_lut);
   servo_controller->set_pos_to_field_lut(motor_pos_to_field_angle_lut);
 
-  // Autoverificacion: con la tabla recien medida el desfase tiene que dar ~0 sin corregir nada.
+  // Self-check: with the freshly measured table the offset must be ~0 without any correction.
   if (!verify_commutation(-homing_direction_sign, false)) {
     LOG_ERROR("AxisController: la tabla recien medida no conmuta bien. Calibracion descartada.");
     servo_controller->resync();
@@ -187,9 +187,9 @@ void AxisController::update_servo(double target_position_mm, float dt, float one
   servo_controller->update(target_motor_pos_rad, dt, one_over_dt, velocity_ff);
   publish_position();
 
-  // Corte de seguridad: si el eje queda lejos del objetivo mucho tiempo, el encoder
-  // probablemente no sigue al rotor (rueda de imanes patinando, zona de campo debil)
-  // y la conmutacion ya no esta alineada: el motor solo empujaria sin avanzar.
+  // Safety trip: a large error sustained for long means the encoder probably no longer follows
+  // the rotor (magnet wheel slipping, weak-field zone), so commutation is misaligned and the
+  // motor would just push without moving.
   constexpr float FAULT_ERROR_MM = 1.0f;
   constexpr uint64_t FAULT_TIME_US = 500000;
   if (!servo_controller->is_motor_update_enabled()) {
@@ -198,9 +198,7 @@ void AxisController::update_servo(double target_position_mm, float dt, float one
   }
   uint64_t now_us = time_us_64();
 
-  // La traza se congela solo en el corte por falla, asi guarda los ~2 s previos al corte.
-  // (Antes se congelaba 300 ms despues de que el error pasara de 0.1 mm por primera vez:
-  // en un movimiento largo eso pasa casi al arrancar y la traza no mostraba el corte.)
+  // The trace freezes only on a fault trip, so it holds the ~2 s leading up to it.
   loops_since_trace++;
   if (!trace_frozen && now_us - last_trace_us >= 1000) {
     TracePoint& p = trace[trace_head];
@@ -218,7 +216,7 @@ void AxisController::update_servo(double target_position_mm, float dt, float one
     if (trace_count < TRACE_SIZE) trace_count = trace_count + 1;
   }
 
-  if (fabsf(get_position_error_mm()) < FAULT_ERROR_MM) {   // en float: es chico
+  if (fabsf(get_position_error_mm()) < FAULT_ERROR_MM) {   // float is fine: the error is small
     fault_since_us = 0;
   } else if (fault_since_us == 0) {
     fault_since_us = now_us;
@@ -239,7 +237,7 @@ void AxisController::update_servo(double target_position_mm, float dt, float one
 
 void AxisController::dump_trace() {
   bool was_frozen = trace_frozen;
-  trace_frozen = true;  // que Core 1 no escriba mientras se imprime
+  trace_frozen = true;  // keep Core 1 from writing while printing
   int count = trace_count;
   int start = (trace_head - count + TRACE_SIZE) % TRACE_SIZE;
   Serial.println("t_us,target_mm,pos_mm,vel,out,chip_raw,status,loops");
@@ -254,7 +252,7 @@ void AxisController::dump_trace() {
 void AxisController::commutation_sweep(float distance_mm, float speed_mm_s, int decimation) {
   servo_controller->set_motor_update_enabled(false);
   servo_controller->resync();
-  // energiza con el campo donde la tabla dice que esta el rotor (igual que M17)
+  // energize with the field where the table places the rotor (same as M17)
   servo_controller->set_motor_enabled(true, true);
   sleep_ms(200);
 
@@ -282,8 +280,8 @@ void AxisController::commutation_sweep(float distance_mm, float speed_mm_s, int 
 }
 
 void AxisController::set_motor_enabled(bool enable) {
-  // Primero sacarle el campo a Core 1 y esperar que termine el update() en curso (~45 us).
-  // Antes la rampa de corriente (Core 0) y la conmutacion (Core 1) escribian el PWM a la vez.
+  // Take the field away from Core 1 first and let its in-flight update() finish (~45 us), so the
+  // current ramp (Core 0) and commutation (Core 1) never write the PWM at the same time.
   servo_controller->set_motor_update_enabled(false);
   busy_wait_us(500);
 
@@ -303,14 +301,14 @@ double AxisController::get_position_mm() const {
 }
 
 void AxisController::publish_position() {
-  // corre en cada vuelta del lazo: una sola multiplicacion en double (por software, ~0.8 us)
+  // Runs every loop iteration: a single double multiply (software FP, ~0.8 us)
   const double q = servo_controller->get_position() * rad_to_q;
-  const float qf = float(q);   // fuera de rango (+-536 mm) solo antes del homing
+  const float qf = float(q);   // out of range (+-536 mm) only before homing
   position_q = fabsf(qf) < 2.1e9f ? int32_t(lround(q)) : (qf > 0.0f ? INT32_MAX : -INT32_MAX);
 }
 
 float AxisController::get_position_error_mm() const {
-  // conversion lineal (proporcional), no hace falta restar un offset en 0
+  // The conversion is purely proportional, so no offset needs subtracting
   return motor_pos_rad_to_mm(servo_controller->get_position_error());
 }
 
@@ -330,8 +328,8 @@ MT6835Encoder* AxisController::get_encoder() {
   return encoder;
 }
 
-// --- conversiones mm <-> rad segun el paso del husillo -------------------------------
-// una vuelta completa del motor (2*PI rad) avanza el carro 'lead_screw_pitch_mm' mm.
+// --- mm <-> rad conversions from the lead screw pitch -------------------------------
+// One motor revolution (2*PI rad) moves the carriage 'lead_screw_pitch_mm' [mm].
 
 float AxisController::mm_to_motor_pos_rad(float pos_mm) const {
   return (pos_mm / lead_screw_pitch_mm) * Constants::TWO_PI_F;
@@ -341,7 +339,7 @@ float AxisController::motor_pos_rad_to_mm(float motor_pos_rad) const {
   return (motor_pos_rad / Constants::TWO_PI_F) * lead_screw_pitch_mm;
 }
 
-// --- persistencia de calibracion en flash (LittleFS) ----------------------------------
+// --- calibration persistence in flash (LittleFS) ----------------------------------
 
 std::string AxisController::enc_to_pos_lut_filename() const {
   return "axis_enc_to_pos_lut.dat";
@@ -377,11 +375,10 @@ bool AxisController::load_calibration() {
 }
 
 bool AxisController::store_calibration() {
-  // Mientras se borra/escribe la flash, Core 1 no puede ejecutar codigo desde ella. LittleFS
-  // intenta pausarlo con rp2040.idleOtherCore(), pero eso solo funciona si Core 1 se arranco
-  // con setup1()/loop1() de Arduino; aca se arranca con multicore_launch_core1() y la pausa
-  // no hacia nada: M56 S colgaba la placa al grabar (16/10/2026). Se pausa con el mecanismo
-  // del SDK (Core 1 llama a multicore_lockout_victim_init() al arrancar, ver main.cpp).
+  // Core 1 cannot execute from flash while it is erased/written. LittleFS pauses it with
+  // rp2040.idleOtherCore(), which only works when Core 1 runs Arduino's setup1()/loop1(); here it
+  // is started with multicore_launch_core1(), so use the SDK lockout instead (Core 1 calls
+  // multicore_lockout_victim_init() at startup, see main.cpp).
   if (!multicore_lockout_start_timeout_us(200000)) {
     LOG_ERROR("AxisController: no se pudo pausar Core 1, la calibracion NO se guardo en flash");
     return false;
@@ -395,17 +392,17 @@ bool AxisController::store_calibration() {
   return ok;
 }
 
-// --- tabla de compensacion de la retencion del motor (M59) ---------------------------
+// --- anti-cogging compensation table (M59) ---------------------------
 
 static const char* COGGING_FILE = "axis_cogging.dat";
-static constexpr uint32_t COGGING_MAGIC = 0x434F4732;   // "COG2": tabla, tabla por sentido, velocidad de referencia
+static constexpr uint32_t COGGING_MAGIC = 0x434F4732;   // "COG2": table, per-direction table, reference velocity
 
 float AxisController::field_angle_at_zero() {
   return servo_controller->motor_pos_to_field_angle(0.0f);
 }
 
 bool AxisController::store_cogging() {
-  // misma precaucion que store_calibration(): Core 1 no puede correr desde la flash mientras se escribe
+  // Same precaution as store_calibration(): Core 1 must not run from flash while it is written
   if (!multicore_lockout_start_timeout_us(200000)) {
     LOG_ERROR("AxisController: no se pudo pausar Core 1, la tabla anti-cogging NO se guardo");
     return false;

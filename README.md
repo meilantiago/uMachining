@@ -1,129 +1,178 @@
 # μMachining
 
-**Español** · [English](README.en.md)
+**English** · [Español](README.es.md)
 
-Firmware de control en lazo cerrado para un eje lineal de micromaquinado, sobre un RP2040.
+Closed-loop firmware for a single linear micromachining axis, running on an RP2040.
 
-Un motor paso a paso mueve un carro con un husillo de bolas. Un encoder magnético sobre el eje del motor cierra el lazo, y el control es por campo (FOC), no por pasos. El firmware está adaptado de [MicroManipulatorStepper](docs/README_ORIGEN_DEL_CODIGO.md).
+A stepper motor drives a carriage through a ball screw. A magnetic encoder on the motor shaft closes the loop, and the motor is driven with field-oriented control (FOC) instead of steps. The firmware is adapted from the `MotionControllerRP` firmware of [MicroManipulatorStepper](https://github.com/0x23/MicroManipulatorStepper) by 0x23, which drives a 3-DOF delta. Here it drives one multi-turn linear axis.
 
-**Autores:** Francisco Maresca · Tiago Meilan
+**Authors:** Francisco Maresca · Tiago Meilan
 
-## Características
+## Features
 
-- Lazo en cascada posición → velocidad → campo, a ~20 kHz en un núcleo dedicado
-- Calibración automática del encoder y de la conmutación, con guardado en flash
-- Realimentación anticipada de velocidad desde el perfil de movimiento
-- Homing contra el tope mecánico, con verificación de la conmutación
-- Corte de seguridad por error de seguimiento
-- Telemetría binaria a 1 kHz y herramientas en Python para pruebas, barridos de ganancias y análisis de errores
+- Cascaded position → velocity → field-angle loop at ~16 kHz on a dedicated core
+- Automatic encoder and commutation calibration over a full motor revolution, saved to flash
+- Removal of the motor's own harmonics from the calibration table
+- Anti-cogging table, relearned automatically after each calibration
+- Velocity feed-forward from the motion profile, and velocity from the slope of the calibration table
+- Position path without float rounding: whole turns in 64-bit integers, position and error in `double`
+- Homing against the mechanical hard stop, with an automatic commutation check
+- Safety cut-off on following error, with a trace of the last fault
+- Binary telemetry at up to 2 kHz, and a PC interface with live plots
 
-## Rendimiento
+## Performance
 
-Recorrido completo (0–255 mm) a 2 mm/s:
+Measured on our bench at 2 mm/s over the full 255 mm travel:
 
 | | |
 |---|---|
-| Error de seguimiento en movimiento | 1,2–1,9 µm RMS (máx. 4–8 µm) |
-| Error en reposo | 0,002 µm (desvío estándar, `POS_KI = 100`) |
-| Resolución del encoder | 0,08 nm por cuenta |
+| Following error while moving | ~1.0 µm RMS |
+| Position noise at rest | ~1 nm (standard deviation) |
+| Smallest step resolved | 10 nm |
+| Encoder resolution at the carriage | 0.08 nm per count |
 
-> Son errores de seguimiento: la posición medida por el encoder contra la pedida. La exactitud absoluta del carro todavía no se midió con una referencia externa.
+> **Resolution, not accuracy.** All of these figures come from the motor-side encoder itself: they compare the measured position with the commanded one. Screw lead error, backlash and nut compliance are invisible to this sensor. The carriage has not yet been measured against an external reference.
 
 ## Hardware
 
 | | |
 |---|---|
-| Placa | Raspberry Pi Pico (RP2040) |
-| Motor | Paso a paso de 1,8° (50 pares de polos) |
+| Board | Raspberry Pi Pico (RP2040) |
+| Motor | 1.8° stepper (50 pole pairs) |
 | Driver | TB6612 |
-| Transmisión | Husillo de bolas de 5 mm por vuelta |
-| Encoder | MT6835 de 21 bits frente a una rueda de 60 imanes |
+| Transmission | Ball screw, 5 mm per revolution |
+| Encoder | MT6835 (21-bit) facing a wheel of 60 alternating magnets (30 field periods per revolution) |
+| Pinout | Same as the `SINGLE_AXIS_BOARD` option of the upstream firmware (see [`src/hw_config.h`](src/hw_config.h)) |
 
-## Inicio rápido
+## Getting started
+
+### 1. Configure
+
+Every parameter that depends on the mechanics is in [`src/hw_config.h`](src/hw_config.h). Check at least the values marked `ADJUST`:
+
+- `LEAD_SCREW_PITCH_MM`: travel per motor revolution
+- `AXIS_MIN_POSITION_MM` / `AXIS_MAX_POSITION_MM`: soft travel limits
+- `MOTOR_POLE_PAIRS`: 50 for 1.8° motors, 100 for 0.9° motors
+- `ENCODER_MAGNET_COUNT`: number of magnets on the wheel
+- The pin definitions, if your board differs
+
+### 2. Build and upload
+
+Requires [PlatformIO](https://platformio.org/). Close any serial monitor before uploading.
 
 ```bash
-# dependencias de las herramientas de PC
-pip install numpy matplotlib pyserial PyQt5 pyqtgraph
-
-# compilar y cargar (cerrar antes el monitor serie)
 pio run -t upload
 ```
 
-Por serie a 921 600 baudios:
+### 3. First run
+
+Connect over USB serial at 921 600 baud and send:
 
 ```
-M56        homing + calibración
-M17        habilitar el lazo cerrado
-G1 X10     ir a X = 10 mm
-M114       posición actual
+M56 S      home, calibrate, relearn anti-cogging and save to flash
+M17        enable the closed loop
+G1 X10     move to X = 10 mm
+M114       report the position
 ```
 
-O con la interfaz gráfica ([guía de uso](docs/GUIA_INTERFAZ.md)):
+`M56` takes a few minutes: it searches for the hard stop, sweeps the field over more than one revolution in each direction, checks the commutation and runs two short back-and-forth passes to learn the anti-cogging table. The carriage needs free travel from 0 to 50 mm.
+
+**Run `M56` on every power-up.** A calibration restored from flash can leave the commutation offset by one encoder period; `M56` measures it again.
+
+### PC tools
 
 ```bash
+pip install numpy pyserial PyQt5 pyqtgraph
+
+# graphical interface: control and live telemetry
 python3 tools/interfaz.py
-```
 
-O con el script:
-
-```bash
+# send commands in sequence and print the replies
 python3 tools/send_gcode.py "M56" "M17" "G1 X10" "M114" --timeout 600
 ```
 
-## Comandos
+`send_gcode.py` defaults to `/dev/ttyACM0` and the interface detects the board automatically; both accept `--port`. The interface can record telemetry and commands to CSV under `mediciones/YYYY-MM-DD/`.
 
-| Comando | Descripción |
+> The interface and the firmware's serial messages are in Spanish. Commands and replies (`ok` / `error: ...`) follow the usual G-code conventions.
+
+## Commands
+
+| Command | Description |
 |---|---|
-| `G28` | Homing contra el tope |
-| `M56 [S]` | Homing + calibración (`S`: guardar en flash) |
-| `M17` / `M18` | Habilitar / apagar el motor |
-| `G1 X<mm> [F<mm/s>]` | Mover (0–255 mm, hasta 2 mm/s) |
-| `G90` / `G91` | Modo absoluto / relativo |
-| `M114` / `M119` | Posición / estado completo |
-| `M55 A B C D F` | Ganancias del PID en caliente |
-| `M58 V<0\|1> F<0\|1>` | Velocidad con la tabla de calibración / realimentación anticipada |
-| `M120 S1 P<n>` | Telemetría binaria |
-| `M57 X<mm>` / `M121` | Diagnóstico de conmutación / traza del último corte por falla |
+| `G0` / `G1 X<mm> [F<mm/s>]` | Move. Targets outside the soft limits are rejected |
+| `G90` / `G91` | Absolute / relative mode |
+| `G28 [H]` | Home against the hard stop and check the commutation. `H`: take the current position as home (motor uncoupled only) |
+| `M17` / `M18` | Enable the closed loop at the current position / disable the motor. `M17` requires a calibrated and homed axis |
+| `M56 [S] [P] [H] [F<0\|1>] [A<0\|1>]` | Home and calibrate. `S`: save to flash · `P`: print the measurements · `H`: calibrate in place · `F`: motor-harmonic filter · `A`: anti-cogging relearn |
+| `M114` | Position |
+| `M119` | Full status, including the last fault cut-off |
+| `M203 [X<mm/s>]` | Maximum velocity for `G0`/`G1` (default 2, up to 5) |
+| `M55 A B C D F` | Set the loop gains live: `POS_KP`, `POS_KI`, `VEL_KP`, `VEL_KI`, velocity low-pass time constant |
+| `M58 V<0\|1> F<0\|1>` | Velocity from the calibration table / velocity feed-forward |
+| `M59 [S<0\|1>] [G<gain>] [C] [P] [W] [L]` | Anti-cogging: enable, gain, clear, print, save to / load from flash |
+| `M120 S<0\|1> [P<n>]` | Binary telemetry on/off, one point every `n` ticks of the 2 kHz profile timer |
+| `M121` | Dump the trace recorded before the last fault cut-off |
+| `M57 X<mm> [F<mm/s>] [P<n>]` | Commutation diagnostic: open-loop sweep printing the commutation offset |
 
-## Herramientas
+### Telemetry format
 
-| Script | Descripción |
-|---|---|
-| `tools/interfaz.py` | Interfaz gráfica: control remoto y telemetría en vivo ([guía](docs/GUIA_INTERFAZ.md)) |
-| `tools/send_gcode.py` | Mandar comandos en secuencia |
-| `tools/closed_loop_test.py` | Idas y vueltas con telemetría y gráficos de todo el recorrido |
-| `tools/pid_sweep.py` | Barrido de ganancias en caliente, con el error en movimiento y en reposo |
-| `tools/ki_sweep.py` | Barrido de una constante de `hw_config.h`, recompilando para cada valor |
-| `tools/analisis_errores.py` | Descomposición del error en sus componentes |
-| `tools/encoder_sweep.py` | Caracterización del encoder |
+Each point is `0xAA 0x56` followed by 28 bytes, little endian (`TelemetryPoint` in [`src/shared_data.h`](src/shared_data.h)):
 
-Los resultados se guardan en `mediciones/AAAA-MM-DD/`.
+| Field | Type | Unit |
+|---|---|---|
+| `timestamp_us` | `uint32` | µs |
+| `target_q` | `int32` | 0.25 nm |
+| `motor_pos_q` | `int32` | 0.25 nm |
+| `vel` | `float` | motor rad/s |
+| `out` | `float` | electrical rad (velocity-loop output) |
+| `chip_raw` | `int32` | raw MT6835 angle (0 … 2²¹ − 1) |
+| `status` | `uint8` | encoder status bits |
+| `flags` | `uint8` | bit 0: loop active · bit 1: fault cut-off |
+| `seq` | `uint16` | point counter (gaps = dropped points) |
 
-## Estructura
+## Architecture
 
 ```
-src/            firmware (hw_config.h: parámetros del montaje y del PID)
-tools/          scripts de PC en Python
-docs/           documentación, reportes y registro de cambios
-mediciones/     datos y gráficos de cada prueba, por día
-simulaciones/   modelo del campo magnético de la rueda
+Core 0                                  Core 1
+──────                                  ──────
+serial G-code → CommandProcessor        ServoController (free-running, ~16 kHz)
+2 kHz timer → TrapezoidalProfile   ──►    encoder → LUT → position
+              target position (int32)     position PI → velocity PI → field angle
+telemetry ring buffer → serial     ◄──    TB6612 FOC commutation
 ```
 
-## Notas
+```
+src/
+  main.cpp                  boots both cores, serial loop and telemetry
+  hw_config.h               mechanics, pins and loop parameters
+  axis_controller.*         homing, calibration, commutation check, mm ↔ rad
+  command_processor.*       G/M-code commands
+  shared_data.h             data shared between the cores, telemetry buffer
+  motion_profile/           trapezoidal point-to-point profile
+  servo_control/            servo loop, PID, calibration, homing, anti-cogging
+  hardware/                 MT6835 encoder and TB6612 driver
+  command_parser/           G-code parser
+  utilities/                lookup table, fixed-point math, logging
+tools/
+  interfaz.py               PyQt5 interface with live telemetry
+  send_gcode.py             command-line sender
+```
 
-- **Correr `M56` en cada arranque, no `G28`.** La calibración restaurada desde la flash puede dejar la conmutación corrida.
-- **`POS_KI = 100`.** Deja el carro quieto en reposo (0,002 µm) sin cambiar el movimiento; por encima de ~200–250 la integral oscila contra la fricción estática ([elección](docs/ELECCION_POS_KI.md)).
-- **Forma de trabajo:** `master` es siempre una versión estable y etiquetada; cada prueba va en una rama `prueba/<nombre>`.
+### Relation to the upstream firmware
 
-## Documentación
+- **Reused or lightly adapted:** the MT6835 and TB6612 drivers, the PID controller, the homing controller, the G-code parser and the logging utilities.
+- **Extended:** the servo controller (velocity feed-forward, velocity from the table, anti-cogging, `double` position), the actuator calibration (folding over a full revolution, transient skip at the sweep ends, motor-harmonic filter) and the lookup table (periodic over one revolution, whole turns removed in 64-bit integers).
+- **New for the single axis:** the trapezoidal profile (replaces the delta's path planner and kinematics), the axis controller, the command processor, the shared data, the anti-cogging learner and `main.cpp`.
 
-- [Arquitectura del firmware](docs/DOCUMENTACION_ARQUITECTURA.md)
-- [Encoder y calibración](docs/DOCUMENTACION_ENCODER_Y_CALIBRACION.md)
-- [Reporte de la prueba de lazo cerrado](docs/REPORTE_PRUEBA_LAZO_CERRADO_2026-10-16.md)
-- [Método de análisis de errores y plan de caracterización](docs/METODO_DE_ERRORES_Y_PLAN_DE_CARACTERIZACION.md)
-- [Elección de POS_KI](docs/ELECCION_POS_KI.md)
-- [Registro de cambios](docs/CAMBIOS_2026-10-16.md) (y los `CAMBIOS_*.md` anteriores)
+## Known limitations
 
-## Créditos
+- **Stick-slip after small steps.** After a step of a few tens of nm the carriage can stay still for ~2 s, then jump 40–80 nm when static friction breaks, and settle to ~1 nm within ~8 s.
+- **Speed.** Tested at 2 mm/s. Around 4 mm/s the motor runs out of torque margin with `MOTOR_MAX_CURRENT_FACTOR = 0.6`.
+- **Homing direction.** Only homing against the negative hard stop is implemented.
+- **Board.** Tested on the RP2040 only.
 
-Basado en el firmware `MotionControllerRP` de MicroManipulatorStepper (licencia MIT). Ver [qué se reutilizó y qué se reescribió](docs/README_ORIGEN_DEL_CODIGO.md).
+## License
+
+MIT, following the upstream project. See [LICENSE](LICENSE).
+
+Thanks to 0x23 for publishing MicroManipulatorStepper: its calibration approach and magnetic-gearing encoder made this project possible.

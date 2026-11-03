@@ -4,16 +4,15 @@
 #include "pico/time.h"
 #include <algorithm>
 
-static constexpr int EVAL_WINDOWS_PER_CHECK = 17;   // 17 x 0.72 grados = ~1 periodo del encoder
-// contra el tope el rotor vibra y salta de polo, y el encoder registra algo de
-// movimiento: se midio ~0.33 en un tope real. En movimiento libre da ~1.
+static constexpr int EVAL_WINDOWS_PER_CHECK = 17;   // 17 x 0.72 deg = ~1 encoder period
+// Against the hard stop the rotor vibrates and skips poles, so the encoder still sees some
+// motion (ratio ~0.3). Moving freely the ratio is ~1.
 static constexpr float STALL_RATIO = 0.5f;
-// El tope se confirma con varias ventanas lentas SEGUIDAS. Un patinazo suelto del rotor
-// (pierde un ciclo electrico = 7.2 grados de eje dentro de una ventana de ~12) tambien da
-// una relacion < 0.5, pero en la ventana siguiente el eje vuelve a avanzar normal. Contra
-// el tope real, en cambio, todas las ventanas siguientes dan lento.
+// The hard stop is confirmed by several CONSECUTIVE slow windows. A single rotor slip (losing
+// one electrical cycle = 7.2 deg of shaft within a ~12 deg window) also gives a ratio < 0.5,
+// but the next window moves normally again; against the real stop all following windows are slow.
 static constexpr int STALL_CONFIRM_CHECKS = 3;
-// rampa de velocidad al arrancar: arrancar de golpe en lazo abierto puede hacer perder pasos
+// velocity ramp at start: an abrupt open-loop start can lose steps
 static constexpr float START_RAMP_S = 0.3f;
 static constexpr float MIN_HEALTHY_RATIO = 0.7f;
 static constexpr float MAX_HEALTHY_RATIO = 1.3f;
@@ -77,7 +76,6 @@ void HomingController::start(ServoController* servo_controller,
   servo_ctrl->get_motor_driver().set_amplitude_smooth(homing_current, 100);
   search_failed = false;
 
-  // motor_driver.rotate_field(Constants::TWO_PI_F*0.5f * (field_velocity>0.0f ? -1.0f : 1.0f), 12.0f);
   start_field_angle = fmodf(motor_driver.get_field_angle(), Constants::TWO_PI_F);
 
   last_eval_encoder_angle = encoder.read_abs_angle();
@@ -107,15 +105,13 @@ void HomingController::update() {
 
   float encoder_angle = encoder.read_abs_angle();
 
-  // Se compara lo que avanzo el encoder contra lo que avanzo el campo sobre un
-  // periodo completo del encoder (~12 grados de eje): en tramos mas cortos la
-  // no-linealidad de la rueda hace variar la relacion entre 0 y 2 aunque todo este
-  // bien, y la zona de campo debil puede hacer parecer quieto al encoder.
-  //  - relacion < STALL_RATIO:   el eje no avanza -> tope encontrado
-  //  - relacion ~1:               movimiento normal
-  //  - otra cosa varias veces:    el encoder no sigue al motor (rueda de imanes
-  //                               patinando sobre el eje, etc.) -> se aborta en vez
-  //                               de seguir empujando contra el tope
+  // Compare encoder advance against field advance over one full encoder period (~12 deg of
+  // shaft): over shorter spans the wheel non-linearity makes the ratio vary between 0 and 2
+  // even when everything is fine, and the weak-field zone can make the encoder look stalled.
+  //  - ratio < STALL_RATIO:     shaft not moving -> hard stop found
+  //  - ratio ~1:                normal motion
+  //  - anything else, repeatedly: encoder not following the motor (magnet wheel slipping
+  //                             on the shaft, etc.) -> abort instead of pushing on
   if (fabs(last_eval_field_angle_offset - field_angle_offset) > eval_field_angle_delta * EVAL_WINDOWS_PER_CHECK) {
     float encoder_delta = encoder_angle - last_eval_encoder_angle;
     float ratio = fabsf(encoder_delta / (expected_encoder_delta * EVAL_WINDOWS_PER_CHECK));
@@ -148,7 +144,7 @@ void HomingController::update() {
   if (fabs(field_angle_offset) > field_angle_search_range) {
     LOG_INFO("End stop not detected");
     search_failed = true;
-    on_endstop_detected(); // marca state=Done (search_failed ya desactiva el motor ahi mismo)
+    on_endstop_detected(); // sets state=Done (search_failed disables the motor there)
   }
 }
 
@@ -175,7 +171,7 @@ void HomingController::on_endstop_detected() {
 
 void HomingController::finalize() {
   if (search_failed)
-    return; // el motor ya quedo desactivado en on_endstop_detected(), no hay tope del cual retroceder
+    return; // motor already disabled in on_endstop_detected(), no stop to back off from
 
    auto& motor_driver = servo_ctrl->get_motor_driver();
    float pole_pair_count = servo_ctrl->get_pole_pair_count();
@@ -185,8 +181,8 @@ void HomingController::finalize() {
   // homing current and can make the rotor slip/stall.
   motor_driver.set_amplitude_smooth(initial_current, 100);
 
-  // back off from home position. Hasta confirmar el bloqueo el campo puede haber
-  // avanzado STALL_CONFIRM_CHECKS+1 chequeos completos contra el tope: se deshace eso primero.
+  // back off from home position. While confirming the stall the field may have advanced up to
+  // STALL_CONFIRM_CHECKS+1 full checks against the stop; undo that first.
   float retract = retract_field_angle + (STALL_CONFIRM_CHECKS + 1) * EVAL_WINDOWS_PER_CHECK * eval_field_angle_delta;
   motor_driver.rotate_field(retract * (field_velocity>0.0f ? -1.0f : 1.0f),
                             retract_field_velocity, [this](){

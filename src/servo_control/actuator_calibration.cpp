@@ -17,9 +17,9 @@
 
 //*** FUNCTION ***********************************************************************************/
 
-// RMS del error de la LUT descontando el error medio de cada sentido de giro (muestras
-// [0, split) = ida, [split, fin) = vuelta). 'half_gap' devuelve la mitad de la
-// diferencia entre ambos sentidos, o sea el atraso del rotor respecto del campo.
+// RMS error of the LUT after removing the mean error of each sweep direction (samples
+// [0, split) = forward, [split, end) = backward). 'half_gap' returns half the difference
+// between both directions, i.e. the rotor lag behind the field.
 static float rms_error_without_direction_offset(const LookupTable& lut,
                                                 const std::vector<std::pair<float, float>>& pairs,
                                                 size_t split, float& half_gap)
@@ -47,11 +47,12 @@ static bool calibration_motor_filter = CALIBRATION_FILTER_MOTOR_HARMONICS;
 void set_calibration_motor_filter(bool enable) { calibration_motor_filter = enable; }
 bool get_calibration_motor_filter() { return calibration_motor_filter; }
 
-// Saca de la tabla encoder -> motor los armonicos que se repiten 50*m veces por vuelta (ciclo
-// electrico del motor y sus armonicos, entre ellos los 200 por vuelta de los pasos), salvo los que
-// tambien son armonicos de la rueda (multiplos de 30 por vuelta). Ver CALIBRATION_FILTER_MOTOR_HARMONICS.
-// Trabaja sobre el residuo de la tabla respecto de la recta de una vuelta; la fase de cada armonico
-// se toma de la salida de la tabla (posicion del motor), que es donde el patron del motor es periodico.
+// Removes from the encoder -> motor table the harmonics at 50*m per revolution (the motor's
+// electrical cycle and its harmonics, including the 200 full steps per revolution), except those
+// that are also magnet-wheel harmonics (multiples of 30 per revolution), which cannot be separated
+// from the real encoder error. See CALIBRATION_FILTER_MOTOR_HARMONICS.
+// Works on the table residual w.r.t. the one-revolution straight line; each harmonic's phase is
+// taken from the table output (motor position), where the motor pattern is periodic.
 static void filter_motor_harmonics(LookupTable& lut, float period_in, float period_out, int pole_pairs,
                                    int ring_periods) {
   const int n = int(lut.size());
@@ -63,14 +64,14 @@ static void filter_motor_harmonics(LookupTable& lut, float period_in, float peri
   std::vector<float> theta(n), r(n);
   for (int i = 0; i < n; i++) {
     float y = lut.get_entry(i);
-    theta[i] = (y - y0) * (Constants::TWO_PI_F / period_out);   // fase de la vuelta del motor [rad]
+    theta[i] = (y - y0) * (Constants::TWO_PI_F / period_out);   // motor revolution phase [rad]
     r[i] = y - (y0 + slope * dx * float(i));
   }
   const float to_um = LEAD_SCREW_PITCH_MM * 1000.0f / Constants::TWO_PI_F;
   for (int m = 1; pole_pairs * m < n / 2; m++) {
     const int k = pole_pairs * m;
     if (k % ring_periods == 0)
-      continue;   // coincide con un armonico de la rueda: no se puede separar
+      continue;   // shared with a magnet-wheel harmonic: not separable
     double a = 0.0, b = 0.0;
     for (int i = 0; i < n - 1; i++) {
       a += r[i] * cos(k * theta[i]);
@@ -98,7 +99,7 @@ bool measure_calibration_data(
 {
   const float max_rmse_rad = Constants::DEG2RAD * 0.5f;
   const float max_weak_field_fraction = 0.05f; // abort if >5% of samples report a weak magnetic field
-  const int sample_decimation = 8; // registrar 1 de cada 8 pasos internos (~4ms entre muestras)
+  const int sample_decimation = 8; // record 1 of every 8 internal steps (~4 ms between samples)
   const float transient_skip = CALIBRATION_TRANSIENT_SKIP * Constants::DEG2RAD;
 
   LOG_INFO("Measuring motor to encoder angle lookup table...");
@@ -109,10 +110,10 @@ bool measure_calibration_data(
   auto& motor_driver = servo_controller.get_motor_driver();
   float pole_pair_count = servo_controller.get_pole_pair_count();
   float start_field_angle = motor_driver.get_field_angle();
-  float total_sweep_angle = calibration_range*pole_pair_count; // barrido total en angulo electrico
+  float total_sweep_angle = calibration_range*pole_pair_count; // total sweep in electrical angle
 
-  // reservar de una: con una vuelta completa son ~8000 muestras y un realloc a mitad
-  // del barrido necesitaria el doble de memoria por un instante
+  // reserve up front: a full revolution is ~8000 samples and a realloc mid-sweep would
+  // briefly need twice the memory
   float sweep_time_s = total_sweep_angle / field_velocity;
   encoder_angle_and_motor_pos.reserve(size_t(2.2f * sweep_time_s / (500e-6f * sample_decimation)));
 
@@ -124,13 +125,13 @@ bool measure_calibration_data(
 
   int weak_field_measurements = 0;
 
-  // Un unico movimiento continuo por pasada (ida/vuelta), muestreado sobre la
-  // marcha via el callback on_step de rotate_field(), sin frenar entre muestras.
+  // One continuous motion per pass (forward/backward), sampled on the fly through the
+  // on_step callback of rotate_field(), without stopping between samples.
   auto run_measurement = [&](float field_angle_delta) {
     int step_counter = 0;
     auto on_step = [&]() {
-      // leer siempre (el desenrollado del encoder necesita lecturas frecuentes),
-      // pero registrar solo 1 de cada 'sample_decimation'
+      // always read (encoder unwrapping needs frequent reads), but record only
+      // 1 of every 'sample_decimation'
       float encoder_angle_raw = encoder.read_abs_angle_raw();
       if ((step_counter++ % sample_decimation) != 0)
         return;
@@ -139,7 +140,7 @@ bool measure_calibration_data(
       float motor_pos = (field_angle-start_field_angle)/pole_pair_count;
       // TODO: read motor_pos from precise reference encoder
 
-      // puntas del barrido: el atraso del rotor todavia no se establecio (ver hw_config.h)
+      // sweep ends: the rotor lag has not settled yet (see hw_config.h)
       if (motor_pos < transient_skip || motor_pos > calibration_range - transient_skip)
         return;
 
@@ -148,7 +149,7 @@ bool measure_calibration_data(
 
       if(print_measurements) {
         LOG_RAW("%15.10f, %15.10f, %f", motor_pos, field_angle, encoder_angle_raw);
-        // Formato Teleplot, para ver en vivo donde dentro del barrido aparece el campo debil.
+        // Teleplot format, to see live where in the sweep the weak-field flag appears.
         Serial.printf(">motor_pos_deg:%.4f\n>encoder_angle_raw:%.1f\n>weak_field:%d\n",
                       motor_pos*Constants::RAD2DEG, encoder_angle_raw,
                       (encoder.get_status() & MT6835_STATUS_WEAKFIELD) ? 1 : 0);
@@ -166,8 +167,8 @@ bool measure_calibration_data(
   LOG_DEBUG("Running backward pass...");
   run_measurement(-total_sweep_angle);
 
-  // rotate back to start position (sin exagerar la velocidad: un patinazo del rotor
-  // podria hacer que el encoder pierda el seguimiento)
+  // rotate back to start position (moderate speed: a rotor slip could make the encoder
+  // lose tracking)
   motor_driver.rotate_field(start_field_angle-motor_driver.get_field_angle(),
     3.0f*field_velocity, [&servo_controller]() {
       servo_controller.get_encoder().read_abs_angle_raw();
@@ -175,11 +176,10 @@ bool measure_calibration_data(
 
   encoder.set_crc_enabled(was_crc_enabled);
 
-  // Quedarse solo con el rango de encoder que cubren las DOS pasadas. En la ida el rotor va
-  // atrasado respecto del campo y en la vuelta adelantado, asi que en cada punta del rango de
-  // encoder queda una franja (~2 veces el atraso, ~0.8 grados de motor) con muestras de un
-  // solo sentido: ahi la tabla queda corrida medio atraso (+0.4 en una punta, -0.4 en la otra)
-  // y eso se media como "desfase en la costura" y se repartia en toda la vuelta.
+  // Keep only the encoder range covered by BOTH passes. The rotor lags the field on the
+  // forward pass and leads it on the backward pass, so each end of the encoder range has a
+  // band (~2x the lag) with samples from one direction only; there the table would be biased
+  // by half the lag (with opposite sign at each end).
   {
     auto range_of = [&](size_t a, size_t b, float& lo, float& hi) {
       lo = INFINITY; hi = -INFINITY;
@@ -212,7 +212,6 @@ bool measure_calibration_data(
   uint32_t encorder_crc_errors = encoder.get_crc_error_count(false);
   if(encorder_crc_errors > 0) {
     LOG_WARNING("Data error (CRC) in %i of %i measurements", encorder_crc_errors, total_measurements);
-    // return false;
   }
 
   if(weak_field_measurements > total_measurements*max_weak_field_fraction) {
@@ -221,9 +220,9 @@ bool measure_calibration_data(
     return false;
   }
 
-  // La tabla es periodica para cubrir todo el recorrido del husillo (muchas vueltas) con
-  // una calibracion de una sola vuelta. La rueda es un anillo cerrado, asi que una vuelta
-  // del motor son exactamente N periodos del encoder, con N entero.
+  // The table is periodic so a single-revolution calibration covers the full screw travel
+  // (many revolutions). The magnet wheel is a closed ring, so one motor revolution is exactly
+  // N encoder periods, with N an integer.
   double s_m = 0.0, s_e = 0.0, s_mm = 0.0, s_me = 0.0;
   float enc_min = INFINITY, enc_max = -INFINITY;
   for (const auto& p : encoder_angle_and_motor_pos) {
@@ -253,13 +252,9 @@ bool measure_calibration_data(
     return false;
   }
 
-  // Plegar todas las muestras sobre una sola vuelta [enc_min, enc_min + periodo) antes de
-  // ajustar la tabla: lo que se midio de mas de una vuelta cae sobre el principio, y la
-  // costura queda definida por datos de los dos lados. Antes la tabla se ajustaba sobre todo
-  // el barrido, se media el "desfase en la costura" evaluandola en sus bordes y se repartia
-  // linealmente en la vuelta. Los bordes estaban sesgados (medio atraso del rotor) y ese
-  // desfase de ~0.5 grados que no existia en los datos corria la conmutacion de 0 a ~30 grados
-  // electricos a lo largo de cada vuelta (13/10/2026).
+  // Fold all samples onto a single revolution [enc_min, enc_min + period) before fitting:
+  // samples beyond one revolution land on its beginning, so the seam is defined by data from
+  // both sides instead of by extrapolating the (biased) table edges.
   for (auto& p : encoder_angle_and_motor_pos) {
     float k = std::floor((p.first - enc_min) / period_in);
     p.first -= k * period_in;
@@ -275,11 +270,11 @@ bool measure_calibration_data(
   }
   encoder_raw_to_motor_pos_lut.optimize_lut(encoder_angle_and_motor_pos, rmse);
 
-  // motor_pos sale del campo comandado, y el rotor atrasa respecto del campo por la
-  // friccion: en la ida el motor_pos queda por delante de la posicion real y en la
-  // vuelta por detras. La LUT combinada promedia ambos sentidos (lo correcto), pero su
-  // rms_error incluye ese atraso, que no es un error de la tabla. Para juzgar la
-  // calidad de la tabla se descuenta el atraso medio de cada sentido.
+  // motor_pos comes from the commanded field, and friction makes the rotor lag the field:
+  // motor_pos is ahead of the true position on the forward pass and behind it on the backward
+  // pass. The combined LUT correctly averages both directions, but its rms_error includes the
+  // lag, which is not a table error. To judge table quality, the mean lag of each direction
+  // is removed.
   float rotor_lag = 0.0f;
   rmse = rms_error_without_direction_offset(encoder_raw_to_motor_pos_lut, encoder_angle_and_motor_pos,
                                             forward_sample_count, rotor_lag);
@@ -292,8 +287,8 @@ bool measure_calibration_data(
     return false;
   }
 
-  // Salto que queda en la costura (ultima entrada contra la primera mas una vuelta). Con la
-  // tabla plegada tiene que ser del orden del error de ajuste; solo se informa.
+  // Remaining step at the seam (last entry vs. first entry plus one revolution). With the
+  // folded table it should be of the order of the fit error; reported only.
   float lut_in_min, lut_in_max;
   encoder_raw_to_motor_pos_lut.get_intput_range(lut_in_min, lut_in_max);
   int lut_size = int(encoder_raw_to_motor_pos_lut.size());
@@ -309,9 +304,8 @@ bool measure_calibration_data(
   }
   encoder_raw_to_motor_pos_lut.set_period(period_in, period_out);
 
-  // 'motor_pos -> field_angle' es lineal por construccion (motor_pos se definio como
-  // (campo - campo_inicial)/pares_de_polos). Se arma sobre un rango mayor que todo el
-  // recorrido (260 mm = 817 rad de motor con el husillo de 2 mm).
+  // 'motor_pos -> field_angle' is linear by construction (motor_pos was defined as
+  // (field - start_field)/pole_pairs). Built over a range [rad] larger than the full travel.
   const float field_lut_range = 1000.0f;
   build_linear_lut(motor_pos_to_field_angle_lut, -field_lut_range, field_lut_range,
                    start_field_angle - field_lut_range*pole_pair_count,
@@ -322,7 +316,7 @@ bool measure_calibration_data(
 }
 
 static float wrap_angle(float a) {
-  return remainderf(a, Constants::TWO_PI_F);  // lleva a [-pi, pi]
+  return remainderf(a, Constants::TWO_PI_F);  // wrap to [-pi, pi]
 }
 
 void measure_commutation_offsets(
@@ -337,11 +331,11 @@ void measure_commutation_offsets(
   auto& motor_driver = servo_controller.get_motor_driver();
   auto& encoder = servo_controller.get_encoder();
   const float sweep = cycles * Constants::TWO_PI_F * (sweep_sign >= 0.0f ? 1.0f : -1.0f);
-  // al arrancar cada pasada el rotor queda pegado hasta que el campo le saca ventaja:
-  // no se registra el primer medio ciclo
+  // at the start of each pass the rotor sticks until the field builds up a lead:
+  // the first half cycle is not recorded
   const float settle = Constants::PI_F;
 
-  // suma de vectores unitarios del desfase, por pasada (ida/vuelta) y por corrimiento k
+  // sum of offset unit vectors, per pass (forward/backward) and per shift k
   double c[2][3] = {}, s[2][3] = {};
   int n[2] = {0, 0};
 
@@ -372,7 +366,7 @@ void measure_commutation_offsets(
       rotor_lag_rad = 0.5f * fabsf(wrap_angle(r_fwd - r_bwd));
   }
 
-  // largo del vector medio de cada pasada: 1 si el desfase fue constante en todo el barrido
+  // mean vector length of each pass: 1 if the offset was constant over the whole sweep
   consistency = 1.0f;
   for (int pass = 0; pass < 2; pass++) {
     float len = (n[pass] > 0) ? float(sqrt(c[pass][1] * c[pass][1] + s[pass][1] * s[pass][1]) / n[pass]) : 0.0f;

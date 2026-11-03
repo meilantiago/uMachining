@@ -1,19 +1,26 @@
 #!/usr/bin/env python3
-"""Interfaz gráfica del eje: control remoto y telemetría en vivo.
+"""Axis GUI: remote control and live telemetry (PyQt5 + pyqtgraph).
 
-    python3 tools/interfaz.py                    # busca la placa y se conecta sola
-    python3 tools/interfaz.py --port /dev/ttyACM1
+Usage:
+    python3 tools/interfaz.py                      # find the board and connect automatically
+    python3 tools/interfaz.py --port /dev/ttyACM0
 
-Guía de uso: docs/GUIA_INTERFAZ.md. Cerrar antes cualquier otro programa que tenga el
-puerto abierto (monitor serie de PlatformIO, otros scripts de tools/).
+Close any other program holding the serial port first (PlatformIO serial monitor,
+other tools/ scripts).
 
-No cambia nada del firmware: manda los mismos comandos G-code que se escriben a mano y
-prende la telemetría binaria (M120). Protocolo (ver src/command_processor.cpp y
-src/shared_data.h): una respuesta por comando, terminada en "ok" o "error: ...", con los
-paquetes de telemetría mezclados en el mismo puerto: 0xAA 0x56 + 28 bytes little endian
-    uint32 t_us, int32 target [0,25 nm], int32 pos [0,25 nm], float vel [rad/s], float out [rad],
-    int32 chip_raw, uint8 status, uint8 flags, uint16 seq
-(hasta el 23/10/2026 era 0xAA 0x55 con objetivo y posición en float [mm]: de a 15 nm a 200 mm)
+The GUI sends the same G-code commands one would type by hand and enables binary
+telemetry (M120). Protocol (see src/command_processor.cpp and src/shared_data.h): one
+reply per command, ending in "ok" or "error: ...", with telemetry packets interleaved
+on the same port. Packet: header 0xAA 0x56 + 28 bytes little-endian (struct "<IiiffiBBH"):
+    uint32 t_us                 board time [us]
+    int32  target               profile target [0.25 nm units]
+    int32  pos                  measured position [0.25 nm units]
+    float  vel                  measured velocity [rad/s, motor]
+    float  out                  velocity-loop output (field angle) [rad, electrical]
+    int32  chip_raw             raw encoder angle (0..2^21-1)
+    uint8  status               MT6835 status bits (see STATUS_BITS)
+    uint8  flags                bit0 loop active (motor_update), bit1 fault cut-off
+    uint16 seq                  sequence number (gaps = lost packets)
 """
 import argparse
 import datetime
@@ -32,9 +39,10 @@ import serial.tools.list_ports
 
 
 def _clean_snap_env():
-    """La terminal de VS Code instalado como snap exporta rutas de GTK/GLib del snap, y con esas
-    Qt se cae al arrancar ("Settings schema ... does not contain a key named 'antialiasing'").
-    Se vuelven a las del sistema antes de cargar Qt."""
+    """Restore system GTK/GLib paths before loading Qt.
+
+    The VS Code snap terminal exports the snap's GTK/GLib paths, which make Qt crash at
+    startup ("Settings schema ... does not contain a key named 'antialiasing'")."""
     if "/snap/" not in os.environ.get("GSETTINGS_SCHEMA_DIR", "") + os.environ.get("GTK_PATH", ""):
         return
     for var in ("XDG_DATA_DIRS", "XDG_CONFIG_DIRS"):
@@ -51,35 +59,35 @@ from PyQt5 import QtCore, QtGui, QtWidgets  # noqa: E402
 from PyQt5.QtCore import Qt  # noqa: E402
 import pyqtgraph as pg  # noqa: E402
 
-# --- montaje y firmware (ver src/hw_config.h) ---
+# --- mechanics and firmware (see src/hw_config.h) ---
 BAUD = 921600
-PITCH_MM = 5.0                 # husillo: mm por vuelta de motor
+PITCH_MM = 5.0                 # ball screw lead: mm per motor revolution
 AXIS_MIN_MM, AXIS_MAX_MM = 0.0, 255.0
-POS_DECIMALS = 6              # 1 nm en destino, G1 e indicadores (el firmware lee el G1 en double)
-POS_PLOT_MIN_SPAN_MM = 5e-5    # 50 nm: con el eje quieto el autoescalado no hace zoom al ruido de
-                              # nm (la telemetría viene de a 0,25 nm) pero se ve un paso de 10 nm
-SPEED_DEFAULT = 2.0            # mm/s: la velocidad para la que se aprende el anti-cogging
-SPEED_SAFE = 2.0               # por encima el anti-cogging se desvanece (no está a 3 mm/s)
-SPEED_MAX = 5.0                # MAX_VELOCITY_LIMIT_MM_S (a 4 mm/s ya falta torque)
-OUT_LIMIT_DEG = 81.0           # límite de la salida del lazo de velocidad (0.45 pi)
-STEP_EXP_MIN = -POS_DECIMALS   # paso más chico: la resolución del G1
+POS_DECIMALS = 6              # 1 nm in destination, G1 and readouts (firmware parses G1 as double)
+POS_PLOT_MIN_SPAN_MM = 5e-5    # 50 nm: autoscale does not zoom into nm-level noise at standstill
+                              # (telemetry LSB is 0.25 nm), but a 10 nm step is still visible
+SPEED_DEFAULT = 2.0            # mm/s: speed at which anti-cogging is learned
+SPEED_SAFE = 2.0               # above this, anti-cogging compensation fades out
+SPEED_MAX = 5.0                # MAX_VELOCITY_LIMIT_MM_S (torque runs short at ~4 mm/s)
+OUT_LIMIT_DEG = 81.0           # velocity-loop output limit (0.45 pi, electrical)
+STEP_EXP_MIN = -POS_DECIMALS   # smallest jog step: G1 resolution
 STEP_EXP_MAX = 1               # 10 mm
-TELEMETRY_DECIMATION = 2       # M120 P2: un punto cada 2 ticks de la ISR de 2 kHz = 1 kHz
-HISTORY_S = 130                # lo que se guarda para los gráficos
-STOP_LEAD_S = 0.015            # Detener: frena donde va a estar el objetivo cuando llegue el G1
+TELEMETRY_DECIMATION = 2       # M120 P2: one sample every 2 ticks of the 2 kHz ISR = 1 kHz
+HISTORY_S = 130                # seconds of history kept for the plots
+STOP_LEAD_S = 0.015            # Stop: brake where the target will be when the G1 arrives
 
 PKT = struct.Struct("<IiiffiBBH")
 HEADER = b"\xaa\x56"
-POS_LSB_MM = 0.25e-6           # unidad del objetivo y la posición en el paquete (POSITION_LSB_MM)
+POS_LSB_MM = 0.25e-6           # target/position unit in the packet (POSITION_LSB_MM)
 STATUS_BITS = {0x01: "sobrevelocidad", 0x02: "campo débil", 0x04: "subtensión", 0x08: "error CRC"}
 LOG_PREFIXES = ("I)", "W)", "E)", "D)")
-# comandos que bloquean el firmware un buen rato (el resto responde en milisegundos)
+# commands that block the firmware for a long time [s] (others reply within milliseconds)
 LONG_TIMEOUTS = {"M56": 900.0, "G28": 240.0, "M57": 300.0, "M121": 30.0}
 LONG_LABELS = {"M56": "Calibrando (M56)", "G28": "Homing (G28)", "M57": "Barrido de conmutación (M57)"}
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# --- estilo (mismos colores que los gráficos de tools/closed_loop_test.py) ---
+# --- style ---
 SURFACE = "#fcfcfb"
 INK = "#0b0b0b"
 INK2 = "#52514e"
@@ -97,7 +105,7 @@ def clamp(x, lo, hi):
 
 
 def find_ports():
-    """Puertos serie candidatos, la Pico primero (por id, que no cambia si re-enumera)."""
+    """Candidate serial ports, Pico first (by-id paths survive re-enumeration)."""
     ports = sorted(glob.glob("/dev/serial/by-id/*Pico*")) + sorted(glob.glob("/dev/serial/by-id/*"))
     for p in serial.tools.list_ports.comports():
         if "ACM" in p.device or "USB" in p.device or p.device.startswith("COM"):
@@ -111,7 +119,7 @@ def find_ports():
 
 
 def parse_status(lines):
-    """M119 -> dict con homed, calibrated, target_mm, pos_mm, fault, motor_update..."""
+    """Parse an M119 reply into a dict (homed, calibrated, target_mm, pos_mm, fault, motor_update, ...)."""
     st = {}
     for line in lines:
         if line.startswith("ultimo corte"):
@@ -124,27 +132,27 @@ def parse_status(lines):
 
 
 # ======================================================================================
-# Enlace serie
+# Serial link
 # ======================================================================================
 
 class Command:
     def __init__(self, text, silent=False, on_done=None):
         self.text = text.strip()
         self.code = self.text.split()[0].upper() if self.text else ""
-        self.silent = silent           # no mostrar en la consola (sondeos de estado)
+        self.silent = silent           # hide from the console (status polling)
         self.on_done = on_done
         self.timeout = LONG_TIMEOUTS.get(self.code, 5.0)
         self.lines = []
-        self.ok = None                 # True: ok, False: error, None: sin respuesta / descartado
+        self.ok = None                 # True: ok, False: error, None: no reply / dropped
 
 
 class Link(QtCore.QObject):
-    """Puerto serie con un hilo lector (texto + telemetría) y uno que manda los comandos de a
-    uno, esperando el ok/error de cada uno antes de mandar el siguiente."""
+    """Serial port with a reader thread (text + telemetry) and a writer thread that sends
+    commands one at a time, waiting for each ok/error before sending the next."""
 
-    console = QtCore.pyqtSignal(str, str)      # texto, tipo: cmd | reply | log
-    done = QtCore.pyqtSignal(object)            # Command terminado
-    lost = QtCore.pyqtSignal(str)               # se perdió el puerto
+    console = QtCore.pyqtSignal(str, str)      # text, kind: cmd | reply | log
+    done = QtCore.pyqtSignal(object)            # finished Command
+    lost = QtCore.pyqtSignal(str)               # port lost
 
     def __init__(self):
         super().__init__()
@@ -157,7 +165,7 @@ class Link(QtCore.QObject):
         self._cmds = queue.Queue()
         self._buf = bytearray()
         self._text = ""
-        self.current = None            # comando esperando respuesta
+        self.current = None            # command awaiting a reply
 
     @property
     def is_open(self):
@@ -193,14 +201,14 @@ class Link(QtCore.QObject):
         self.current = None
         self._drop_pending()
 
-    # --- comandos ---
+    # --- commands ---
     def send(self, text, silent=False, on_done=None):
         cmd = Command(text, silent, on_done)
         self._cmds.put(cmd)
         return cmd
 
     def send_urgent(self, texts, silent=False):
-        """Descarta lo que está en cola y manda estos comandos primero."""
+        """Drop queued commands and send these first."""
         self._drop_pending()
         for t in texts:
             self.send(t, silent)
@@ -222,7 +230,7 @@ class Link(QtCore.QObject):
             rows, self._rows = self._rows, []
         return rows
 
-    # --- hilos ---
+    # --- threads ---
     def _read_loop(self):
         try:
             while self._running:
@@ -242,7 +250,7 @@ class Link(QtCore.QObject):
         while True:
             i = buf.find(HEADER)
             if i < 0:
-                # el texto es ASCII: 0xAA solo puede ser el comienzo de un paquete
+                # text is ASCII, so 0xAA can only start a packet
                 keep = 1 if buf.endswith(b"\xaa") else 0
                 self._add_text(buf[:len(buf) - keep])
                 del buf[:len(buf) - keep]
@@ -258,7 +266,7 @@ class Link(QtCore.QObject):
                 rows.append(row)
                 del buf[:2 + PKT.size]
             else:
-                del buf[:1]   # no era un paquete: resincronizar
+                del buf[:1]   # not a packet: resync
         if rows:
             with self._rows_lock:
                 self._rows.extend(rows)
@@ -321,21 +329,21 @@ class Link(QtCore.QObject):
 
 
 # ======================================================================================
-# Historia de la telemetría
+# Telemetry history
 # ======================================================================================
 
 class History:
-    """Últimos HISTORY_S segundos de telemetría en arreglos contiguos (buffer doble)."""
+    """Last HISTORY_S seconds of telemetry in contiguous arrays (double-size buffer)."""
     T, TARGET, POS, VEL, OUT, STATUS, FLAGS = range(7)
 
     def __init__(self, cap):
         self.cap = cap
         self.data = np.zeros((7, 2 * cap))
         self.n = 0
-        self.t = 0.0                   # tiempo de la placa, desenrollado [s]
+        self.t = 0.0                   # board time, unwrapped [s]
         self.t_last_us = None
         self.seq_last = None
-        self.lost = 0                  # puntos perdidos en el camino (huecos de seq)
+        self.lost = 0                  # lost samples (seq gaps)
         self.received = 0
 
     def clear(self):
@@ -350,7 +358,7 @@ class History:
         seq = a[:, 8].astype(np.int64)
         prev_seq = self.seq_last if self.seq_last is not None else seq[0] - 1
         dseq = np.diff(np.concatenate(([prev_seq], seq))) % (1 << 16)
-        # los huecos largos (firmware ocupado en M56/G28, que no vacía la cola) no cuentan
+        # long gaps (firmware busy in M56/G28, queue not drained) are not counted
         self.lost += int(np.sum(np.where(dt < 200000, np.maximum(dseq - 1, 0), 0)))
         self.t, self.t_last_us, self.seq_last = t[-1], t_us[-1], seq[-1]
         self.received += len(a)
@@ -374,7 +382,7 @@ class History:
         return new
 
     def last(self, seconds):
-        """Vista de los datos de los últimos 'seconds' segundos."""
+        """View of the data from the last `seconds` seconds."""
         t = self.data[self.T, :self.n]
         i = np.searchsorted(t, self.t - seconds) if self.n else 0
         return self.data[:, i:self.n]
@@ -385,13 +393,13 @@ class History:
 # ======================================================================================
 
 def fmt_len(exp):
-    """10^exp mm en la unidad que le queda: 100 nm, 10 µm, 1 mm."""
+    """Format 10^exp mm in a suitable unit: 100 nm, 10 µm, 1 mm."""
     unit, e = ("mm", exp) if exp >= 0 else ("µm", exp + 3) if exp >= -3 else ("nm", exp + 6)
     return f"{10 ** e} {unit}"
 
 
 class SpinBox(QtWidgets.QDoubleSpinBox):
-    """Acepta coma o punto como separador decimal."""
+    """Accepts comma or period as the decimal separator."""
 
     def __init__(self, lo, hi, decimals, step, suffix):
         super().__init__()
@@ -411,11 +419,11 @@ class SpinBox(QtWidgets.QDoubleSpinBox):
 
 
 class OffsetAxis(pg.AxisItem):
-    """Eje de posición para datos graficados respecto de `offset` (mm, un número redondo).
+    """Position axis for data plotted relative to `offset` (mm, a round number).
 
-    Con zoom de µm o nm sobre ~150 mm los rótulos absolutos (149.99996) no entran en el eje y
-    pyqtgraph los esconde: con menos de 10 µm entre marcas rotula en µm sobre `offset`.
-    `on_reference(texto)` avisa cuándo mostrar la referencia (texto vacío: rótulos absolutos).
+    When zoomed to µm/nm around ~150 mm, absolute labels (149.99996) do not fit and
+    pyqtgraph hides them; below 10 µm tick spacing the axis labels in µm relative to
+    `offset`. `on_reference(text)` reports the reference to show (empty: absolute labels).
     """
 
     def __init__(self, unit, on_reference):
@@ -441,7 +449,7 @@ class OffsetAxis(pg.AxisItem):
         self.on_reference(f"µm sobre {self.offset:.{self.offset_places}f} {self.unit}" if self.relative else "")
 
     def tickValues(self, minVal, maxVal, size):
-        # se decide acá y no en tickStrings, que se llama por separado para mayores y menores
+        # decided here, not in tickStrings, which is called separately for major and minor ticks
         levels = super().tickValues(minVal, maxVal, size)
         relative = bool(levels) and min(spacing for spacing, _ in levels) < 1e-2
         if relative != self.relative:
@@ -458,8 +466,8 @@ class OffsetAxis(pg.AxisItem):
 
 
 class RailWidget(QtWidgets.QWidget):
-    """El carril de 0 a 255 mm con el carro (azul) y el destino (triángulo naranja).
-    Un clic elige ese punto como destino (no mueve nada)."""
+    """0-255 mm rail showing the carriage (blue) and destination (orange triangle).
+    A click selects that point as the destination (does not move)."""
 
     picked = QtCore.pyqtSignal(float)
     MARGIN = 26
@@ -490,14 +498,14 @@ class RailWidget(QtWidgets.QWidget):
         h = self.height()
         y = int(h * 0.42)
         x0, x1 = self._x(AXIS_MIN_MM), self._x(AXIS_MAX_MM)
-        # topes y riel
+        # end stops and rail
         p.setPen(Qt.NoPen)
         p.setBrush(QtGui.QColor(GRID))
         p.drawRoundedRect(QtCore.QRectF(x0, y - 4, x1 - x0, 8), 4, 4)
         p.setBrush(QtGui.QColor(MUTED))
         p.drawRect(QtCore.QRectF(x0 - 6, y - 14, 4, 28))
         p.drawRect(QtCore.QRectF(x1 + 2, y - 14, 4, 28))
-        # marcas
+        # ticks
         font = p.font()
         font.setPointSizeF(8)
         p.setFont(font)
@@ -511,14 +519,14 @@ class RailWidget(QtWidgets.QWidget):
                 p.drawText(QtCore.QRectF(x - 20, y + 17, 40, 14), Qt.AlignCenter, f"{mm}")
         p.setPen(QtGui.QColor(INK2))
         p.drawText(QtCore.QRectF(x1 - 40, y + 17, 64, 14), Qt.AlignRight, "255 mm")
-        # destino
+        # destination
         if self.dest_mm is not None:
             x = self._x(self.dest_mm)
             p.setPen(Qt.NoPen)
             p.setBrush(QtGui.QColor(ORANGE))
             p.drawPolygon(QtGui.QPolygonF([QtCore.QPointF(x, y - 18), QtCore.QPointF(x - 7, y - 30),
                                            QtCore.QPointF(x + 7, y - 30)]))
-        # carro
+        # carriage
         if self.pos_mm is not None:
             x = self._x(clamp(self.pos_mm, AXIS_MIN_MM - 3, AXIS_MAX_MM + 3))
             p.setPen(QtGui.QPen(QtGui.QColor("#184f95"), 1))
@@ -561,7 +569,7 @@ class Chip(QtWidgets.QLabel):
         self.set_state(None)
 
     def set_state(self, state):
-        """True: verde, False: rojo, None: gris (desconocido), 'warn': ámbar."""
+        """True: green, False: red, None: grey (unknown), 'warn': amber."""
         if getattr(self, "_state", object()) == state:
             return
         self._state = state
@@ -571,7 +579,7 @@ class Chip(QtWidgets.QLabel):
 
 
 class GcodeLine(QtWidgets.QLineEdit):
-    """Entrada de G-code con historia (flechas arriba y abajo)."""
+    """G-code input with history (up/down arrows)."""
 
     def __init__(self):
         super().__init__()
@@ -596,8 +604,8 @@ class GcodeLine(QtWidgets.QLineEdit):
 
 
 class KeyFilter(QtCore.QObject):
-    """Atajos: ←/→ un paso, ↑/↓ paso ×10 / ÷10, Espacio detener, Esc apagar el motor. Las flechas y el espacio no
-    se toman mientras se escribe en un campo de texto o número."""
+    """Shortcuts: Left/Right one step, Up/Down step x10 or /10, Space stop, Esc motor off.
+    Arrows and Space are ignored while a text or number field has focus."""
 
     def __init__(self, win):
         super().__init__()
@@ -628,7 +636,7 @@ class KeyFilter(QtCore.QObject):
 
 
 # ======================================================================================
-# Ventana principal
+# Main window
 # ======================================================================================
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -641,30 +649,30 @@ class MainWindow(QtWidgets.QMainWindow):
         self.link.lost.connect(self.on_lost)
         self.hist = History(int(HISTORY_S * 2000 / TELEMETRY_DECIMATION))
 
-        # estado del eje (None: no se sabe)
+        # axis state (None: unknown)
         self.homed = None
         self.calibrated = None
         self.loop_on = None
         self.fault = None
-        self.dest = None               # destino del último G1 (lo que pidió la interfaz o M119)
-        self.moves_pending = 0         # G1 mandados sin respuesta (M119 no pisa el destino)
+        self.dest = None               # destination of the last G1 (from the GUI or M119)
+        self.moves_pending = 0         # G1s awaiting reply (M119 must not overwrite dest)
         self.fw_max_speed = SPEED_DEFAULT
-        self.busy = None               # texto mientras corre un comando largo
+        self.busy = None               # label while a long command runs
         self.busy_since = 0.0
         self.busy_detail = ""
-        self.last_tel_time = 0.0       # time.monotonic() del último paquete
+        self.last_tel_time = 0.0       # time.monotonic() of the last packet
         self.rate = 0.0
         self._rate_count = 0
         self._rate_t0 = time.monotonic()
-        self.last = None               # última fila: t, target, pos, vel, out, status, flags
-        self.cmd_vel = 0.0             # velocidad del objetivo [mm/s]
+        self.last = None               # last row: t, target, pos, vel, out, status, flags
+        self.cmd_vel = 0.0             # target velocity [mm/s]
         self.rec_file = None
         self.rec_path = None
         self.paused = False
         self._spin_init = False
-        self.user_relative = False     # el usuario mandó G91 por la consola
+        self.user_relative = False     # user sent G91 from the console
         self._win_err = None
-        self._pos_note = ""            # referencia del gráfico de posición cuando rotula en µm
+        self._pos_note = ""            # position-plot reference when labeling in µm
 
         self._build_ui()
         self.keyfilter = KeyFilter(self)
@@ -692,7 +700,7 @@ class MainWindow(QtWidgets.QMainWindow):
         root.setContentsMargins(10, 8, 10, 4)
         root.setSpacing(8)
 
-        # --- barra superior: conexión, estado, parada ---
+        # --- top bar: connection, status, stop ---
         top = QtWidgets.QHBoxLayout()
         top.setSpacing(8)
         self.port_combo = QtWidgets.QComboBox()
@@ -724,7 +732,7 @@ class MainWindow(QtWidgets.QMainWindow):
         top.addWidget(self.btn_off)
         root.addLayout(top)
 
-        # --- aviso (falla, lazo apagado, calibración en curso) ---
+        # --- banner (fault, loop off, calibration running) ---
         self.banner = QtWidgets.QLabel()
         self.banner.setWordWrap(True)
         self.banner.setObjectName("banner")
@@ -739,7 +747,7 @@ class MainWindow(QtWidgets.QMainWindow):
         split.setSizes([400, 1100])
         root.addWidget(split, 1)
 
-        # --- barra de estado ---
+        # --- status bar ---
         self.status_msg = QtWidgets.QLabel()
         self.status_tel = QtWidgets.QLabel()
         self.status_tel.setMinimumWidth(260)
@@ -762,7 +770,7 @@ class MainWindow(QtWidgets.QMainWindow):
         lay.setContentsMargins(0, 0, 4, 0)
         lay.setSpacing(8)
 
-        # 1. puesta en marcha
+        # 1. startup
         box, b = self._group("1 · Puesta en marcha")
         self.btn_cal = QtWidgets.QPushButton("Calibrar e iniciar  (M56, ~3 min)")
         self.btn_cal.setToolTip("Homing contra el tope de 0 mm, calibración del encoder y reaprendizaje del\n"
@@ -777,7 +785,7 @@ class MainWindow(QtWidgets.QMainWindow):
         b.addWidget(self.btn_enable)
         lay.addWidget(box)
 
-        # 2. ir a una posición
+        # 2. go to position
         box, b = self._group("2 · Ir a una posición")
         form = QtWidgets.QGridLayout()
         form.setHorizontalSpacing(8)
@@ -816,12 +824,12 @@ class MainWindow(QtWidgets.QMainWindow):
         b.addLayout(presets)
         lay.addWidget(box)
 
-        # 3. pasos y movimiento continuo
+        # 3. jog and continuous motion
         box, b = self._group("3 · Mover a mano")
         steps = QtWidgets.QHBoxLayout()
         steps.setSpacing(4)
         steps.addWidget(QtWidgets.QLabel("Paso:"))
-        self.step_exp = 0                                  # paso = 10^step_exp mm
+        self.step_exp = 0                                  # step = 10^step_exp mm
         self.btn_step_down = QtWidgets.QPushButton("÷10")
         self.btn_step_up = QtWidgets.QPushButton("×10")
         self.lbl_step = QtWidgets.QLabel(alignment=Qt.AlignCenter)
@@ -862,7 +870,7 @@ class MainWindow(QtWidgets.QMainWindow):
         b.addWidget(self.btn_stop)
         lay.addWidget(box)
 
-        # consola
+        # console
         box, b = self._group("Consola G-code")
         self.console_view = QtWidgets.QPlainTextEdit(readOnly=True)
         self.console_view.setMaximumBlockCount(5000)
@@ -892,7 +900,7 @@ class MainWindow(QtWidgets.QMainWindow):
         lay.setContentsMargins(4, 0, 0, 0)
         lay.setSpacing(8)
 
-        # valores grandes
+        # large readouts
         grid = QtWidgets.QGridLayout()
         grid.setSpacing(8)
         self.r_pos = Readout("Posición", "mm", "Posición medida por el encoder")
@@ -931,7 +939,7 @@ class MainWindow(QtWidgets.QMainWindow):
             grid.setColumnStretch(c, 1)
         lay.addLayout(grid)
 
-        # carril
+        # rail
         rail_box = QtWidgets.QFrame()
         rail_box.setObjectName("readout")
         rl = QtWidgets.QVBoxLayout(rail_box)
@@ -943,7 +951,7 @@ class MainWindow(QtWidgets.QMainWindow):
         rl.addWidget(self.rail)
         lay.addWidget(rail_box)
 
-        # controles de los gráficos
+        # plot controls
         bar = QtWidgets.QHBoxLayout()
         bar.addWidget(QtWidgets.QLabel("Ventana:"))
         self.window_combo = QtWidgets.QComboBox()
@@ -964,7 +972,7 @@ class MainWindow(QtWidgets.QMainWindow):
         bar.addWidget(self.btn_rec)
         lay.addLayout(bar)
 
-        # gráficos
+        # plots
         pg.setConfigOptions(antialias=False, background=SURFACE, foreground=INK2)
         glw = pg.GraphicsLayoutWidget()
         glw.ci.setSpacing(4)
@@ -985,7 +993,7 @@ class MainWindow(QtWidgets.QMainWindow):
             p.getAxis("left").setWidth(56)
             for ax in ("left", "bottom"):
                 p.getAxis(ax).setTickFont(tick_font)
-                p.getAxis(ax).enableAutoSIPrefix(False)   # que no aparezca "µm (x0.001)"
+                p.getAxis(ax).enableAutoSIPrefix(False)   # avoid "µm (x0.001)" labels
             if p is not self.p_out:
                 p.getAxis("bottom").setStyle(showValues=False)
             if p is not self.p_pos:
@@ -1005,7 +1013,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return panel
 
     # ----------------------------------------------------------------------------------
-    # Conexión
+    # Connection
     # ----------------------------------------------------------------------------------
     def refresh_ports(self, prefer=None):
         current = prefer or self.port_combo.currentText()
@@ -1110,7 +1118,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return time.monotonic() - self.last_tel_time < 1.0
 
     # ----------------------------------------------------------------------------------
-    # Comandos
+    # Commands
     # ----------------------------------------------------------------------------------
     def can_move(self):
         return (self.link.is_open and self.busy is None and bool(self.homed) and bool(self.calibrated)
@@ -1183,11 +1191,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.stop_motion()
 
     def stop_motion(self):
-        """Frena donde está el objetivo ahora. El perfil del firmware arranca cada G1 desde
-        velocidad cero, así que es una frenada en seco (unos µm de error, ver la guía)."""
+        """Stop at the current target position. The firmware profile starts every G1 from
+        zero velocity, so this is an abrupt stop (a few µm of following error)."""
         if not self.link.is_open or self.busy is not None:
             return
-        self.tick_plots()              # la telemetría más fresca: la del último cuadro puede tener 40 ms
+        self.tick_plots()              # freshest telemetry: the last frame may be 40 ms old
         if self.last is None or not self.telemetry_alive():
             self.message("Sin telemetría: no se sabe dónde frenar. Usar «Apagar motor» si hace falta.", AMBER)
             return
@@ -1292,7 +1300,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.link.send(text, on_done=lambda c: self.link.send("M119", silent=True, on_done=self._got_status))
 
     # ----------------------------------------------------------------------------------
-    # Respuestas y consola
+    # Replies and console
     # ----------------------------------------------------------------------------------
     def on_done(self, cmd):
         if cmd.on_done is not None:
@@ -1322,7 +1330,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.status_msg.setStyleSheet(f"color:{color}")
 
     # ----------------------------------------------------------------------------------
-    # Telemetría y pantalla
+    # Telemetry and display
     # ----------------------------------------------------------------------------------
     def tick_plots(self):
         rows = self.link.take_rows()
@@ -1361,8 +1369,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @staticmethod
     def _follow(p, y):
-        """Un toque de rueda o un arrastre apaga el autoescalado de pyqtgraph para siempre: con
-        zoom a mano se vuelve a autoescalar en cuanto el último punto se sale de la vista."""
+        """Re-enable autoscale once the latest point leaves the view.
+
+        Any wheel or drag permanently disables pyqtgraph autoscaling; this restores it."""
         vb = p.getViewBox()
         if not vb.autoRangeEnabled()[1] and np.isfinite(y):
             y0, y1 = vb.viewRange()[1]
@@ -1370,7 +1379,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 vb.enableAutoRange(y=True)
 
     def _plot_clicked(self, ev):
-        if ev.double():                # doble clic: volver al autoescalado
+        if ev.double():                # double click: back to autoscale
             for p in (self.p_pos, self.p_err, self.p_out):
                 if p.sceneBoundingRect().contains(ev.scenePos()):
                     p.getViewBox().enableAutoRange(y=True)
@@ -1387,11 +1396,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self._set_title(self.p_pos, "Posición", note)
 
     def _pos_offset(self, d):
-        """Referencia (redonda) que se resta a la posición para graficarla cerca de cero.
+        """Round reference subtracted from position so it is plotted near zero.
 
-        Se queda quieta mientras sirva, para que los rótulos no bailen: tiene que ser múltiplo
-        de la potencia de 10 que cubre lo que se ve (así las marcas caen en números redondos)
-        y estar a menos de 5 de esas potencias del centro.
+        It is kept as long as possible so labels do not jump: it must be a multiple of the
+        power of 10 spanning the visible range (so ticks fall on round numbers) and lie
+        within 5 such steps of the center.
         """
         vb = self.p_pos.getViewBox()
         old = self.pos_axis.offset
@@ -1407,7 +1416,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if abs(old / step - round(old / step)) < 1e-6 and abs(center - old) <= 5 * step:
             return old
         new = round(center / step) * step
-        if not vb.autoRangeEnabled()[1]:      # zoom a mano: que la vista no salte
+        if not vb.autoRangeEnabled()[1]:      # manual zoom: keep the view from jumping
             y0, y1 = vb.viewRange()[1]
             vb.setYRange(y0 + old - new, y1 + old - new, padding=0)
         self.pos_axis.set_offset(new, step)
@@ -1488,13 +1497,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_enable.setEnabled(idle and bool(self.calibrated) and bool(self.homed))
         for w in [self.btn_go, self.btn_minus, self.btn_plus, self.btn_hold_minus, self.btn_hold_plus,
                   self.btn_stop] + self.preset_btns:
-            # no deshabilitar un botón de mantener mientras está apretado: no llegaría el «soltar»
+            # don't disable a hold button while pressed, or its release would be lost
             if not getattr(w, "isDown", lambda: False)():
                 w.setEnabled(movable)
         self.btn_off.setEnabled(open_)
         self.gcode.setEnabled(open_)
 
-        # aviso
+        # banner
         if not open_:
             self._banner(None)
         elif self.busy:
@@ -1538,7 +1547,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.lbl_speed_warn.setText("")
 
     # ----------------------------------------------------------------------------------
-    # Grabación
+    # Recording
     # ----------------------------------------------------------------------------------
     def toggle_record(self, on):
         if on:
@@ -1550,7 +1559,7 @@ class MainWindow(QtWidgets.QMainWindow):
             os.makedirs(folder, exist_ok=True)
             self.rec_path = os.path.join(folder, now.strftime("interfaz_%Y%m%d_%H%M%S.csv"))
             self.rec_file = open(self.rec_path, "w")
-            # encabezado primero: lo leen genfromtxt(names=True) y pandas.read_csv(comment="#")
+            # header first, so genfromtxt(names=True) and pandas.read_csv(comment="#") can read it
             self.rec_file.write("t_s,objetivo_mm,posicion_mm,error_um,velocidad_mm_s,salida_deg,estado_encoder,flags\n"
                                 f"# μMachining, grabación de tools/interfaz.py, {now:%Y-%m-%d %H:%M:%S}\n"
                                 f"# telemetría a {2000 // TELEMETRY_DECIMATION} Hz; las líneas '# t > G1 ...' "

@@ -28,7 +28,7 @@ class PIDController {
 
   protected:
     float output_limit; // Maximum output value
-    float windup_limit; // Maximum output value
+    float windup_limit; // Integral clamp (anti-windup)
 
     float kP; // Proportional gain
     float kI; // Integral gain

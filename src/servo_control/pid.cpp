@@ -18,7 +18,6 @@ void PIDController::set_parameter(float kP, float kI, float kD, float output_lim
   PIDController::kI_half = kI*0.5f;
 }
 
-// PID controller function
 float PIDController::compute(float error, float dt, float one_over_dt) {
   // Proportional component
   float proportional = kP * error;

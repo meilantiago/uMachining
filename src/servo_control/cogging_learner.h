@@ -1,10 +1,9 @@
 #pragma once
 
-// Reaprendizaje de las tablas anti-cogging (M59) en el firmware, al final de cada calibracion (M56).
-// Es la version embebida de tools/cogging_learn.py --g-from: el error de seguimiento se pliega sobre
-// el ciclo electrico en cada sentido y se corrige armonico por armonico con un paso de Newton usando
-// las respuestas G medidas en el aprendizaje del 20/10/2026 (dependen del motor y del lazo, no de la
-// calibracion). Ver docs/CAMBIOS_CALIBRACION_2026-10-20.md.
+// On-device relearning of the anti-cogging tables (M59), run at the end of each calibration (M56).
+// The tracking error is folded over the electrical cycle for each direction and corrected harmonic
+// by harmonic with a Newton step, using pre-measured harmonic responses G (these depend on the
+// motor and the loop tuning, not on the calibration).
 
 #include <cstdint>
 
@@ -12,20 +11,20 @@ class CoggingLearner {
   public:
     static constexpr int N = 64;   // = ServoController::COGGING_TABLE_SIZE
 
-    // Prepara una pasada: velocidad de crucero que se mide [mm/s] y fase del campo en la posicion 0.
+    // Prepares a pass: field phase at position 0 [rad], field rad per mm, cruise feed [mm/s].
     void begin(float field_at_zero_rad, float field_rad_per_mm, float feed_mm_s);
     void reset();
 
-    // Desde el ISR del perfil (Core 0, 2 kHz): solo acumula mientras 'active' y en crucero.
+    // Called from the profile ISR (Core 0, 2 kHz); accumulates only while 'active' and cruising.
     volatile bool active = false;
     void add(double target_mm, double pos_mm, float vel_mm_s);
 
-    // Patron del error [um] sobre el ciclo electrico, sin la media; dir 0 = ida (+), 1 = vuelta (-).
-    // Devuelve false si hubo pocas muestras en ese sentido.
+    // Mean-free error pattern [um] over the electrical cycle; dir 0 = forward (+), 1 = backward (-).
+    // Returns false if there were too few samples in that direction.
     bool pattern(int dir, float e_um[N]) const;
     float rms_um() const;
 
-    // Paso de Newton sobre las tablas [grados electricos], en el lugar.
+    // In-place Newton step on the tables [electrical degrees].
     static void newton_step(float table_deg[N], float table_dir_deg[N], const float e_um[2][N], float gain);
 
   private:
