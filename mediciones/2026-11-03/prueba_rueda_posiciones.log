@@ -1,0 +1,137 @@
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase -6.8 deg electricos (con el encoder corrido -1 periodo: -123.5, +1: 113.1), atraso del rotor 5.9 deg, cons
+I)AxisController: cero OK (pos = 0.0546 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M114
+X:0.054092
+ok
+> M17
+ok
+> G91
+ok
+> G1 X0.7 F1
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase -105.8 deg electricos (con el encoder corrido -1 periodo: 135.7, +1: 9.8), atraso del rotor 9.5 deg, consi
+W)Conmutacion: el contador del encoder habia quedado corrido 1 periodo(s) (desfase de -105.8 deg electricos). Corregido: ahora 9.
+I)AxisController: cero OK (pos = 0.2493 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M114
+X:0.248807
+ok
+> M17
+ok
+> G91
+ok
+> G1 X0.7 F1
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase 117.7 deg electricos (con el encoder corrido -1 periodo: -4.0, +1: -134.4), atraso del rotor 8.6 deg, cons
+W)Conmutacion: el contador del encoder habia quedado corrido -1 periodo(s) (desfase de 117.7 deg electricos). Corregido: ahora -4
+I)AxisController: cero OK (pos = -0.0514 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M114
+X:-0.051955
+ok
+> M17
+ok
+> G91
+ok
+> G1 X0.7 F1
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase -121.7 deg electricos (con el encoder corrido -1 periodo: 124.4, +1: 3.2), atraso del rotor 4.7 deg, consi
+W)Conmutacion: el contador del encoder habia quedado corrido 1 periodo(s) (desfase de -121.7 deg electricos). Corregido: ahora 3.
+I)AxisController: cero OK (pos = 0.1555 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M114
+X:0.154952
+ok
+> M17
+ok
+> G91
+ok
+> G1 X0.7 F1
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase 110.8 deg electricos (con el encoder corrido -1 periodo: -3.9, +1: -124.4), atraso del rotor 5.4 deg, cons
+W)Conmutacion: el contador del encoder habia quedado corrido -1 periodo(s) (desfase de 110.8 deg electricos). Corregido: ahora -3
+I)AxisController: cero OK (pos = -0.1486 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M114
+X:-0.149362
+ok
+> M17
+ok
+> G91
+ok
+> G1 X0.7 F1
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase -6.6 deg electricos (con el encoder corrido -1 periodo: -122.6, +1: 115.6), atraso del rotor 6.7 deg, cons
+I)AxisController: cero OK (pos = 0.0454 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M114
+X:0.044865
+ok
+> M17
+ok
+> G91
+ok
+> G1 X0.7 F1
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase -121.9 deg electricos (con el encoder corrido -1 periodo: 120.4, +1: -4.9), atraso del rotor 11.7 deg, con
+W)Conmutacion: el contador del encoder habia quedado corrido 1 periodo(s) (desfase de -121.9 deg electricos). Corregido: ahora -4
+I)AxisController: cero OK (pos = 0.2421 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M114
+X:0.241445
+ok
+> M17
+ok
+> G91
+ok
+> G1 X0.7 F1
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase 119.7 deg electricos (con el encoder corrido -1 periodo: -1.2, +1: -130.7), atraso del rotor 8.0 deg, cons
+W)Conmutacion: el contador del encoder habia quedado corrido -1 periodo(s) (desfase de 119.7 deg electricos). Corregido: ahora -1
+I)AxisController: cero OK (pos = -0.0582 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M114
+X:-0.058839
+ok
+> M17
+ok
+> G91
+ok
+> G1 X0.7 F1
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase -112.6 deg electricos (con el encoder corrido -1 periodo: 133.8, +1: 11.4), atraso del rotor 3.7 deg, cons
+W)Conmutacion: el contador del encoder habia quedado corrido 1 periodo(s) (desfase de -112.6 deg electricos). Corregido: ahora 11
+I)AxisController: cero OK (pos = 0.1407 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M114
+X:0.140194
+ok
+> M17
+ok
+> G91
+ok
+> G1 X0.7 F1
+ok
+> G90
+ok
+> M18
+ok

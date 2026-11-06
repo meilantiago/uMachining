@@ -1,0 +1,20 @@
+Barrido de PID 2026-11-03T15:53:01: 0 -> 10 mm, 1 ciclo(s), 2 mm/s, velocidad_tabla=1 realimentacion_anticipada=1
+base: pos_kp=60, pos_ki=100, vel_kp=0.2, vel_ki=90, vel_tc=0.004
+
+config         cambio                     estado                    rms    max  const  imán  paso ciclo vuelta resto reposo max out
+                                                                   [µm]   [µm]   [µm]  [µm]  [µm]  [µm]   [µm]  [µm]   [µm]     [°]
+base           POS_KP = 60, POS_KI = 100, ok                       1.87    4.5   0.79  0.54  2.22  0.38   0.20  0.62   0.08    44.1
+pos_kp_x0.5    POS_KP = 30, POS_KI = 100, ok                       1.93    4.7   0.79  0.55  2.28  0.45   0.32  0.62   0.06    41.6
+pos_kp_x2      POS_KP = 120, POS_KI = 100 abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.07     nan
+pos_ki_0       POS_KP = 60, POS_KI = 0, V ok                       1.94    4.2   0.98  0.55  2.20  0.40   0.21  0.62   0.12    45.1
+pos_ki_x0.5    POS_KP = 60, POS_KI = 50,  ok                       1.89    4.8   0.84  0.53  2.20  0.36   0.22  0.64   0.15    48.0
+pos_ki_x2      POS_KP = 60, POS_KI = 200, ok                       1.87    4.2   0.76  0.52  2.26  0.39   0.20  0.62   0.09    45.5
+vel_kp_x0.5    POS_KP = 60, POS_KI = 100, abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.17     nan
+vel_kp_x1.5    POS_KP = 60, POS_KI = 100, abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   1.33     nan
+vel_ki_x0.5    POS_KP = 60, POS_KI = 100, ok                       1.22    2.9   0.76  0.24  1.21  0.48   0.14  0.25   0.12    36.1
+vel_ki_x2      POS_KP = 60, POS_KI = 100, inestable en reposo       nan    nan    nan   nan   nan   nan    nan   nan  11.60     nan
+vel_tc_x0.5    POS_KP = 60, POS_KI = 100, inestable en reposo       nan    nan    nan   nan   nan   nan    nan   nan   7.30     nan
+vel_tc_x2      POS_KP = 60, POS_KI = 100, ok                       1.81    4.6   0.81  0.56  1.99  0.79   0.22  0.51   0.12    43.4
+base_final     POS_KP = 60, POS_KI = 100, ok                       1.86    4.5   0.78  0.49  2.21  0.35   0.20  0.62   0.09    46.1
+
+componentes: amplitud (mitad del pico a pico de la forma plegada), promedio de los tramos; rms, resto y reposo: desvío estándar

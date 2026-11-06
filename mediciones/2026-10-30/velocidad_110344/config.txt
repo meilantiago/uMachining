@@ -1,0 +1,1 @@
+{'port': '/dev/serial/by-id/usb-Raspberry_Pi_Pico_E6632C8593188B33-if00', 'velocidades': '2,5,10,15,20,25,30,40,50', 'recorrido': 30.0, 'acel': 200.0, 'm55': 'M55 A60 B100 C0.15 D7.5 F0.001', 'm62': 'M62 T3 K1', 'error_max_um': 200.0, 'desfase_max': 20.0}

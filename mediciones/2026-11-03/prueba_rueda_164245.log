@@ -1,0 +1,129 @@
+> M56
+I)AxisController: calibrando en la posicion actual (barrido de 5.56 mm ida y vuelta)
+I)Measuring motor to encoder angle lookup table...
+D)Running foreward pass...
+D)Running backward pass...
+I)Rueda magnetica: 30.019543 periodos de encoder por vuelta de motor
+D)Optimizing lookup table...
+D)Optimizing lookup table finished: rms_error=0.002878
+I)LUT 'encoder_raw_angle -> motor_pos': rms_error = 0.006774 deg, atraso del rotor = -0.164738 deg
+I)Salto en la costura de la vuelta: 0.004890 deg
+I)Filtro de la huella del motor: armonico 50 por vuelta, amplitud 0.254 um
+I)Filtro de la huella del motor: armonico 100 por vuelta, amplitud 0.347 um
+I)Filtro de la huella del motor: armonico 200 por vuelta, amplitud 1.156 um
+I)Filtro de la huella del motor: armonico 250 por vuelta, amplitud 0.034 um
+I)Filtro de la huella del motor: armonico 350 por vuelta, amplitud 0.015 um
+I)Filtro de la huella del motor: armonico 400 por vuelta, amplitud 0.073 um
+I)Filtro de la huella del motor: armonico 500 por vuelta, amplitud 0.075 um
+I)finished
+I)Conmutacion: desfase -0.2 deg electricos (con el encoder corrido -1 periodo: -114.6, +1: 124.7), atraso del rotor 7.9 deg, cons
+I)AxisController: calibracion OK
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase -0.2 deg electricos (con el encoder corrido -1 periodo: -114.6, +1: 124.7), atraso del rotor 7.7 deg, cons
+I)AxisController: cero OK (pos = 0.0011 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M63 V10 A300 T0.5 P1000
+t_us,campo_mm,pos_mm
+48754,0.3217228,0.2958565
+96609,0.8002727,0.7721657
+144623,1.2804127,1.2530420
+192808,1.7622627,1.7361062
+242797,2.2621527,2.2360590
+294915,2.7833328,2.7564445
+347096,3.3051427,3.2777227
+399300,3.8271827,3.7993875
+451396,4.3481428,4.3201918
+503395,4.8681328,4.8415722
+555876,5.3167250,5.3053662
+lazo_abierto: V=10.0 mm/s A=300 mm/s2, sin perdida, velocidad maxima del campo 10.00 mm/s, atraso maximo 31.1 um, pos 5.331 mm
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase 128.4 deg electricos (con el encoder corrido -1 periodo: 14.5, +1: -106.7), atraso del rotor 6.1 deg, cons
+W)Conmutacion: el contador del encoder habia quedado corrido -1 periodo(s) (desfase de 128.4 deg electricos). Corregido: ahora 14
+I)AxisController: cero OK (pos = -0.1695 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M63 V-10 A300 T0.5 P1000
+t_us,campo_mm,pos_mm
+49022,-0.4964507,-0.4703362
+97569,-0.9819208,-0.9551400
+146166,-1.4678908,-1.4349327
+194905,-1.9552808,-1.9274580
+246727,-2.4735007,-2.4417407
+298983,-2.9960607,-2.9718235
+351139,-3.5176207,-3.4813270
+403353,-4.0397608,-4.0123057
+455579,-4.5620207,-4.5307005
+507953,-5.0857607,-5.0610767
+560883,-5.5012705,-5.4925773
+lazo_abierto: V=-10.0 mm/s A=300 mm/s2, sin perdida, velocidad maxima del campo 10.00 mm/s, atraso maximo 39.1 um, pos -5.504 mm
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase -0.2 deg electricos (con el encoder corrido -1 periodo: -114.5, +1: 124.6), atraso del rotor 8.0 deg, cons
+I)AxisController: cero OK (pos = -0.0027 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M63 V20 A300 T0.5 P1000
+t_us,campo_mm,pos_mm
+48956,0.3570018,0.3145830
+lazo_abierto: V=20.0 mm/s A=300 mm/s2, PERDIO EL SINCRONISMO, velocidad maxima del campo 18.97 mm/s, atraso maximo 150.4 um, pos 0.447 mm
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase 120.2 deg electricos (con el encoder corrido -1 periodo: -1.2, +1: -132.1), atraso del rotor 10.0 deg, con
+W)Conmutacion: el contador del encoder habia quedado corrido -1 periodo(s) (desfase de 120.2 deg electricos). Corregido: ahora -1
+I)AxisController: cero OK (pos = -0.0554 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M63 V-20 A300 T0.5 P1000
+t_us,campo_mm,pos_mm
+49179,-0.4223677,-0.3789413
+lazo_abierto: V=-20.0 mm/s A=300 mm/s2, PERDIO EL SINCRONISMO, velocidad maxima del campo 19.11 mm/s, atraso maximo 150.7 um, pos -0.519 mm
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase -0.6 deg electricos (con el encoder corrido -1 periodo: -114.6, +1: 123.7), atraso del rotor 7.9 deg, cons
+I)AxisController: cero OK (pos = -0.0162 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M63 V30 A1000 T0.3 P1000
+t_us,campo_mm,pos_mm
+lazo_abierto: V=30.0 mm/s A=1000 mm/s2, PERDIO EL SINCRONISMO, velocidad maxima del campo 21.66 mm/s, atraso maximo 150.9 um, pos 0.069 mm
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase 0.6 deg electricos (con el encoder corrido -1 periodo: -117.3, +1: 117.7), atraso del rotor 8.0 deg, consi
+I)AxisController: cero OK (pos = 0.0713 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M63 V-30 A1000 T0.3 P1000
+t_us,campo_mm,pos_mm
+lazo_abierto: V=-30.0 mm/s A=1000 mm/s2, PERDIO EL SINCRONISMO, velocidad maxima del campo 21.77 mm/s, atraso maximo 150.3 um, pos -0.016 mm
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase -1.0 deg electricos (con el encoder corrido -1 periodo: -115.0, +1: 123.4), atraso del rotor 7.8 deg, cons
+I)AxisController: cero OK (pos = -0.0133 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M63 V40 A300 T0.3 P1000
+t_us,campo_mm,pos_mm
+49013,0.3475132,0.3038980
+lazo_abierto: V=40.0 mm/s A=300 mm/s2, PERDIO EL SINCRONISMO, velocidad maxima del campo 19.01 mm/s, atraso maximo 150.9 um, pos 0.440 mm
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase 119.9 deg electricos (con el encoder corrido -1 periodo: -0.8, +1: -131.0), atraso del rotor 9.8 deg, cons
+W)Conmutacion: el contador del encoder habia quedado corrido -1 periodo(s) (desfase de 119.9 deg electricos). Corregido: ahora -0
+I)AxisController: cero OK (pos = -0.0627 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M63 V-40 A300 T0.3 P1000
+t_us,campo_mm,pos_mm
+49171,-0.4327467,-0.3847862
+lazo_abierto: V=-40.0 mm/s A=300 mm/s2, PERDIO EL SINCRONISMO, velocidad maxima del campo 18.85 mm/s, atraso maximo 150.3 um, pos -0.512 mm
+ok
+> G28
+I)AxisController: cero en la posicion actual (sin buscar tope)
+I)Conmutacion: desfase -0.8 deg electricos (con el encoder corrido -1 periodo: -115.0, +1: 123.8), atraso del rotor 7.8 deg, cons
+I)AxisController: cero OK (pos = -0.0086 mm). Lazo cerrado apagado: M17 para habilitarlo.
+ok
+> M18
+ok

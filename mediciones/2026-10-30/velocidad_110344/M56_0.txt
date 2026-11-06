@@ -1,0 +1,20 @@
+I)AxisController: calibrando en la posicion actual (barrido de 5.56 mm ida y vuelta)
+I)Measuring motor to encoder angle lookup table...
+D)Running foreward pass...
+D)Running backward pass...
+I)Rueda magnetica: 30.008535 periodos de encoder por vuelta de motor
+D)Optimizing lookup table...
+D)Optimizing lookup table finished: rms_error=0.003937
+I)LUT 'encoder_raw_angle -> motor_pos': rms_error = 0.039094 deg, atraso del rotor = -0.222188 deg
+I)Salto en la costura de la vuelta: 0.054642 deg
+I)Filtro de la huella del motor: armonico 50 por vuelta, amplitud 0.331 um
+I)Filtro de la huella del motor: armonico 100 por vuelta, amplitud 0.333 um
+I)Filtro de la huella del motor: armonico 200 por vuelta, amplitud 0.761 um
+I)Filtro de la huella del motor: armonico 250 por vuelta, amplitud 0.043 um
+I)Filtro de la huella del motor: armonico 350 por vuelta, amplitud 0.083 um
+I)Filtro de la huella del motor: armonico 400 por vuelta, amplitud 0.135 um
+I)Filtro de la huella del motor: armonico 500 por vuelta, amplitud 0.027 um
+I)finished
+I)Conmutacion: desfase -4.4 deg electricos (con el encoder corrido -1 periodo: -117.0, +1: 123.7), atraso del rotor 9.0 deg, cons
+I)AxisController: calibracion OK
+ok

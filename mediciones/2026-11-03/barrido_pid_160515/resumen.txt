@@ -1,0 +1,15 @@
+Barrido de PID 2026-11-03T16:05:15: 0 -> 10 mm, 1 ciclo(s), 2 mm/s, velocidad_tabla=1 realimentacion_anticipada=1
+base: pos_kp=60, pos_ki=100, vel_kp=0.2, vel_ki=90, vel_tc=0.004
+
+config         cambio                     estado                    rms    max  const  imán  paso ciclo vuelta resto reposo max out
+                                                                   [µm]   [µm]   [µm]  [µm]  [µm]  [µm]   [µm]  [µm]   [µm]     [°]
+base           VEL_KP = 0.2, VEL_KI = 90  ok                       1.88    4.3   0.78  0.52  2.21  0.38   0.24  0.66   0.12    45.8
+ki20_kp030     VEL_KP = 0.3, VEL_KI = 20  ok                       0.92    2.2   0.73  0.14  0.63  0.39   0.17  0.18   0.11    34.6
+ki20_kp035     VEL_KP = 0.35, VEL_KI = 20 ok                       0.90    2.2   0.75  0.14  0.54  0.39   0.17  0.20   0.13    35.6
+ki20_kp040     VEL_KP = 0.4, VEL_KI = 20  ok                       2.45    5.4   0.74  0.30  0.25  0.33   0.23  2.32   0.60    61.1
+ki20_kp050     VEL_KP = 0.5, VEL_KI = 20  inestable en reposo       nan    nan    nan   nan   nan   nan    nan   nan   5.82     nan
+ki30_kp040     VEL_KP = 0.4, VEL_KI = 30  ok                       3.04    6.0   0.76  0.42  0.14  0.33   0.29  2.93   0.95    68.1
+ki20_kp030_rep VEL_KP = 0.3, VEL_KI = 20  ok                       0.93    2.3   0.75  0.12  0.64  0.40   0.15  0.17   0.18    34.4
+base_final     VEL_KP = 0.2, VEL_KI = 90  ok                       1.88    4.3   0.77  0.60  2.28  0.35   0.18  0.62   0.09    44.0
+
+componentes: amplitud (mitad del pico a pico de la forma plegada), promedio de los tramos; rms, resto y reposo: desvío estándar

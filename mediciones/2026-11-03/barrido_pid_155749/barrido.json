@@ -1,0 +1,155 @@
+{
+ "configs": [
+  {
+   "name": "base",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_base.npz"
+  },
+  {
+   "name": "ki45",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.2,
+    "vel_ki": 45.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki45.npz"
+  },
+  {
+   "name": "ki30",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.2,
+    "vel_ki": 30.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki30.npz"
+  },
+  {
+   "name": "ki20",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.2,
+    "vel_ki": 20.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki20.npz"
+  },
+  {
+   "name": "ki10",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.2,
+    "vel_ki": 10.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki10.npz"
+  },
+  {
+   "name": "ki45_kp015",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.15,
+    "vel_ki": 45.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki45_kp015.npz"
+  },
+  {
+   "name": "ki45_kp025",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.25,
+    "vel_ki": 45.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki45_kp025.npz"
+  },
+  {
+   "name": "ki45_tc6",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.2,
+    "vel_ki": 45.0,
+    "vel_tc": 0.006
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki45_tc6.npz"
+  },
+  {
+   "name": "ki45_tc8",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.2,
+    "vel_ki": 45.0,
+    "vel_tc": 0.008
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki45_tc8.npz"
+  },
+  {
+   "name": "ki45_pkp40",
+   "params": {
+    "pos_kp": 40.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.2,
+    "vel_ki": 45.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki45_pkp40.npz"
+  },
+  {
+   "name": "ki45_pkp80",
+   "params": {
+    "pos_kp": 80.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.2,
+    "vel_ki": 45.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki45_pkp80.npz"
+  },
+  {
+   "name": "base_final",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_base_final.npz"
+  }
+ ],
+ "base": {
+  "pos_kp": 60.0,
+  "pos_ki": 100.0,
+  "vel_kp": 0.2,
+  "vel_ki": 90.0,
+  "vel_tc": 0.004
+ }
+}

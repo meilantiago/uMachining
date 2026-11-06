@@ -1,0 +1,14 @@
+config,cambio,estado,pos_kp,pos_ki,vel_kp,vel_ki,vel_tc,rms,max_err,const,iman,paso,ciclo,vuelta,resto,reposo,max_out
+base,base,ok,60.0,100.0,0.2,90.0,0.004,1.875,4.475,0.792,0.538,2.225,0.376,0.196,0.621,0.083,44.101
+pos_kp_x0.5,pos_kp=30,ok,30.0,100.0,0.2,90.0,0.004,1.932,4.653,0.785,0.551,2.282,0.447,0.323,0.620,0.060,41.646
+pos_kp_x2,pos_kp=120,abortada (error grande),120.0,100.0,0.2,90.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,0.070,nan
+pos_ki_0,pos_ki=0,ok,60.0,0.0,0.2,90.0,0.004,1.944,4.214,0.982,0.553,2.202,0.403,0.209,0.620,0.118,45.054
+pos_ki_x0.5,pos_ki=50,ok,60.0,50.0,0.2,90.0,0.004,1.889,4.833,0.843,0.532,2.197,0.365,0.221,0.637,0.152,48.004
+pos_ki_x2,pos_ki=200,ok,60.0,200.0,0.2,90.0,0.004,1.867,4.245,0.758,0.521,2.257,0.386,0.205,0.619,0.088,45.455
+vel_kp_x0.5,vel_kp=0.1,abortada (error grande),60.0,100.0,0.1,90.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,0.165,nan
+vel_kp_x1.5,vel_kp=0.3,abortada (error grande),60.0,100.0,0.30000000000000004,90.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,1.327,nan
+vel_ki_x0.5,vel_ki=45,ok,60.0,100.0,0.2,45.0,0.004,1.216,2.914,0.762,0.243,1.209,0.477,0.139,0.246,0.116,36.077
+vel_ki_x2,vel_ki=180,inestable en reposo,60.0,100.0,0.2,180.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,11.595,nan
+vel_tc_x0.5,vel_tc=0.002,inestable en reposo,60.0,100.0,0.2,90.0,0.002,nan,nan,nan,nan,nan,nan,nan,nan,7.302,nan
+vel_tc_x2,vel_tc=0.008,ok,60.0,100.0,0.2,90.0,0.008,1.805,4.630,0.808,0.563,1.987,0.786,0.219,0.514,0.122,43.421
+base_final,base,ok,60.0,100.0,0.2,90.0,0.004,1.858,4.493,0.780,0.491,2.206,0.349,0.203,0.617,0.093,46.089

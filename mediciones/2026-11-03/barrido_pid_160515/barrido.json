@@ -1,0 +1,107 @@
+{
+ "configs": [
+  {
+   "name": "base",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_base.npz"
+  },
+  {
+   "name": "ki20_kp030",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.3,
+    "vel_ki": 20.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki20_kp030.npz"
+  },
+  {
+   "name": "ki20_kp035",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.35,
+    "vel_ki": 20.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki20_kp035.npz"
+  },
+  {
+   "name": "ki20_kp040",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.4,
+    "vel_ki": 20.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki20_kp040.npz"
+  },
+  {
+   "name": "ki20_kp050",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.5,
+    "vel_ki": 20.0,
+    "vel_tc": 0.004
+   },
+   "estado": "inestable en reposo",
+   "archivo": "cfg_ki20_kp050.npz"
+  },
+  {
+   "name": "ki30_kp040",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.4,
+    "vel_ki": 30.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki30_kp040.npz"
+  },
+  {
+   "name": "ki20_kp030_rep",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.3,
+    "vel_ki": 20.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_ki20_kp030_rep.npz"
+  },
+  {
+   "name": "base_final",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.2,
+    "vel_ki": 90.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_base_final.npz"
+  }
+ ],
+ "base": {
+  "pos_kp": 60.0,
+  "pos_ki": 100.0,
+  "vel_kp": 0.2,
+  "vel_ki": 90.0,
+  "vel_tc": 0.004
+ }
+}
