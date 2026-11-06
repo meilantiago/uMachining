@@ -113,7 +113,7 @@ bool update_motion_profile_isr(repeating_timer_t* timer) {
 
 // Core 1: dedicated servo loop (encoder + cascaded PID + FOC commutation).
 void main_core1() {
-  LOG_INFO("Core 1: arrancando lazo servo...");
+  LOG_INFO("Core 1: starting servo loop...");
   // Lets Core 0 pause this core while writing flash (see AxisController::store_calibration)
   multicore_lockout_victim_init();
 
@@ -143,11 +143,11 @@ void setup() {
   while (!Serial) {}
   delay(100);
 
-  LOG_INFO("Firmware de eje unico - iniciando");
+  LOG_INFO("Single-axis firmware - starting");
   LOG_INFO("System clock: %i MHz", (int)(clock_get_hz(clk_sys) / 1000 / 1000));
 
   if (!LittleFS.begin()) {
-    LOG_ERROR("No se pudo montar el filesystem (LittleFS)");
+    LOG_ERROR("Could not mount the filesystem (LittleFS)");
   }
 
   // hardware SPI for the encoder
@@ -171,7 +171,7 @@ void setup() {
   multicore_launch_core1(main_core1);
   shared_data.servo_loop_enabled = true;
 
-  LOG_INFO("Inicializacion terminada. Enviar G28 para homear, M56 para calibrar.");
+  LOG_INFO("Initialization done. Send G28 to home, M56 to calibrate.");
 }
 
 void loop() {

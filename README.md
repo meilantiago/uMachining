@@ -39,15 +39,23 @@ It is a single-axis adaptation of the `MotionControllerRP` firmware from [MicroM
 
 ## Performance
 
-Measured on our bench at 2 mm/s over the full 255 mm travel:
+Measured on our bench: following error at 2 mm/s, noise and steps at rest at 30 mm.
 
 | Metric | Value |
 |---|---|
 | Following error while moving | ~1.0 µm RMS |
-| Position noise at rest | ~1 nm (standard deviation) |
+| Position noise at rest | 1.3–1.6 nm (standard deviation) |
 | Smallest step resolved | 10 nm |
 | Encoder resolution at the carriage | 0.08 nm per count |
 | Servo loop rate | ~16 kHz |
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/steps_10nm_dark.png">
+    <img src="docs/steps_10nm_light.png" alt="Five commanded 10 nm steps: measured jumps of +10.3, +9.8, +10.1, +9.9 and +10.1 nm, 1.3 nm standard deviation at rest" width="900">
+  </picture>
+  <br><sub>Five 10 nm steps commanded with <code>G1</code>, raw 1 kHz telemetry and a 50 ms average.</sub>
+</p>
 
 > [!NOTE]
 > **These figures describe resolution, not accuracy.** They are measured by the motor-side encoder itself, comparing the measured position with the commanded one. Screw lead error, backlash and nut compliance are invisible to this sensor. The carriage has not yet been checked against an external reference.
@@ -143,7 +151,7 @@ python3 tools/send_gcode.py "M56" "M17" "G1 X10" "M114" --timeout 600   # script
 The interface finds the board on its own, and `send_gcode.py` defaults to `/dev/ttyACM0`. Both accept `--port`. Recordings are saved as CSV under `mediciones/YYYY-MM-DD/`.
 
 > [!NOTE]
-> The interface and the firmware's log messages are in Spanish. Commands and replies follow the usual G-code conventions: every command is answered with `ok` or `error: ...`.
+> The PC interface is in Spanish; the firmware messages are in English. Commands and replies follow the usual G-code conventions: every command is answered with `ok` or `error: ...`.
 
 ## Adapting it to your axis
 
@@ -158,7 +166,7 @@ All mechanical and control parameters are in [`src/hw_config.h`](src/hw_config.h
 | `MOTOR_MAX_CURRENT_FACTOR` | Maximum current, 0 to 1 (keep it at 0.4 or above) | 0.6 |
 | `DEFAULT_MAX_VELOCITY_MM_S` | Default velocity | 2 mm/s |
 
-**Tuning.** The default gains (`POS_KP` 60, `POS_KI` 100, `VEL_KP` 0.2, `VEL_KI` 90) are tuned for our carriage. Try new values live with `M55 A<pos_kp> B<pos_ki> C<vel_kp> D<vel_ki> F<tc>` before changing the defaults. The most sensitive one is `POS_KI`: too high and the position integral hunts against static friction at rest. Raise it with the axis at rest until hunting starts, then use about half of that value.
+**Tuning.** The default gains (`POS_KP` 60, `POS_KI` 100, `VEL_KP` 0.12, `VEL_KI` 54) are tuned for our carriage. Try new values live with `M55 A<pos_kp> B<pos_ki> C<vel_kp> D<vel_ki> F<tc>` before changing the defaults. The most sensitive one is `POS_KI`: too high and the position integral hunts against static friction at rest. Raise it with the axis at rest until hunting starts, then use about half of that value. `VEL_KP` sets the stiffness: too high and the velocity loop oscillates at rest at a few hundred hertz (with our carriage, from 0.16 upwards).
 
 ## Command reference
 
@@ -236,19 +244,21 @@ tools/
 
 ## Troubleshooting
 
-The firmware reports problems in Spanish. The most common ones:
+The most common messages and symptoms:
 
 | Message | Meaning | What to do |
 |---|---|---|
-| `eje no calibrado, correr M56 primero` | No calibration loaded | Run `M56` |
-| `eje no homeado, correr G28 (o M56) primero` | `M17` sent before homing | Run `M56` (or `G28`) |
-| `homing fallido (no se detecto el tope mecanico)` | The hard stop was not found | Check that the carriage can reach the negative stop and that the motor is coupled |
-| `Homing abortado: encoder no sigue al motor` | The encoder does not follow the motor | Check that the magnet wheel is tight on the shaft |
+| `axis not calibrated, run M56 first` | No calibration loaded | Run `M56` |
+| `axis not homed, run G28 (or M56) first` | `M17` sent before homing | Run `M56` (or `G28`) |
+| `homing failed (hard stop not detected)` | The hard stop was not found | Check that the carriage can reach the negative stop and that the motor is coupled |
+| `Homing aborted: the encoder does not follow the motor` | The encoder does not follow the motor | Check that the magnet wheel is tight on the shaft |
 | `Magnetic field too weak` | Field at the sensor below the MT6835 minimum | Reduce the sensor-to-magnet gap |
-| `Periodos por vuelta no enteros` | Wrong number of periods per revolution | Check `ENCODER_MAGNET_COUNT` and the wheel |
-| `la conmutacion no coincide con la calibracion guardada` | Stored calibration no longer valid | Run `M56` |
-| `posicion fuera de rango` | `G1` target outside the soft limits | Check `AXIS_MIN/MAX_POSITION_MM` |
-| `M119` reports `ultimo corte` | The loop tripped on following error | Use `M121` to see the trace. Usually too much velocity or load for the current factor |
+| `Non-integer periods per revolution` | Wrong number of periods per revolution | Check `ENCODER_MAGNET_COUNT` and the wheel |
+| `commutation does not match the stored calibration` | Stored calibration no longer valid | Run `M56` |
+| `position out of range` | `G1` target outside the soft limits | Check `AXIS_MIN/MAX_POSITION_MM` |
+| `M119` reports `last fault` | The loop tripped on following error | Use `M121` to see the trace. Usually too much velocity or load for the current factor |
+| The carriage stalls with the loop output saturated, or `M57` offsets differ from usual | The calibration stored in flash no longer matches the mechanics (e.g. after remounting the motor) | Run `M56 S` |
+| Tens of nanometres of noise at rest, concentrated around 200 Hz | The velocity loop is close to instability | Lower `VEL_KP` with `M55` until it disappears |
 
 ## Known limitations
 

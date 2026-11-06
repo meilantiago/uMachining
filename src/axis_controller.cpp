@@ -29,7 +29,7 @@ AxisController::~AxisController() {
 
 void AxisController::init() {
   if (!encoder->init(0x5, 0x4)) {
-    LOG_ERROR("AxisController: fallo al inicializar el encoder");
+    LOG_ERROR("AxisController: encoder initialization failed");
   }
   encoder->set_crc_enabled(ENABLE_ENCODER_CRC);
 
@@ -39,8 +39,8 @@ void AxisController::init() {
   load_calibration();
   if (load_cogging()) {
     servo_controller->cogging_enabled = COGGING_ENABLED_AT_BOOT;
-    LOG_INFO("AxisController: tabla anti-cogging cargada desde flash (%s)",
-             COGGING_ENABLED_AT_BOOT ? "activa" : "inactiva, M59 S1 para activarla");
+    LOG_INFO("AxisController: anti-cogging table loaded from flash (%s)",
+             COGGING_ENABLED_AT_BOOT ? "enabled" : "disabled, M59 S1 to enable it");
   }
 }
 
@@ -63,13 +63,13 @@ bool AxisController::home(float direction_sign, bool search_stop) {
     );
 
     if (!ok) {
-      LOG_ERROR("AxisController: homing fallido (no se detecto el tope mecanico)");
+      LOG_ERROR("AxisController: homing failed (hard stop not detected)");
       servo_controller->resync();
       return false;
     }
   } else {
-    LOG_WARNING("AxisController: home en la posicion actual, SIN buscar tope. Solo para pruebas con el "
-                "motor desacoplado: con el carro puesto, 0..255 mm no corresponde al recorrido real.");
+    LOG_WARNING("AxisController: home set at the current position WITHOUT searching for the stop. Only for "
+                "tests with the motor decoupled: with the carriage attached, 0..255 mm is not the real travel.");
     servo_controller->set_motor_enabled(true, false);  // energize with the current field so the rotor aligns
     sleep_ms(200);
     encoder->read_abs_angle_raw();
@@ -79,7 +79,7 @@ bool AxisController::home(float direction_sign, bool search_stop) {
   // Homing fixes the encoder counter only modulo one period: enough for position, not for
   // commutation (see COMMUTATION_CHECK_CYCLES in hw_config.h).
   if (calibrated && !verify_commutation(-direction_sign, true)) {
-    LOG_ERROR("AxisController: la conmutacion no coincide con la calibracion guardada. Correr M56.");
+    LOG_ERROR("AxisController: commutation does not match the stored calibration. Run M56.");
     servo_controller->set_motor_enabled(false, false);
     servo_controller->resync();
     return false;
@@ -88,7 +88,7 @@ bool AxisController::home(float direction_sign, bool search_stop) {
   servo_controller->resync();
   publish_position();
   homed = true;
-  LOG_INFO("AxisController: homing OK (pos = %.4f mm). Lazo cerrado apagado: M17 para habilitarlo.",
+  LOG_INFO("AxisController: homing OK (pos = %.4f mm). Closed loop off: M17 to enable it.",
            get_position_mm());
   return true;
 }
@@ -105,18 +105,18 @@ bool AxisController::verify_commutation(float away_from_stop_sign, bool allow_pe
       if (fabsf(offset[i]) < fabsf(offset[best])) best = i;
   }
 
-  LOG_INFO("Conmutacion: desfase %.1f deg electricos (con el encoder corrido -1 periodo: %.1f, +1: %.1f), "
-           "atraso del rotor %.1f deg, consistencia %.2f",
+  LOG_INFO("Commutation: offset %.1f electrical deg (with the encoder shifted -1 period: %.1f, +1: %.1f), "
+           "rotor lag %.1f deg, consistency %.2f",
            offset[1] * Constants::RAD2DEG, offset[0] * Constants::RAD2DEG, offset[2] * Constants::RAD2DEG,
            lag * Constants::RAD2DEG, consistency);
 
   if (consistency < 0.7f) {
-    LOG_ERROR("Conmutacion: el desfase cambia durante el barrido (consistencia %.2f): el encoder no sigue "
-              "al rotor (rueda floja, campo debil, rotor trabado?)", consistency);
+    LOG_ERROR("Commutation: the offset changes during the sweep (consistency %.2f): the encoder does not "
+              "follow the rotor (loose wheel, weak field, rotor blocked?)", consistency);
     return false;
   }
   if (fabsf(offset[best]) > COMMUTATION_MAX_OFFSET_DEG * Constants::DEG2RAD) {
-    LOG_ERROR("Conmutacion: desfase de %.1f deg electricos, el maximo aceptado es %.1f",
+    LOG_ERROR("Commutation: offset of %.1f electrical deg, the maximum accepted is %.1f",
               offset[best] * Constants::RAD2DEG, COMMUTATION_MAX_OFFSET_DEG);
     return false;
   }
@@ -125,8 +125,8 @@ bool AxisController::verify_commutation(float away_from_stop_sign, bool allow_pe
   if (k != 0) {
     encoder->read_abs_angle_raw();
     encoder->reset_abs_angle(encoder->get_last_abs_raw_angle() + MT6835Encoder::AbsRawAngleType(k) * MT6835_CPR);
-    LOG_WARNING("Conmutacion: el contador del encoder habia quedado corrido %d periodo(s) (desfase de %.1f deg "
-                "electricos). Corregido: ahora %.1f deg.", k, offset[1] * Constants::RAD2DEG,
+    LOG_WARNING("Commutation: the encoder counter was off by %d period(s) (offset of %.1f electrical "
+                "deg). Corrected: now %.1f deg.", k, offset[1] * Constants::RAD2DEG,
                 offset[best] * Constants::RAD2DEG);
   }
   return true;
@@ -154,7 +154,7 @@ bool AxisController::calibrate(float homing_direction_sign, bool store_to_flash,
   );
 
   if (!ok) {
-    LOG_ERROR("AxisController: calibracion fallida");
+    LOG_ERROR("AxisController: calibration failed");
     calibrated = false;
     return false;
   }
@@ -164,7 +164,7 @@ bool AxisController::calibrate(float homing_direction_sign, bool store_to_flash,
 
   // Self-check: with the freshly measured table the offset must be ~0 without any correction.
   if (!verify_commutation(-homing_direction_sign, false)) {
-    LOG_ERROR("AxisController: la tabla recien medida no conmuta bien. Calibracion descartada.");
+    LOG_ERROR("AxisController: the new table does not commutate correctly. Calibration discarded.");
     servo_controller->resync();
     return false;
   }
@@ -176,7 +176,7 @@ bool AxisController::calibrate(float homing_direction_sign, bool store_to_flash,
     store_calibration();
   }
 
-  LOG_INFO("AxisController: calibracion OK");
+  LOG_INFO("AxisController: calibration OK");
   return true;
 }
 
@@ -354,7 +354,7 @@ bool AxisController::load_calibration() {
   std::string fn2 = pos_to_field_lut_filename();
 
   if (!LittleFS.exists(fn1.c_str()) || !LittleFS.exists(fn2.c_str())) {
-    LOG_WARNING("AxisController: no se encontraron datos de calibracion guardados. Correr M56.");
+    LOG_WARNING("AxisController: no stored calibration found. Run M56.");
     return false;
   }
 
@@ -369,7 +369,7 @@ bool AxisController::load_calibration() {
   servo_controller->set_pos_to_field_lut(pos_to_field_lut);
   calibrated = true;
 
-  LOG_INFO("AxisController: calibracion cargada desde flash (size=%i,%i)",
+  LOG_INFO("AxisController: calibration loaded from flash (size=%i,%i)",
            enc_to_pos_lut.size(), pos_to_field_lut.size());
   return true;
 }
@@ -380,15 +380,15 @@ bool AxisController::store_calibration() {
   // is started with multicore_launch_core1(), so use the SDK lockout instead (Core 1 calls
   // multicore_lockout_victim_init() at startup, see main.cpp).
   if (!multicore_lockout_start_timeout_us(200000)) {
-    LOG_ERROR("AxisController: no se pudo pausar Core 1, la calibracion NO se guardo en flash");
+    LOG_ERROR("AxisController: could not pause core 1, calibration NOT saved to flash");
     return false;
   }
   bool ok = true;
   ok &= save_lut_to_file(servo_controller->get_enc_to_pos_lut(), enc_to_pos_lut_filename().c_str());
   ok &= save_lut_to_file(servo_controller->get_pos_to_field_lut(), pos_to_field_lut_filename().c_str());
   multicore_lockout_end_blocking();
-  if (ok) LOG_INFO("AxisController: calibracion guardada en flash");
-  else LOG_ERROR("AxisController: error al guardar la calibracion en flash");
+  if (ok) LOG_INFO("AxisController: calibration saved to flash");
+  else LOG_ERROR("AxisController: error saving the calibration to flash");
   return ok;
 }
 
@@ -404,7 +404,7 @@ float AxisController::field_angle_at_zero() {
 bool AxisController::store_cogging() {
   // Same precaution as store_calibration(): Core 1 must not run from flash while it is written
   if (!multicore_lockout_start_timeout_us(200000)) {
-    LOG_ERROR("AxisController: no se pudo pausar Core 1, la tabla anti-cogging NO se guardo");
+    LOG_ERROR("AxisController: could not pause core 1, anti-cogging table NOT saved");
     return false;
   }
   bool ok = false;
@@ -419,8 +419,8 @@ bool AxisController::store_cogging() {
     f.close();
   }
   multicore_lockout_end_blocking();
-  if (ok) LOG_INFO("AxisController: tabla anti-cogging guardada en flash");
-  else LOG_ERROR("AxisController: error al guardar la tabla anti-cogging");
+  if (ok) LOG_INFO("AxisController: anti-cogging table saved to flash");
+  else LOG_ERROR("AxisController: error saving the anti-cogging table");
   return ok;
 }
 
@@ -439,7 +439,7 @@ bool AxisController::load_cogging() {
             ref > 0.0f;
   f.close();
   if (!ok) {
-    LOG_WARNING("AxisController: el archivo de la tabla anti-cogging no es valido");
+    LOG_WARNING("AxisController: invalid anti-cogging table file");
     return false;
   }
   for (uint32_t i = 0; i < n; i++) {

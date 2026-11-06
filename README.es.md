@@ -39,15 +39,23 @@ Es una adaptación a un solo eje del firmware `MotionControllerRP` de [MicroMani
 
 ## Rendimiento
 
-Medido en nuestro banco a 2 mm/s, en todo el recorrido de 255 mm:
+Medido en nuestro banco: error de seguimiento a 2 mm/s; ruido y pasos en reposo a 30 mm.
 
 | Métrica | Valor |
 |---|---|
 | Error de seguimiento en movimiento | ~1,0 µm RMS |
-| Ruido de posición en reposo | ~1 nm (desvío estándar) |
+| Ruido de posición en reposo | 1,3–1,6 nm (desvío estándar) |
 | Paso más chico resuelto | 10 nm |
 | Resolución del encoder en el carro | 0,08 nm por cuenta |
 | Frecuencia del lazo servo | ~16 kHz |
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/steps_10nm_dark.png">
+    <img src="docs/steps_10nm_light.png" alt="Cinco pasos de 10 nm comandados: saltos medidos de +10,3, +9,8, +10,1, +9,9 y +10,1 nm, desvío de 1,3 nm en reposo" width="900">
+  </picture>
+  <br><sub>Cinco pasos de 10 nm comandados con <code>G1</code>: telemetría cruda a 1 kHz y promedio de 50 ms.</sub>
+</p>
 
 > [!NOTE]
 > **Estos valores describen resolución, no exactitud.** Los mide el propio encoder del motor, comparando la posición medida con la pedida. El error de paso del husillo, el juego y la elasticidad de la tuerca no se ven con este sensor. El carro todavía no se midió contra una referencia externa.
@@ -155,7 +163,7 @@ Todos los parámetros mecánicos y del control están en [`src/hw_config.h`](src
 | `MOTOR_MAX_CURRENT_FACTOR` | Corriente máxima, de 0 a 1 (no bajar de 0,4) | 0,6 |
 | `DEFAULT_MAX_VELOCITY_MM_S` | Velocidad por defecto | 2 mm/s |
 
-**Ajuste de ganancias.** Las ganancias por defecto (`POS_KP` 60, `POS_KI` 100, `VEL_KP` 0,2, `VEL_KI` 90) están ajustadas para nuestro carro. Probar valores nuevos en caliente con `M55 A<pos_kp> B<pos_ki> C<vel_kp> D<vel_ki> F<tc>` antes de cambiar los de `hw_config.h`. La más delicada es `POS_KI`: si es muy alta, la integral de posición oscila contra la fricción estática en reposo. Subirla con el eje quieto hasta que empiece a oscilar y quedarse con la mitad.
+**Ajuste de ganancias.** Las ganancias por defecto (`POS_KP` 60, `POS_KI` 100, `VEL_KP` 0,12, `VEL_KI` 54) están ajustadas para nuestro carro. Probar valores nuevos en caliente con `M55 A<pos_kp> B<pos_ki> C<vel_kp> D<vel_ki> F<tc>` antes de cambiar los de `hw_config.h`. La más delicada es `POS_KI`: si es muy alta, la integral de posición oscila contra la fricción estática en reposo. Subirla con el eje quieto hasta que empiece a oscilar y quedarse con la mitad. `VEL_KP` fija la rigidez: si es muy alta, el lazo de velocidad oscila en reposo a unos cientos de hertz (con nuestro carro, desde 0,16).
 
 ## Comandos
 
@@ -235,15 +243,17 @@ tools/
 
 | Mensaje | Qué significa | Qué hacer |
 |---|---|---|
-| `eje no calibrado, correr M56 primero` | No hay calibración cargada | Correr `M56` |
-| `eje no homeado, correr G28 (o M56) primero` | Se mandó `M17` antes del homing | Correr `M56` (o `G28`) |
-| `homing fallido (no se detecto el tope mecanico)` | No encontró el tope | Verificar que el carro llegue al tope negativo y que el motor esté acoplado |
-| `Homing abortado: encoder no sigue al motor` | El encoder no acompaña al motor | Verificar que la rueda de imanes esté firme en el eje |
+| `axis not calibrated, run M56 first` | No hay calibración cargada | Correr `M56` |
+| `axis not homed, run G28 (or M56) first` | Se mandó `M17` antes del homing | Correr `M56` (o `G28`) |
+| `homing failed (hard stop not detected)` | No encontró el tope | Verificar que el carro llegue al tope negativo y que el motor esté acoplado |
+| `Homing aborted: the encoder does not follow the motor` | El encoder no acompaña al motor | Verificar que la rueda de imanes esté firme en el eje |
 | `Magnetic field too weak` | Campo en el sensor por debajo del mínimo del MT6835 | Acercar el sensor a los imanes |
-| `Periodos por vuelta no enteros` | Cantidad de períodos por vuelta incorrecta | Revisar `ENCODER_MAGNET_COUNT` y la rueda |
-| `la conmutacion no coincide con la calibracion guardada` | La calibración guardada ya no sirve | Correr `M56` |
-| `posicion fuera de rango` | Destino de `G1` fuera de los límites | Revisar `AXIS_MIN/MAX_POSITION_MM` |
-| `M119` informa `ultimo corte` | El lazo cortó por error de seguimiento | Ver la traza con `M121`. Suele ser demasiada velocidad o carga para el factor de corriente |
+| `Non-integer periods per revolution` | Cantidad de períodos por vuelta incorrecta | Revisar `ENCODER_MAGNET_COUNT` y la rueda |
+| `commutation does not match the stored calibration` | La calibración guardada ya no sirve | Correr `M56` |
+| `position out of range` | Destino de `G1` fuera de los límites | Revisar `AXIS_MIN/MAX_POSITION_MM` |
+| `M119` informa `last fault` | El lazo cortó por error de seguimiento | Ver la traza con `M121`. Suele ser demasiada velocidad o carga para el factor de corriente |
+| El carro se clava con la salida del lazo saturada, o `M57` da desfases distintos de los habituales | La calibración guardada en flash ya no corresponde a la mecánica (por ejemplo, después de desmontar el motor) | Correr `M56 S` |
+| Decenas de nanómetros de ruido en reposo, concentrados cerca de 200 Hz | El lazo de velocidad está al borde de la inestabilidad | Bajar `VEL_KP` con `M55` hasta que desaparezca |
 
 ## Limitaciones conocidas
 

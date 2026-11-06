@@ -17,7 +17,6 @@
 class ServoController {
   public:
     // use typedefs instead of virtual functions for speed
-    // TODO: check if this makes any difference and change accordingly
     typedef TB6612MotorDriver MOTOR_DRIVER_TYPE;
     typedef MT6835Encoder ENCODER_TYPE;
 

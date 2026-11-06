@@ -122,7 +122,7 @@ def parse_status(lines):
     """Parse an M119 reply into a dict (homed, calibrated, target_mm, pos_mm, fault, motor_update, ...)."""
     st = {}
     for line in lines:
-        if line.startswith("ultimo corte"):
+        if line.startswith("last fault"):
             continue
         for tok in line.replace("servo:", "").split():
             if "=" in tok:
@@ -1084,7 +1084,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _got_max_speed(self, cmd):
         for line in cmd.lines:
-            if line.startswith("max_velocidad="):
+            if line.startswith("max_velocity="):
                 try:
                     self.fw_max_speed = float(line.split("=")[1].split()[0])
                 except ValueError:

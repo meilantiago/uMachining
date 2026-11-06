@@ -30,7 +30,7 @@ struct TelemetryPoint {
   uint8_t  flags;          // bit0: motor_update (loop active), bit1: servo fault trip
   uint16_t seq;            // sample counter (gaps = dropped samples)
 };
-static_assert(sizeof(TelemetryPoint) == 28, "el script de PC espera 28 bytes");
+static_assert(sizeof(TelemetryPoint) == 28, "the PC tools expect 28 bytes");
 
 // Static circular buffer, no dynamic allocation.
 // Producer (ISR) uses spin_try_lock_unsafe (non-blocking);

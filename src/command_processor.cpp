@@ -39,11 +39,11 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
 
   if (c == "M17") {
     // Without calibration commutation does not know the rotor angle and the loop runs away.
-    if (!axis->is_calibrated()) { reply = "error: eje no calibrado, correr M56 primero\n"; return; }
+    if (!axis->is_calibrated()) { reply = "error: axis not calibrated, run M56 first\n"; return; }
     // Without homing (e.g. after boot with the calibration loaded from flash) the encoder
     // count may be off by one period relative to the table, shifting commutation by 120/240
     // electrical degrees so the motor pushes the wrong way. G28 checks and fixes that.
-    if (!axis->is_homed()) { reply = "error: eje no homeado, correr G28 (o M56) primero\n"; return; }
+    if (!axis->is_homed()) { reply = "error: axis not homed, run G28 (or M56) first\n"; return; }
     // Re-arm holding the carriage where it is, so the loop does not start with the stale
     // target of an interrupted G1 and immediately trip the fault cutoff. Resend G1 after M17.
     double pos_mm = axis->get_position_mm();
@@ -90,20 +90,20 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
     }
     if (cmd.has_word('I') && cmd.has_word('V')) {
       int i = int(cmd.get_value('I'));
-      if (i < 0 || i >= n) { reply = "error: indice fuera de rango\n"; return; }
+      if (i < 0 || i >= n) { reply = "error: index out of range\n"; return; }
       servo->cogging_table[i] = cmd.get_value('V') * Constants::DEG2RAD;
     }
     if (cmd.has_word('J') && cmd.has_word('V')) {
       int i = int(cmd.get_value('J'));
-      if (i < 0 || i >= n) { reply = "error: indice fuera de rango\n"; return; }
+      if (i < 0 || i >= n) { reply = "error: index out of range\n"; return; }
       servo->cogging_table_dir[i] = cmd.get_value('V') * Constants::DEG2RAD;
     }
     if (cmd.has_word('R') && cmd.get_value('R') > 0.0f)
       servo->cogging_dir_ref = cmd.get_value('R') / LEAD_SCREW_PITCH_MM * Constants::TWO_PI_F;
     if (cmd.has_word('G')) servo->cogging_gain = cmd.get_value('G');
     if (cmd.has_word('S')) servo->cogging_enabled = cmd.get_value('S') >= 1.0f;
-    if (cmd.has_word('L') && !axis->load_cogging()) { reply = "error: no hay tabla anti-cogging en flash\n"; return; }
-    if (cmd.has_word('W') && !axis->store_cogging()) { reply = "error: no se pudo guardar\n"; return; }
+    if (cmd.has_word('L') && !axis->load_cogging()) { reply = "error: no anti-cogging table in flash\n"; return; }
+    if (cmd.has_word('W') && !axis->store_cogging()) { reply = "error: could not save\n"; return; }
     char buf[160];
     if (cmd.has_word('P')) {
       for (int i = 0; i < n; i++) {
@@ -118,8 +118,8 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
       amp = std::max(amp, fabsf(servo->cogging_table[i]));
       amp_dir = std::max(amp_dir, fabsf(servo->cogging_table_dir[i]));
     }
-    snprintf(buf, sizeof(buf), "anti_cogging=%d ganancia=%.3f puntos=%d max=%.3f deg max_sentido=%.3f deg "
-             "ref=%.3f mm/s campo_en_cero=%.6f rad\n",
+    snprintf(buf, sizeof(buf), "anti_cogging=%d gain=%.3f points=%d max=%.3f deg max_dir=%.3f deg "
+             "ref=%.3f mm/s field_at_zero=%.6f rad\n",
              (int)servo->cogging_enabled, (float)servo->cogging_gain, n, amp * Constants::RAD2DEG,
              amp_dir * Constants::RAD2DEG, servo->cogging_dir_ref / Constants::TWO_PI_F * LEAD_SCREW_PITCH_MM,
              axis->field_angle_at_zero());
@@ -132,14 +132,14 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
       float v = cmd.get_value('X');
       if (!(v > 0.0f && v <= MAX_VELOCITY_LIMIT_MM_S)) {
         char e[80];
-        snprintf(e, sizeof(e), "error: velocidad fuera de rango (0, %.1f] mm/s\n", MAX_VELOCITY_LIMIT_MM_S);
+        snprintf(e, sizeof(e), "error: velocity out of range (0, %.1f] mm/s\n", MAX_VELOCITY_LIMIT_MM_S);
         reply = e;
         return;
       }
       max_velocity_mm_s = v;
     }
     char buf[80];
-    snprintf(buf, sizeof(buf), "max_velocidad=%.3f mm/s\nok\n", max_velocity_mm_s);
+    snprintf(buf, sizeof(buf), "max_velocity=%.3f mm/s\nok\n", max_velocity_mm_s);
     reply = buf;
     return;
   }
@@ -147,12 +147,12 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
   if (c == "M57") {
     // Diagnostic: M57 X<distance mm> [F<mm/s>] [P<decimation>]. One-way open-loop sweep
     // printing the commutation offset. Leaves the motor energized; send M17 afterwards.
-    if (!axis->is_homed() || !axis->is_calibrated()) { reply = "error: eje no homeado/calibrado\n"; return; }
-    if (!cmd.has_word('X')) { reply = "error: falta X (distancia en mm)\n"; return; }
+    if (!axis->is_homed() || !axis->is_calibrated()) { reply = "error: axis not homed/calibrated\n"; return; }
+    if (!cmd.has_word('X')) { reply = "error: missing X (distance in mm)\n"; return; }
     float dist = cmd.get_value('X');
     float end_mm = axis->get_position_mm() + dist;
     if (end_mm < AXIS_MIN_POSITION_MM || end_mm > AXIS_MAX_POSITION_MM) {
-      reply = "error: el barrido termina fuera de rango\n";
+      reply = "error: the sweep ends out of range\n";
       return;
     }
     float speed = std::min(cmd.get_value('F', 1.6f), 2.0f);
@@ -177,12 +177,12 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
 
 void SingleAxisCommandProcessor::process_move_command(const GCodeCommand& cmd, std::string& reply) {
   if (!axis->is_homed() || !axis->is_calibrated()) {
-    reply = "error: eje no homeado/calibrado, correr G28 y M56 primero\n";
+    reply = "error: axis not homed/calibrated, run G28 and M56 first\n";
     return;
   }
 
   if (!cmd.has_word('X')) {
-    reply = "error: falta parametro X\n";
+    reply = "error: missing parameter X\n";
     return;
   }
 
@@ -190,7 +190,7 @@ void SingleAxisCommandProcessor::process_move_command(const GCodeCommand& cmd, s
   double target_mm = absolute_mode ? x : (current_target_mm + x);
 
   if (target_mm < AXIS_MIN_POSITION_MM || target_mm > AXIS_MAX_POSITION_MM) {
-    reply = "error: posicion fuera de rango [" +
+    reply = "error: position out of range [" +
             std::to_string(AXIS_MIN_POSITION_MM) + ", " +
             std::to_string(AXIS_MAX_POSITION_MM) + "] mm\n";
     return;
@@ -238,8 +238,8 @@ static bool relearn_leg(AxisController* axis, TrapezoidalProfile* profile, Share
     double pos = axis->get_position_mm();
     float err_um = float(1000.0 * fabs(target - pos));
     if (axis->has_servo_fault() || err_um > COGGING_RELEARN_ABORT_UM) {
-      LOG_ERROR("Reaprendizaje anti-cogging: corte hacia %.1f mm: objetivo %.4f mm, posicion %.4f mm, "
-                "error %.1f um, falla %d", dest, target, pos, err_um, (int)axis->has_servo_fault());
+      LOG_ERROR("Anti-cogging relearn: aborted towards %.1f mm: target %.4f mm, position %.4f mm, "
+                "error %.1f um, fault %d", dest, target, pos, err_um, (int)axis->has_servo_fault());
       ok = false;
       break;
     }
@@ -260,7 +260,7 @@ static bool relearn_leg(AxisController* axis, TrapezoidalProfile* profile, Share
 static bool relearn_cogging(AxisController* axis, TrapezoidalProfile* profile, SharedData* shared_data,
                             float accel, bool store_to_flash, std::string& reply) {
   constexpr int N = ServoController::COGGING_TABLE_SIZE;
-  static_assert(N == CoggingLearner::N, "tablas de distinto tamano");
+  static_assert(N == CoggingLearner::N, "table sizes differ");
   ServoController* servo = axis->get_servo_controller();
   float ts0[N], ta0[N], ts[N], ta[N], best_ts[N], best_ta[N];
   for (int i = 0; i < N; i++) {
@@ -279,7 +279,7 @@ static bool relearn_cogging(AxisController* axis, TrapezoidalProfile* profile, S
   shared_data->set_target_position_mm(pos_mm);
   axis->set_motor_enabled(true);
   if (!relearn_leg(axis, profile, shared_data, 0.0f, accel, false)) {
-    reply += "anti-cogging: no pudo ir a 0, sin reaprender\n";
+    reply += "anti-cogging: could not reach 0, not relearned\n";
     return false;
   }
   // settle: 200 ms in a row below 20 um, 5 s timeout
@@ -288,8 +288,8 @@ static bool relearn_cogging(AxisController* axis, TrapezoidalProfile* profile, S
     float err_um = float(1000.0 * fabs(profile->get_current_position() - axis->get_position_mm()));
     quiet = err_um < 20.0f ? quiet + 1 : 0;
     if (t > 1000) {
-      LOG_ERROR("Reaprendizaje anti-cogging: el eje no se asienta en 0 (error %.1f um)", err_um);
-      reply += "anti-cogging: no se asienta, sin reaprender\n";
+      LOG_ERROR("Anti-cogging relearn: the axis does not settle at 0 (error %.1f um)", err_um);
+      reply += "anti-cogging: not settled, not relearned\n";
       return false;
     }
   }
@@ -297,28 +297,28 @@ static bool relearn_cogging(AxisController* axis, TrapezoidalProfile* profile, S
   float best_rms = 1e9f;
   int best_k = -1;
   char buf[96];
-  reply += "anti-cogging, RMS por pasada [um]:";
+  reply += "anti-cogging, RMS per pass [um]:";
   for (int k = 0; k < COGGING_RELEARN_PASSES; k++) {
     set_cogging_tables(servo, ts, ta);
     learner.reset();
-    LOG_INFO("Reaprendizaje anti-cogging: pasada %i de %i", k + 1, COGGING_RELEARN_PASSES);
+    LOG_INFO("Anti-cogging relearn: pass %i of %i", k + 1, COGGING_RELEARN_PASSES);
     bool ok = relearn_leg(axis, profile, shared_data, COGGING_RELEARN_END_MM, accel) &&
               relearn_leg(axis, profile, shared_data, 0.0f, accel);
     float e[2][N];
     if (ok && !(learner.pattern(0, e[0]) && learner.pattern(1, e[1]))) {
-      LOG_ERROR("Reaprendizaje anti-cogging: pocas muestras en crucero (RMS de %.3f um)", learner.rms_um());
+      LOG_ERROR("Anti-cogging relearn: too few cruise samples (RMS %.3f um)", learner.rms_um());
       ok = false;
     }
     if (!ok) {
-      LOG_ERROR("Reaprendizaje anti-cogging: pasada cortada, quedan las tablas de antes");
+      LOG_ERROR("Anti-cogging relearn: pass aborted, previous tables kept");
       for (int i = 0; i < N; i++) { ts[i] = ts0[i]; ta[i] = ta0[i]; }
       set_cogging_tables(servo, ts, ta);
       servo->cogging_enabled = was_enabled;
-      reply += " cortado\n";
+      reply += " aborted\n";
       return false;
     }
     float rms = learner.rms_um();
-    LOG_INFO("Reaprendizaje anti-cogging: pasada %i, RMS %.3f um", k + 1, rms);
+    LOG_INFO("Anti-cogging relearn: pass %i, RMS %.3f um", k + 1, rms);
     snprintf(buf, sizeof(buf), " %.2f", rms);
     reply += buf;
     if (rms < best_rms) {
@@ -330,9 +330,9 @@ static bool relearn_cogging(AxisController* axis, TrapezoidalProfile* profile, S
       CoggingLearner::newton_step(ts, ta, e, COGGING_RELEARN_GAIN);
   }
   set_cogging_tables(servo, best_ts, best_ta);
-  snprintf(buf, sizeof(buf), " -> queda la tabla de la pasada %d\n", best_k + 1);
+  snprintf(buf, sizeof(buf), " -> keeping the table from pass %d\n", best_k + 1);
   reply += buf;
-  LOG_INFO("Reaprendizaje anti-cogging: queda la tabla de la pasada %i (RMS %.3f um)", best_k + 1, best_rms);
+  LOG_INFO("Anti-cogging relearn: keeping the table from pass %i (RMS %.3f um)", best_k + 1, best_rms);
   if (store_to_flash && best_k > 0)
     axis->store_cogging();
   return true;
@@ -342,7 +342,7 @@ static bool relearn_cogging(AxisController* axis, TrapezoidalProfile* profile, S
 // positive direction from home, so with D1 the axis would think it is at 0 at the far end.
 static bool homing_direction_supported(const GCodeCommand& cmd, std::string& reply) {
   if (cmd.get_value('D', -1.0f) >= 0.0f) {
-    reply = "error: solo se puede homear contra el tope negativo (D-1); D1 no esta implementado\n";
+    reply = "error: homing only against the negative stop (D-1); D1 is not implemented\n";
     return false;
   }
   return true;
@@ -376,7 +376,7 @@ void SingleAxisCommandProcessor::process_tune_pid_command(const GCodeCommand& cm
   bool has_all = cmd.has_word('A') && cmd.has_word('B') && cmd.has_word('C') &&
                  cmd.has_word('D') && cmd.has_word('F');
   if (!has_all) {
-    reply = "error: parametros esperados A(pos_kp) B(pos_ki) C(vel_kp) D(vel_ki) F(vel_lowpass_tc)\n";
+    reply = "error: expected parameters A(pos_kp) B(pos_ki) C(vel_kp) D(vel_ki) F(vel_lowpass_tc)\n";
     return;
   }
 
@@ -419,7 +419,7 @@ void SingleAxisCommandProcessor::process_calibrate_command(const GCodeCommand& c
   reply.clear();
   if (ok && relearn)
     relearn_cogging(axis, profile, shared_data, max_accel_mm_s2, store_to_flash, reply);
-  reply += ok ? "ok\n" : "error: calibracion fallida\n";
+  reply += ok ? "ok\n" : "error: calibration failed\n";
 }
 
 void SingleAxisCommandProcessor::process_report_position_command(std::string& reply) {
@@ -454,7 +454,7 @@ void SingleAxisCommandProcessor::process_report_status_command(std::string& repl
   const AxisController::FaultInfo& f = axis->get_last_fault();
   if (f.count > 0) {
     snprintf(buf, sizeof(buf),
-      "ultimo corte (%lu en total): target_mm=%.4f pos_mm=%.4f err_mm=%.4f vel=%.3f rad/s out=%.3f status=%u\n",
+      "last fault (%lu in total): target_mm=%.4f pos_mm=%.4f err_mm=%.4f vel=%.3f rad/s out=%.3f status=%u\n",
       (unsigned long)f.count, f.target_mm, f.pos_mm, f.target_mm - f.pos_mm, f.vel, f.out, (unsigned)f.status);
     reply += std::string(buf);
   }
@@ -464,7 +464,7 @@ void SingleAxisCommandProcessor::process_report_status_command(std::string& repl
 
 void SingleAxisCommandProcessor::process_telemetry_command(const GCodeCommand& cmd, std::string& reply) {
   if (!cmd.has_word('S')) {
-    reply = "error: M120 requiere parametro S (1=activar, 0=desactivar)\n";
+    reply = "error: M120 requires parameter S (1=on, 0=off)\n";
     return;
   }
 

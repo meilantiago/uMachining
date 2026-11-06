@@ -120,7 +120,7 @@ void HomingController::update() {
 
     if (ratio < STALL_RATIO) {
       if (++stall_checks >= STALL_CONFIRM_CHECKS) {
-        LOG_INFO("Homing: tope detectado tras %.2f vueltas de motor (relacion %.2f en %i ventanas seguidas)",
+        LOG_INFO("Homing: stop detected after %.2f motor revolutions (ratio %.2f in %i consecutive windows)",
                  fabs(field_angle_offset) / servo_ctrl->get_pole_pair_count() / Constants::TWO_PI_F,
                  ratio, stall_checks);
         on_endstop_detected();
@@ -128,13 +128,13 @@ void HomingController::update() {
       return;
     }
     if (stall_checks > 0)
-      LOG_INFO("Homing: %i ventana(s) lenta(s) sin tope (patinazo del rotor?), sigue buscando", stall_checks);
+      LOG_INFO("Homing: %i slow window(s) without a stop (rotor slip?), still searching", stall_checks);
     stall_checks = 0;
 
     if (ratio > MIN_HEALTHY_RATIO && ratio < MAX_HEALTHY_RATIO) {
       incoherent_checks = 0;
     } else if (++incoherent_checks >= MAX_INCOHERENT_CHECKS) {
-      LOG_ERROR("Homing abortado: encoder no sigue al motor (relacion %f, deberia ~1). Rueda floja?", ratio);
+      LOG_ERROR("Homing aborted: the encoder does not follow the motor (ratio %f, expected ~1). Loose wheel?", ratio);
       search_failed = true;
       on_endstop_detected();
       return;

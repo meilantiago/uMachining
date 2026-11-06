@@ -81,7 +81,7 @@ static void filter_motor_harmonics(LookupTable& lut, float period_in, float peri
     b *= 2.0 / (n - 1);
     for (int i = 0; i < n; i++)
       r[i] -= float(a * cos(k * theta[i]) + b * sin(k * theta[i]));
-    LOG_INFO("Filtro de la huella del motor: armonico %i por vuelta, amplitud %.3f um", k,
+    LOG_INFO("Motor fingerprint filter: harmonic %i per rev, amplitude %.3f um", k,
              float(sqrt(a * a + b * b)) * to_um);
   }
   for (int i = 0; i < n; i++)
@@ -138,7 +138,6 @@ bool measure_calibration_data(
 
       float field_angle = motor_driver.get_field_angle();
       float motor_pos = (field_angle-start_field_angle)/pole_pair_count;
-      // TODO: read motor_pos from precise reference encoder
 
       // sweep ends: the rotor lag has not settled yet (see hw_config.h)
       if (motor_pos < transient_skip || motor_pos > calibration_range - transient_skip)
@@ -234,21 +233,21 @@ bool measure_calibration_data(
   double counts_per_motor_rad = (n*s_me - s_m*s_e) / (n*s_mm - s_m*s_m);
   double periods_per_rev = fabs(counts_per_motor_rad) * Constants::TWO_PI_F / MT6835_CPR;
   long ring_periods = lround(periods_per_rev);
-  LOG_INFO("Rueda magnetica: %f periodos de encoder por vuelta de motor", periods_per_rev);
+  LOG_INFO("Magnet wheel: %f encoder periods per motor revolution", periods_per_rev);
   if (ring_periods < 1 || fabs(periods_per_rev - ring_periods) > 0.2) {
-    LOG_ERROR("Periodos por vuelta no enteros: el encoder perdio el seguimiento. Calibration aborted.");
+    LOG_ERROR("Non-integer periods per revolution: the encoder lost tracking. Calibration aborted.");
     return false;
   }
   if (ring_periods != ENCODER_PERIODS_PER_REV) {
-    LOG_ERROR("Se midieron %li periodos por vuelta y la rueda de %i imanes deberia dar %i. "
-              "Revisar ENCODER_MAGNET_COUNT y MOTOR_POLE_PAIRS en hw_config.h. Calibration aborted.",
+    LOG_ERROR("Measured %li periods per revolution, but a %i-magnet wheel should give %i. "
+              "Check ENCODER_MAGNET_COUNT and MOTOR_POLE_PAIRS in hw_config.h. Calibration aborted.",
               ring_periods, ENCODER_MAGNET_COUNT, ENCODER_PERIODS_PER_REV);
     return false;
   }
   const float period_in = float(ring_periods) * MT6835_CPR;
   const float period_out = counts_per_motor_rad > 0.0 ? Constants::TWO_PI_F : -Constants::TWO_PI_F;
   if (enc_max - enc_min < period_in) {
-    LOG_ERROR("La calibracion no cubre una vuelta completa (subir CALIBRATION_RANGE). Calibration aborted.");
+    LOG_ERROR("The calibration does not cover a full revolution (increase CALIBRATION_RANGE). Calibration aborted.");
     return false;
   }
 
@@ -278,7 +277,7 @@ bool measure_calibration_data(
   float rotor_lag = 0.0f;
   rmse = rms_error_without_direction_offset(encoder_raw_to_motor_pos_lut, encoder_angle_and_motor_pos,
                                             forward_sample_count, rotor_lag);
-  LOG_INFO("LUT 'encoder_raw_angle -> motor_pos': rms_error = %f deg, atraso del rotor = %f deg",
+  LOG_INFO("LUT 'encoder_raw_angle -> motor_pos': rms_error = %f deg, rotor lag = %f deg",
            Constants::RAD2DEG*rmse, Constants::RAD2DEG*rotor_lag);
   if(rmse > max_rmse_rad) {
     LOG_ERROR("Fitting error of lookup table 'encoder_raw_angle -> motor_pos' unusually high (rms_error = %f deg). "
@@ -294,13 +293,13 @@ bool measure_calibration_data(
   int lut_size = int(encoder_raw_to_motor_pos_lut.size());
   float seam_error = encoder_raw_to_motor_pos_lut.get_entry(lut_size - 1) - encoder_raw_to_motor_pos_lut.get_entry(0)
                      - period_out * (lut_in_max - lut_in_min) / period_in;
-  LOG_INFO("Salto en la costura de la vuelta: %f deg", Constants::RAD2DEG*seam_error);
+  LOG_INFO("Step at the revolution seam: %f deg", Constants::RAD2DEG*seam_error);
 
   if (calibration_motor_filter) {
     filter_motor_harmonics(encoder_raw_to_motor_pos_lut, period_in, period_out, int(pole_pair_count),
                            int(ring_periods));
   } else {
-    LOG_INFO("Filtro de la huella del motor: apagado (M56 F0)");
+    LOG_INFO("Motor fingerprint filter: off (M56 F0)");
   }
   encoder_raw_to_motor_pos_lut.set_period(period_in, period_out);
 
