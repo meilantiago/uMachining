@@ -1,0 +1,29 @@
+I)AxisController: homing...
+I)Homing: tope detectado tras 1.36 vueltas de motor (relacion 0.17 en 3 ventanas seguidas)
+D)home_encoder_angle=95.672897 deg
+I)AxisController: homing OK (pos = -0.0649 mm). Lazo cerrado apagado: M17 para habilitarlo.
+I)Measuring motor to encoder angle lookup table...
+D)Running foreward pass...
+D)Running backward pass...
+I)Rueda magnetica: 30.013365 periodos de encoder por vuelta de motor
+D)Optimizing lookup table...
+D)Optimizing lookup table finished: rms_error=0.006310
+I)LUT 'encoder_raw_angle -> motor_pos': rms_error = 0.034768 deg, atraso del rotor = -0.359889 deg
+I)Salto en la costura de la vuelta: 0.023086 deg
+I)Filtro de la huella del motor: armonico 50 por vuelta, amplitud 0.390 um
+I)Filtro de la huella del motor: armonico 100 por vuelta, amplitud 0.401 um
+I)Filtro de la huella del motor: armonico 200 por vuelta, amplitud 1.198 um
+I)Filtro de la huella del motor: armonico 250 por vuelta, amplitud 0.066 um
+I)Filtro de la huella del motor: armonico 350 por vuelta, amplitud 0.145 um
+I)Filtro de la huella del motor: armonico 400 por vuelta, amplitud 0.643 um
+I)Filtro de la huella del motor: armonico 500 por vuelta, amplitud 0.039 um
+I)finished
+I)Conmutacion: desfase -5.2 deg electricos (con el encoder corrido -1 periodo: -130.2, +1: 107.8), atraso del rotor 19.6 deg, con
+I)AxisController: calibracion OK
+I)Reaprendizaje anti-cogging: pasada 1 de 2
+I)Reaprendizaje anti-cogging: pasada 1, RMS 0.898 um
+I)Reaprendizaje anti-cogging: pasada 2 de 2
+I)Reaprendizaje anti-cogging: pasada 2, RMS 0.869 um
+I)Reaprendizaje anti-cogging: queda la tabla de la pasada 2 (RMS 0.869 um)
+anti-cogging, RMS por pasada [um]: 0.90 0.87 -> queda la tabla de la pasada 2
+ok

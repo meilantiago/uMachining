@@ -1,0 +1,10 @@
+comandos previos: M203 X3
+Prueba 2026-11-03T17:11:13: 1 ciclos 0 -> 50 mm a 3 mm/s, telemetria a 1000 Hz
+Resultado: OK, sin cortes   paquetes perdidos: 1284
+
+tramo      dur[s]  max|err|  rms err out medio max|out|   >70° satur.   vmin  coh pp  estado encoder
+                       [um]     [um]     [°el]    [°el]    [%] [mues] [mm/s]     [°]
+ida 1        17.8       9.5      3.5     +44.1     81.0   9.03    166   1.31    64.3  limpio
+vuelta 1     17.8       8.9      2.1     -44.9     81.0   0.92     18   1.45    63.7  limpio
+
+margen de torque: limite de la salida = ±81° electricos; corte por falla con |err| > 1000 um durante 0,5 s

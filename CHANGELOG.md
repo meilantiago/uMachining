@@ -8,6 +8,7 @@ Git empieza el 16/10/2026. Lo anterior está reconstruido de los `docs/CAMBIOS_*
 
 | Desde | Versión | `POS_KP` | `POS_KI` | `VEL_KP` | `VEL_KI` | Factor de corriente | Lazo de velocidad |
 |---|---|---|---|---|---|---|---|
+| 06/11 | `prueba/acoplado-velocidad` | 60 | 100 | 0,12 | 54 | 0,6 | V1 F1 + anti-cogging |
 | 27/10 | `v2026-10-27` | 60 | 100 | 0,2 | 90 | 0,6 | V1 F1 + anti-cogging |
 | 20/10 | `v2026-10-20` | 60 | 100 | 0,2 | 90 | 0,6 | V1 F1 |
 | 16/10 | `v2026-10-16` | 60 | 1500 | 0,2 | 90 | 0,6 | V1 F1 |
@@ -24,6 +25,18 @@ El factor de corriente 1,0 (con `VEL_KP` 0,12 y `VEL_KI` 54) se probó el 23/10 
 
 - **Identificación con chirp (`M60`).** Nunca se commiteó ni se probó en el banco. Al ordenar las ramas el 27/10 se guardó afuera del repo, en `~/Desktop/respaldo_ramas_2026-10-27/` (patch sobre `cc58abf` + archivos).
 - **Limpieza para publicación** (rama `limpieza/publicacion`, `de19ab6`, 20/10): se borró sin mergear el 27/10. Sacaba `docs/` y `mediciones/` del repo; se rehace cuando se decida publicar.
+
+## 06/11 — `VEL_KP` 0,2 → 0,12 y `VEL_KI` 90 → 54 con el motor reacoplado (`prueba/acoplado-velocidad`)
+
+- El 03/11 se reacopló el motor. Desde entonces, el reposo a 30 mm tenía 27 nm de desvío: una oscilación de ~205–214 Hz del lazo de velocidad, no del encoder. Con el motor apagado, el encoder da 0,6–0,9 nm muestra a muestra y no tiene avisos. Su configuración (BW 5, histéresis 4) no cambió y ningún firmware escribe su EEPROM.
+- Barrido con `M55` en reposo: `VEL_KP` 0,12 → 2 nm; 0,16 → 5 nm; ≥0,2 → 11 nm. `VEL_KI` casi no influye.
+- La tabla de calibración en flash no correspondía a la mecánica. `M57` daba +73 ± 18° contra +30 ± 3°, y un `G1 X30` cortó por falla con la salida saturada. Con `M56` volvió a +30,2 ± 3,7°: la rueda no se corrió.
+- Validación, después de `M56`:
+  - Escalera de 10 nm a 30 mm: reposo de 1,3–1,6 nm; saltos de +10,3, +9,8, +10,1, +9,9 y +10,1 nm.
+  - 0 → 50 → 0 a 2 mm/s: RMS de 0,9–1,0 µm y máximo de 3,5 µm. El 03/11 eran 1,7 µm y 6,3 µm.
+- Nuevas herramientas: `tools/escalera_nm.py`, `tools/plot_escalera.py` (gráfico para publicar) y `tools/prueba_velocidad_acoplado.py` (03/11).
+- Detalle: [mediciones/2026-11-06/RESULTADOS.md](mediciones/2026-11-06/RESULTADOS.md).
+- Pendiente: guardar la calibración con `M56 S`.
 
 ## v2026-10-27 — Versión que anda (20/10 → 27/10)
 
