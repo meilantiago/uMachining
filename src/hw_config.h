@@ -156,8 +156,11 @@ constexpr float COGGING_RELEARN_GAIN = 0.8f;
 constexpr float COGGING_RELEARN_ABORT_UM = 150.0f;   // corta la pasada si el error pasa de esto
 
 constexpr float VEL_LOWPASS_TC = 0.004f;
-constexpr float VEL_KP = 0.2f;
-constexpr float VEL_KI = 90.0f;
+// 06/11/2026: 0.2 / 90 -> 0.12 / 54 (mediciones/2026-11-06/RESULTADOS.md). Con el motor reacoplado,
+// VEL_KP >= 0.16 oscila a ~214 Hz en reposo (10-27 nm de desvio); VEL_KI casi no influye. Con 0.12:
+// reposo 1.3-1.6 nm y seguimiento a 2 mm/s de 0.9-1.0 um RMS (antes 1.7).
+constexpr float VEL_KP = 0.12f;
+constexpr float VEL_KI = 54.0f;
 
 //--- PINES (variante de placa de 1 solo eje) -----------------------------------
 // Mismo pinout que la opción "SINGLE_AXIS_BOARD" del hw_config.h original.
