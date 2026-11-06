@@ -27,6 +27,7 @@ Es una adaptación a un solo eje del firmware `MotionControllerRP` de [MicroMani
 - [Rendimiento](#rendimiento)
 - [Características](#características)
 - [Hardware](#hardware)
+- [Diseño de los imanes del encoder](#diseño-de-los-imanes-del-encoder)
 - [Puesta en marcha](#puesta-en-marcha)
 - [Adaptarlo a otro eje](#adaptarlo-a-otro-eje)
 - [Comandos](#comandos)
@@ -91,6 +92,33 @@ Medido en nuestro banco: error de seguimiento a 2 mm/s; ruido y pasos en reposo 
 | Encoder | MT6835 (21 bits) frente a una rueda de 60 imanes alternados (Ø3 × 5 mm, N35) |
 
 La rueda de imanes da 30 períodos de campo por vuelta del motor, lo que lleva la resolución del encoder a 0,08 nm en el carro. La idea y el método de calibración vienen del proyecto original.
+
+## Diseño de los imanes del encoder
+
+El MT6835 mide la dirección del campo magnético, no la posición. La posición sale de cómo gira esa dirección cuando los imanes pasan frente al sensor, así que cualquier apartamiento del ángulo de campo respecto de una recta es alinealidad del encoder, que después tiene que absorber la tabla de calibración. Simular el campo antes de construir la rueda fue fundamental: derivó en un patrón de diseño que maximiza la linealidad del ángulo de campo.
+
+El notebook [`simulations/magnet_wheel.ipynb`](simulations/magnet_wheel.ipynb) modela la rueda desenrollada como una fila recta de 30 imanes cilíndricos de polaridad alternada, con [magpylib](https://magpylib.readthedocs.io/). Para cada posición posible del sensor a lo ancho de la fila calcula qué tan rápido gira el ángulo de campo a lo largo de un período (dθ/dx) y cuánto varía esa velocidad (su coeficiente de variación, CV). En los mapas finales se descartan los puntos dentro de los imanes o con menos de 30 mT.
+
+Para imanes de Ø3 × 5 mm N35 con paso de 3 mm, el mejor punto está **frente a las caras de los imanes, a 1,55 mm, desplazado hacia el borde de los imanes** (a 1,59 mm de su eje) y no sobre su eje. Ahí:
+
+- la velocidad de giro varía apenas 0,17 % (CV) en el período, y el ángulo de campo sigue a la posición en línea recta (R² = 1,0000);
+- las dos componentes del campo tienen la misma amplitud y están a 90°, así que el campo dibuja un círculo, que es la condición para que el ángulo gire parejo;
+- el campo es de 58 mT.
+
+<p align="center">
+  <img src="docs/magnet_uniformity_map.png" alt="Mapa de uniformidad de la velocidad del ángulo de campo (log10 CV) y de la amplitud del campo en el corte del imán, con el óptimo marcado en Y = -1,59 mm, Z = -4,05 mm" width="900">
+  <br><sub>Izquierda: uniformidad de la velocidad del ángulo de campo en el corte del imán (más oscuro es más lineal; gris es dentro del imán o por debajo de 30 mT). Derecha: amplitud del campo, con el límite de 30 mT en cian. La cruz marca el óptimo.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/magnet_field_angle.png" alt="Ángulo de campo en función de la posición en el óptimo: una recta de +180° a -180° en cada período de 6 mm" width="650">
+  <br><sub>Ángulo de campo a lo largo de la fila en el óptimo: una rampa recta por cada período de 6 mm.</sub>
+</p>
+
+El mismo estudio completó el patrón:
+
+- **La ubicación y la geometría fijan la linealidad; el grado del imán solo fija el campo.** N52 y N35 tienen el mismo óptimo y el mismo CV; el N52 solo sube el campo de 58 a 70 mT.
+- **La geometría es un compromiso entre linealidad y campo.** Imanes más chatos, de Ø5 × 3 mm con paso de 5 mm, giran todavía más parejo (CV 0,035 %), pero dan solo unos 15 mT en su mejor punto. Los de Ø3 × 5 mm mantienen el ángulo casi igual de lineal con cuatro veces más campo.
 
 ### Conexiones
 
@@ -235,6 +263,8 @@ src/
 tools/
 ├── interfaz.py             interfaz PyQt5
 └── send_gcode.py           envío de comandos por línea de comandos
+simulations/
+└── magnet_wheel.ipynb      campo magnético de la rueda del encoder (magpylib)
 ```
 
 **Relación con el original.** Los drivers del MT6835 y del TB6612, el PID, el controlador de homing, el parser de G-code y los logs se reusan o están apenas adaptados. El controlador servo, la calibración y la tabla de búsqueda están extendidos. El perfil de movimiento (que reemplaza al planificador y la cinemática del delta), el controlador del eje, el procesador de comandos, los datos compartidos, el aprendizaje anti-cogging y `main.cpp` son nuevos.

@@ -27,6 +27,7 @@ It is a single-axis adaptation of the `MotionControllerRP` firmware from [MicroM
 - [Performance](#performance)
 - [Features](#features)
 - [Hardware](#hardware)
+- [Encoder magnet design](#encoder-magnet-design)
 - [Getting started](#getting-started)
 - [Adapting it to your axis](#adapting-it-to-your-axis)
 - [Command reference](#command-reference)
@@ -91,6 +92,33 @@ Measured on our bench: following error at 2 mm/s, noise and steps at rest at 30 
 | Encoder | MT6835 (21-bit) facing a wheel of 60 alternating magnets (Ø3 × 5 mm, N35) |
 
 The magnet wheel gives 30 field periods per motor revolution, which brings the encoder resolution down to 0.08 nm at the carriage. The idea and the calibration method come from the upstream project.
+
+## Encoder magnet design
+
+The MT6835 measures the direction of the magnetic field, not position. Position comes from how that direction turns as the magnets pass the sensor, so any departure of the field angle from a straight line is encoder nonlinearity that the calibration table has to absorb afterwards. Simulating the field before building the wheel was fundamental: it led to a design pattern that maximises the linearity of the field angle.
+
+The notebook [`simulations/magnet_wheel.ipynb`](simulations/magnet_wheel.ipynb) models the wheel unrolled into a straight row of 30 cylindrical magnets with alternating polarity, using [magpylib](https://magpylib.readthedocs.io/). For every candidate sensor position across the row it computes how fast the field angle turns along one period (dθ/dx) and how much that rate varies (its coefficient of variation, CV). In the final maps, points inside the magnets or where the field is below 30 mT are discarded.
+
+For Ø3 × 5 mm N35 magnets at 3 mm pitch, the best point is **facing the end faces, 1.55 mm away, offset sideways to the edge of the magnets** (1.59 mm from their axis) rather than on their centreline. There:
+
+- the rate of rotation varies by only 0.17 % (CV) over the period, and the field angle follows position in a straight line (R² = 1.0000);
+- the two field components have the same amplitude and are 90° apart, so the field traces a circle, which is the condition for an evenly turning angle;
+- the field is 58 mT.
+
+<p align="center">
+  <img src="docs/magnet_uniformity_map.png" alt="Map of the field-angle rate uniformity (log10 CV) and of the field amplitude across the magnet cross-section, with the optimum marked at Y = -1.59 mm, Z = -4.05 mm" width="900">
+  <br><sub>Left: uniformity of the field-angle rate across the magnet cross-section (darker is more linear; grey is inside the magnet or below 30 mT). Right: field amplitude, with the 30 mT limit in cyan. The cross marks the optimum.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/magnet_field_angle.png" alt="Field angle versus position at the optimum: a straight line from +180° to -180° over one 6 mm period" width="650">
+  <br><sub>Field angle along the row at the optimum: one straight ramp per 6 mm period.</sub>
+</p>
+
+The same study gave the rest of the pattern:
+
+- **Placement and geometry set the linearity; the magnet grade only sets the field.** N52 and N35 have the same optimum and the same CV; N52 only raises the field from 58 to 70 mT.
+- **Geometry is a trade-off between linearity and field strength.** Flatter Ø5 × 3 mm magnets at 5 mm pitch turn even more evenly (CV 0.035 %), but give only about 15 mT at their best point. The Ø3 × 5 mm magnets keep the angle nearly as linear with four times the field.
 
 ### Wiring
 
@@ -238,6 +266,8 @@ src/
 tools/
 ├── interfaz.py             PyQt5 interface
 └── send_gcode.py           command-line sender
+simulations/
+└── magnet_wheel.ipynb      magnetic field of the encoder wheel (magpylib)
 ```
 
 **Relation to upstream.** The MT6835 and TB6612 drivers, the PID controller, the homing controller, the G-code parser and the logging utilities are reused or lightly adapted. The servo controller, the actuator calibration and the lookup table are extended. The motion profile (replacing the delta's planner and kinematics), axis controller, command processor, shared data, anti-cogging learner and `main.cpp` are new.
