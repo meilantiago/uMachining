@@ -1,0 +1,20 @@
+Barrido de PID 2026-11-17T17:15:11: 2 -> 22 mm, 1 ciclo(s), 2 mm/s, velocidad_tabla=1 realimentacion_anticipada=1
+base: pos_kp=60, pos_ki=100, vel_kp=0.12, vel_ki=54, vel_tc=0.004
+
+config         cambio                     estado                    rms    max  const  imán  paso ciclo vuelta resto reposo max out
+                                                                   [µm]   [µm]   [µm]  [µm]  [µm]  [µm]   [µm]  [µm]   [µm]     [°]
+base           POS_KP = 60, POS_KI = 100, abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.01     nan
+pos_kp_x0.5    POS_KP = 30, POS_KI = 100, abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.11     nan
+pos_kp_x2      POS_KP = 120, POS_KI = 100 abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.08     nan
+pos_ki_0       POS_KP = 60, POS_KI = 0, V abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.08     nan
+pos_ki_x0.5    POS_KP = 60, POS_KI = 50,  abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.08     nan
+pos_ki_x2      POS_KP = 60, POS_KI = 200, abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.08     nan
+vel_kp_x0.5    POS_KP = 60, POS_KI = 100, abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.09     nan
+vel_kp_x1.5    POS_KP = 60, POS_KI = 100, abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.09     nan
+vel_ki_x0.5    POS_KP = 60, POS_KI = 100, abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.08     nan
+vel_ki_x2      POS_KP = 60, POS_KI = 100, abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.08     nan
+vel_tc_x0.5    POS_KP = 60, POS_KI = 100, abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.10     nan
+vel_tc_x2      POS_KP = 60, POS_KI = 100, abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.10     nan
+base_final     POS_KP = 60, POS_KI = 100, abortada (error grande    nan    nan    nan   nan   nan   nan    nan   nan   0.08     nan
+
+componentes: amplitud (mitad del pico a pico de la forma plegada), promedio de los tramos; rms, resto y reposo: desvío estándar

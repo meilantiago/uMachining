@@ -1,0 +1,167 @@
+{
+ "configs": [
+  {
+   "name": "base",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "abortada (error grande)",
+   "archivo": "cfg_base.npz"
+  },
+  {
+   "name": "pos_kp_x0.5",
+   "params": {
+    "pos_kp": 30.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "abortada (error grande)",
+   "archivo": "cfg_pos_kp_x0.5.npz"
+  },
+  {
+   "name": "pos_kp_x2",
+   "params": {
+    "pos_kp": 120.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "abortada (error grande)",
+   "archivo": "cfg_pos_kp_x2.npz"
+  },
+  {
+   "name": "pos_ki_0",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 0.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "abortada (error grande)",
+   "archivo": "cfg_pos_ki_0.npz"
+  },
+  {
+   "name": "pos_ki_x0.5",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 50.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "abortada (error grande)",
+   "archivo": "cfg_pos_ki_x0.5.npz"
+  },
+  {
+   "name": "pos_ki_x2",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 200.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "abortada (error grande)",
+   "archivo": "cfg_pos_ki_x2.npz"
+  },
+  {
+   "name": "vel_kp_x0.5",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.06,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "abortada (error grande)",
+   "archivo": "cfg_vel_kp_x0.5.npz"
+  },
+  {
+   "name": "vel_kp_x1.5",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.18,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "abortada (error grande)",
+   "archivo": "cfg_vel_kp_x1.5.npz"
+  },
+  {
+   "name": "vel_ki_x0.5",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 27.0,
+    "vel_tc": 0.004
+   },
+   "estado": "abortada (error grande)",
+   "archivo": "cfg_vel_ki_x0.5.npz"
+  },
+  {
+   "name": "vel_ki_x2",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 108.0,
+    "vel_tc": 0.004
+   },
+   "estado": "abortada (error grande)",
+   "archivo": "cfg_vel_ki_x2.npz"
+  },
+  {
+   "name": "vel_tc_x0.5",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.002
+   },
+   "estado": "abortada (error grande)",
+   "archivo": "cfg_vel_tc_x0.5.npz"
+  },
+  {
+   "name": "vel_tc_x2",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.008
+   },
+   "estado": "abortada (error grande)",
+   "archivo": "cfg_vel_tc_x2.npz"
+  },
+  {
+   "name": "base_final",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "abortada (error grande)",
+   "archivo": "cfg_base_final.npz"
+  }
+ ],
+ "base": {
+  "pos_kp": 60.0,
+  "pos_ki": 100.0,
+  "vel_kp": 0.12,
+  "vel_ki": 54.0,
+  "vel_tc": 0.004
+ }
+}

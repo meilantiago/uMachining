@@ -1,0 +1,107 @@
+{
+ "configs": [
+  {
+   "name": "base",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_base.npz"
+  },
+  {
+   "name": "vki40",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 40.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_vki40.npz"
+  },
+  {
+   "name": "vki27",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 27.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_vki27.npz"
+  },
+  {
+   "name": "kp14_ki40",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.14,
+    "vel_ki": 40.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_kp14_ki40.npz"
+  },
+  {
+   "name": "kp14_ki40_pki50",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 50.0,
+    "vel_kp": 0.14,
+    "vel_ki": 40.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_kp14_ki40_pki50.npz"
+  },
+  {
+   "name": "kp12_ki40_pki50",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 50.0,
+    "vel_kp": 0.12,
+    "vel_ki": 40.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_kp12_ki40_pki50.npz"
+  },
+  {
+   "name": "kp15_ki27",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.15,
+    "vel_ki": 27.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_kp15_ki27.npz"
+  },
+  {
+   "name": "base_final",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_base_final.npz"
+  }
+ ],
+ "base": {
+  "pos_kp": 60.0,
+  "pos_ki": 100.0,
+  "vel_kp": 0.12,
+  "vel_ki": 54.0,
+  "vel_tc": 0.004
+ }
+}

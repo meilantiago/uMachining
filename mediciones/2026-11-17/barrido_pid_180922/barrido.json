@@ -1,0 +1,71 @@
+{
+ "configs": [
+  {
+   "name": "actual",
+   "params": {
+    "pos_kp": 120.0,
+    "pos_ki": 0.0,
+    "vel_kp": 0.12,
+    "vel_ki": 40.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_actual.npz"
+  },
+  {
+   "name": "v80",
+   "params": {
+    "pos_kp": 120.0,
+    "pos_ki": 0.0,
+    "vel_kp": 0.12,
+    "vel_ki": 80.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_v80.npz"
+  },
+  {
+   "name": "v110",
+   "params": {
+    "pos_kp": 120.0,
+    "pos_ki": 0.0,
+    "vel_kp": 0.12,
+    "vel_ki": 110.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_v110.npz"
+  },
+  {
+   "name": "p90_v110",
+   "params": {
+    "pos_kp": 90.0,
+    "pos_ki": 0.0,
+    "vel_kp": 0.12,
+    "vel_ki": 110.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_p90_v110.npz"
+  },
+  {
+   "name": "actual_final",
+   "params": {
+    "pos_kp": 120.0,
+    "pos_ki": 0.0,
+    "vel_kp": 0.12,
+    "vel_ki": 40.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_actual_final.npz"
+  }
+ ],
+ "base": {
+  "pos_kp": 120.0,
+  "pos_ki": 0.0,
+  "vel_kp": 0.12,
+  "vel_ki": 40.0,
+  "vel_tc": 0.004
+ }
+}

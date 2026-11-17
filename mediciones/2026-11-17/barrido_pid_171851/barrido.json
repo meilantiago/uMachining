@@ -1,0 +1,191 @@
+{
+ "configs": [
+  {
+   "name": "base",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_base.npz"
+  },
+  {
+   "name": "vkp0.06",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.06,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_vkp0.06.npz"
+  },
+  {
+   "name": "vkp0.09",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.09,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_vkp0.09.npz"
+  },
+  {
+   "name": "vkp0.15",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.15,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_vkp0.15.npz"
+  },
+  {
+   "name": "vki27",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 27.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_vki27.npz"
+  },
+  {
+   "name": "vki108",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 108.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_vki108.npz"
+  },
+  {
+   "name": "pkp40",
+   "params": {
+    "pos_kp": 40.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_pkp40.npz"
+  },
+  {
+   "name": "pkp90",
+   "params": {
+    "pos_kp": 90.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_pkp90.npz"
+  },
+  {
+   "name": "pkp120",
+   "params": {
+    "pos_kp": 120.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_pkp120.npz"
+  },
+  {
+   "name": "pki0",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 0.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_pki0.npz"
+  },
+  {
+   "name": "pki50",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 50.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_pki50.npz"
+  },
+  {
+   "name": "pki250",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 250.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_pki250.npz"
+  },
+  {
+   "name": "vtc2",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.002
+   },
+   "estado": "ok",
+   "archivo": "cfg_vtc2.npz"
+  },
+  {
+   "name": "vtc8",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.008
+   },
+   "estado": "ok",
+   "archivo": "cfg_vtc8.npz"
+  },
+  {
+   "name": "base_final",
+   "params": {
+    "pos_kp": 60.0,
+    "pos_ki": 100.0,
+    "vel_kp": 0.12,
+    "vel_ki": 54.0,
+    "vel_tc": 0.004
+   },
+   "estado": "ok",
+   "archivo": "cfg_base_final.npz"
+  }
+ ],
+ "base": {
+  "pos_kp": 60.0,
+  "pos_ki": 100.0,
+  "vel_kp": 0.12,
+  "vel_ki": 54.0,
+  "vel_tc": 0.004
+ }
+}

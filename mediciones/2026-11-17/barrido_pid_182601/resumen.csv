@@ -1,0 +1,2 @@
+config,cambio,estado,pos_kp,pos_ki,vel_kp,vel_ki,vel_tc,rms,max_err,const,iman,paso,ciclo,vuelta,resto,reposo,max_out
+H0,base,ok,120.0,0.0,0.12,40.0,0.004,1.405,4.472,0.879,0.485,0.695,0.972,0.969,0.660,0.034,81.000

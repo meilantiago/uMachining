@@ -1,0 +1,63 @@
+> M55 V0.5
+vel_ki movimiento=40 quieto=80 (debajo de 0.5 mm/s)
+ok
+> M56 A0
+I)AxisController: homing...
+I)Homing: tope detectado tras 0.17 vueltas de motor (relacion 0.00 en 3 ventanas seguidas)
+D)home_encoder_angle=92.294769 deg
+I)AxisController: homing OK (pos = -0.0752 mm). Lazo cerrado apagado: M17 para habilitarlo.
+I)Measuring motor to encoder angle lookup table...
+D)Running foreward pass...
+D)Running backward pass...
+I)Rueda magnetica: 9.341789 periodos de encoder por vuelta de motor
+E)Periodos por vuelta no enteros: el encoder perdio el seguimiento. Calibration aborted.
+E)AxisController: calibracion fallida
+error: calibracion fallida
+> M119
+homed=1 calibrated=0 target_mm=0.000000 pos_mm=3.505475 err_mm=-3.505475 enc_deg=9273.279 crc_errors=-1
+servo: fault=0 motor_update=0 motor_pos=4.4055 rad vel=763.035 rad/s out=0.000 field=-9.117 amp=0.60
+ok
+> M56 A0
+I)AxisController: homing...
+I)Homing: tope detectado tras 0.10 vueltas de motor (relacion 0.03 en 3 ventanas seguidas)
+D)home_encoder_angle=272.475891 deg
+I)AxisController: homing OK (pos = 0.0323 mm). Lazo cerrado apagado: M17 para habilitarlo.
+I)Measuring motor to encoder angle lookup table...
+D)Running foreward pass...
+D)Running backward pass...
+I)Rueda magnetica: 4.584082 periodos de encoder por vuelta de motor
+E)Periodos por vuelta no enteros: el encoder perdio el seguimiento. Calibration aborted.
+E)AxisController: calibracion fallida
+error: calibracion fallida
+> M119
+homed=1 calibrated=0 target_mm=0.000000 pos_mm=4.282589 err_mm=-4.282589 enc_deg=10928.177 crc_errors=-1
+servo: fault=0 motor_update=0 motor_pos=5.3816 rad vel=1565.178 rad/s out=0.000 field=9.415 amp=0.60
+ok
+> M56 A0
+I)AxisController: homing...
+I)Homing: tope detectado tras 16.90 vueltas de motor (relacion 0.36 en 3 ventanas seguidas)
+D)home_encoder_angle=126.553581 deg
+I)AxisController: homing OK (pos = -0.0697 mm). Lazo cerrado apagado: M17 para habilitarlo.
+I)Measuring motor to encoder angle lookup table...
+D)Running foreward pass...
+D)Running backward pass...
+I)Rueda magnetica: 30.002924 periodos de encoder por vuelta de motor
+D)Optimizing lookup table...
+D)Optimizing lookup table finished: rms_error=0.009872
+I)LUT 'encoder_raw_angle -> motor_pos': rms_error = 0.156684 deg, atraso del rotor = -0.543477 deg
+I)Salto en la costura de la vuelta: 0.071826 deg
+I)Filtro de la huella del motor: armonico 50 por vuelta, amplitud 0.401 um
+I)Filtro de la huella del motor: armonico 100 por vuelta, amplitud 0.338 um
+I)Filtro de la huella del motor: armonico 200 por vuelta, amplitud 0.254 um
+I)Filtro de la huella del motor: armonico 250 por vuelta, amplitud 0.163 um
+I)Filtro de la huella del motor: armonico 350 por vuelta, amplitud 0.078 um
+I)Filtro de la huella del motor: armonico 400 por vuelta, amplitud 0.173 um
+I)Filtro de la huella del motor: armonico 500 por vuelta, amplitud 0.366 um
+I)finished
+I)Conmutacion: desfase -1.2 deg electricos (con el encoder corrido -1 periodo: -115.2, +1: 126.3), atraso del rotor 17.8 deg, con
+I)AxisController: calibracion OK
+ok
+> M119
+homed=1 calibrated=1 target_mm=0.000000 pos_mm=0.004624 err_mm=-0.004625 enc_deg=1567.533 crc_errors=-1
+servo: fault=0 motor_update=0 motor_pos=0.0058 rad vel=-0.266 rad/s out=0.000 field=-5264.995 amp=0.60
+ok

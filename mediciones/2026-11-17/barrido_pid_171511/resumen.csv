@@ -1,0 +1,14 @@
+config,cambio,estado,pos_kp,pos_ki,vel_kp,vel_ki,vel_tc,rms,max_err,const,iman,paso,ciclo,vuelta,resto,reposo,max_out
+base,base,abortada (error grande),60.0,100.0,0.12,54.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,0.005,nan
+pos_kp_x0.5,pos_kp=30,abortada (error grande),30.0,100.0,0.12,54.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,0.108,nan
+pos_kp_x2,pos_kp=120,abortada (error grande),120.0,100.0,0.12,54.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,0.081,nan
+pos_ki_0,pos_ki=0,abortada (error grande),60.0,0.0,0.12,54.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,0.079,nan
+pos_ki_x0.5,pos_ki=50,abortada (error grande),60.0,50.0,0.12,54.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,0.079,nan
+pos_ki_x2,pos_ki=200,abortada (error grande),60.0,200.0,0.12,54.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,0.083,nan
+vel_kp_x0.5,vel_kp=0.06,abortada (error grande),60.0,100.0,0.06,54.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,0.092,nan
+vel_kp_x1.5,vel_kp=0.18,abortada (error grande),60.0,100.0,0.18,54.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,0.092,nan
+vel_ki_x0.5,vel_ki=27,abortada (error grande),60.0,100.0,0.12,27.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,0.079,nan
+vel_ki_x2,vel_ki=108,abortada (error grande),60.0,100.0,0.12,108.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,0.084,nan
+vel_tc_x0.5,vel_tc=0.002,abortada (error grande),60.0,100.0,0.12,54.0,0.002,nan,nan,nan,nan,nan,nan,nan,nan,0.101,nan
+vel_tc_x2,vel_tc=0.008,abortada (error grande),60.0,100.0,0.12,54.0,0.008,nan,nan,nan,nan,nan,nan,nan,nan,0.095,nan
+base_final,base,abortada (error grande),60.0,100.0,0.12,54.0,0.004,nan,nan,nan,nan,nan,nan,nan,nan,0.084,nan
