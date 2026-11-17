@@ -14,6 +14,7 @@
 //   M114                        reportar posición actual
 //   M119                        reportar estado (homed, calibrado, ángulo de encoder, etc.)
 //   M120 S<1|0> [P<n>]           telemetría binaria (P: un punto cada n ticks de 2 kHz)
+//   M60 A<um> F<Hz> N<ciclos> [R<s>] [T<s>] | M60 S0 | M60   senoide (ver sine_command.h)
 // --------------------------------------------------------------------------------------
 
 #pragma once
@@ -21,6 +22,7 @@
 #include "command_parser/command_parser.h"
 #include "axis_controller.h"
 #include "motion_profile/trapezoidal_profile.h"
+#include "motion_profile/sine_profile.h"
 #include "shared_data.h"
 
 //*** CLASS *****************************************************************************
@@ -30,7 +32,8 @@ class LinearCascadeCorrector;  // forward-declare (definida en servo_control/cas
 class SingleAxisCommandProcessor : public ICommandProcessor {
   public:
     SingleAxisCommandProcessor(AxisController* axis, TrapezoidalProfile* profile,
-                               SharedData* shared_data, LinearCascadeCorrector* corrector);
+                               SharedData* shared_data, LinearCascadeCorrector* corrector,
+                               SineProfile* sine = nullptr);
 
     void send_reply(const char* str) override;
     bool can_process_command(const GCodeCommand& cmd) override;
@@ -44,12 +47,14 @@ class SingleAxisCommandProcessor : public ICommandProcessor {
     void process_report_position_command(std::string& reply);
     void process_report_status_command(std::string& reply);
     void process_telemetry_command(const GCodeCommand& cmd, std::string& reply);
+    void process_sine_command(const GCodeCommand& cmd, std::string& reply);
 
   private:
     AxisController* axis;
     TrapezoidalProfile* profile;
     SharedData* shared_data;
     LinearCascadeCorrector* cascade_corrector;
+    SineProfile* sine;
 
     bool absolute_mode = true;   // G90 (default) vs G91
     double current_target_mm = 0.0;

@@ -9,3 +9,6 @@ mediciones/**/*.npz
 
 # caché de Python
 __pycache__/
+
+# compilación de los tests de PC
+tests_host/build/

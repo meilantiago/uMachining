@@ -23,6 +23,7 @@ El factor de corriente 1,0 (con `VEL_KP` 0,12 y `VEL_KI` 54) se probó el 23/10 
 
 ## Sin versionar / en curso
 
+- **Senoide para la prueba 4 (`M60`, rama `Firmware+Senoide`, 17/11).** `M60 A<µm> F<Hz> N<ciclos> [R<s>] [T<s>]` suma una senoide a la consigna, con entrada y salida suaves y tiempos en ciclos enteros; `M60 S0` frena y `M60` informa el estado. Funciona quieto o sobre un `G1`. La ventana de medición sale por el pin 22 (`PIN_SINE_SYNC`) y por la telemetría (flags bit2; bit3 = senoide activa). Límites: 50 µm, 0,1–250 Hz, velocidad pico (senoide + trapecio) ≤ 5 mm/s. Se corta en seco con `G28`, `M17`, `M18`, `M56`, `M57` y con el corte por falla. Validado solo en PC: `python tests_host/run_tests.py` (192 chequeos de C++ con los archivos reales del firmware y un barrido de punta a punta contra la simulación de la prueba 4). **No se probó en el banco.** Reusa el nombre `M60` del chirp que quedó fuera del repo (ver abajo).
 - **Identificación con chirp (`M60`).** Nunca se commiteó ni se probó en el banco. Al ordenar las ramas el 27/10 se guardó afuera del repo, en `~/Desktop/respaldo_ramas_2026-10-27/` (patch sobre `cc58abf` + archivos).
 - **Limpieza para publicación** (rama `limpieza/publicacion`, `de19ab6`, 20/10): se borró sin mergear el 27/10. Sacaba `docs/` y `mediciones/` del repo; se rehace cuando se decida publicar.
 

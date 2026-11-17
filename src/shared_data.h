@@ -30,7 +30,8 @@ struct TelemetryPoint {
   float    out;            // salida del lazo de velocidad [rad electricos], limite +-0.45*pi
   int32_t  chip_raw;       // angulo crudo del MT6835 (0..2^21-1)
   uint8_t  status;         // bits de estado del encoder (overspeed, campo debil, subtension)
-  uint8_t  flags;          // bit0 motor_update (lazo activo), bit1 corte por falla
+  uint8_t  flags;          // bit0 motor_update (lazo activo), bit1 corte por falla,
+                           // bit2 ventana de medicion de la senoide (M60), bit3 senoide activa
   uint16_t seq;            // contador de puntos generados (los huecos = puntos descartados)
 };
 static_assert(sizeof(TelemetryPoint) == 28, "el script de PC espera 28 bytes");

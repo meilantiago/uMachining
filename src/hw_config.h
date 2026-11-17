@@ -32,6 +32,20 @@ constexpr float DEFAULT_MAX_ACCEL_MM_S2   = 5.0f;
 // (5 mm/s) del PI de posicion no limita el perfil; lo que limita es el margen de torque.
 constexpr float MAX_VELOCITY_LIMIT_MM_S = 5.0f;
 
+//--- SENOIDE (M60, prueba de respuesta en frecuencia) ---------------------------
+// Ver src/sine_command.h. El perfil corre a 2 kHz: por encima de 250 Hz quedan menos de 8
+// puntos por ciclo. La velocidad pico (senoide + trapecio) no puede pasar de
+// MAX_VELOCITY_LIMIT_MM_S. La aceleracion de 10 m/s2 es de sobra para 1 um a 250 Hz
+// (2,5 m/s2) y frena pedidos absurdos como 50 um a 250 Hz.
+constexpr float SINE_MAX_AMPLITUDE_UM  = 50.0f;
+constexpr float SINE_MIN_FREQ_HZ       = 0.1f;
+constexpr float SINE_MAX_FREQ_HZ       = 250.0f;
+constexpr int   SINE_MAX_CYCLES        = 100000;
+constexpr float SINE_MAX_ACCEL_MM_S2   = 10000.0f;
+constexpr float SINE_DEFAULT_RAMP_S    = 0.2f;   // entrada y salida (se redondea a ciclos enteros)
+constexpr float SINE_DEFAULT_SETTLE_S  = 0.3f;   // asentamiento antes de medir
+constexpr float SINE_MAX_RAMP_S        = 60.0f;
+
 //--- MOTOR ---------------------------------------------------------------------
 // pole pairs del MOTOR paso a paso (no tiene nada que ver con los imanes de la rueda):
 //  * 100 para motores de 0.9°/paso
@@ -181,3 +195,8 @@ constexpr float VEL_KI = 54.0f;
 #define PIN_ENCODER_SCK   18
 #define PIN_ENCODER_MISO  20
 #define PIN_ENCODER_MOSI  19
+
+// Salida de sincronismo de la senoide (M60): en alto durante la ventana de medicion.
+// Se graba en un canal libre de la adquisicion del interferometro para alinear relojes.
+// AJUSTAR si el pin esta ocupado en tu placa.
+#define PIN_SINE_SYNC     22

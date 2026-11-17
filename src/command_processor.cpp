@@ -1,4 +1,5 @@
 #include "command_processor.h"
+#include "sine_command.h"
 #include "servo_control/cascade_corrector.h"
 #include "servo_control/actuator_calibration.h"
 #include "hw_config.h"
@@ -12,8 +13,9 @@
 #include <algorithm>
 
 SingleAxisCommandProcessor::SingleAxisCommandProcessor(AxisController* axis, TrapezoidalProfile* profile,
-                                                       SharedData* shared_data, LinearCascadeCorrector* corrector)
-  : axis(axis), profile(profile), shared_data(shared_data), cascade_corrector(corrector)
+                                                       SharedData* shared_data, LinearCascadeCorrector* corrector,
+                                                       SineProfile* sine)
+  : axis(axis), profile(profile), shared_data(shared_data), cascade_corrector(corrector), sine(sine)
 {
   max_velocity_mm_s = DEFAULT_MAX_VELOCITY_MM_S;
   max_accel_mm_s2 = DEFAULT_MAX_ACCEL_MM_S2;
@@ -32,6 +34,15 @@ bool SingleAxisCommandProcessor::can_process_command(const GCodeCommand& cmd) {
 void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::string& reply) {
   const std::string& c = cmd.get_command();
 
+  // Homing, calibracion, barridos y prender/apagar el motor reinician el perfil: la senoide
+  // se corta en seco (con el motor apagado o el eje moviendose solo, no tiene sentido).
+  if (sine && (c == "G28" || c == "M17" || c == "M18" || c == "M56" || c == "M57")) {
+    uint32_t irq_state = save_and_disable_interrupts();
+    sine->abort();
+    restore_interrupts(irq_state);
+  }
+
+  if (c == "M60") { process_sine_command(cmd, reply); return; }
   if (c == "G0" || c == "G1") { process_move_command(cmd, reply); return; }
   if (c == "G28") { process_home_command(cmd, reply); return; }
   if (c == "G90") { absolute_mode = true; reply = "ok\n"; return; }
@@ -466,6 +477,23 @@ void SingleAxisCommandProcessor::process_report_status_command(std::string& repl
   }
 
   reply += "ok\n";
+}
+
+void SingleAxisCommandProcessor::process_sine_command(const GCodeCommand& cmd, std::string& reply) {
+  if (!sine) { reply = "error: este firmware no tiene generador de senoide\n"; return; }
+
+  SineContext ctx;
+  ctx.ready = axis->is_homed() && axis->is_calibrated();
+  ctx.motor_enabled = axis->get_servo_controller()->is_motor_update_enabled() && !axis->has_servo_fault();
+  uint32_t irq_state = save_and_disable_interrupts();
+  double now = profile->get_current_position();
+  double dest = profile->get_target_position();
+  ctx.trap_speed_mm_s = profile->is_idle() ? 0.0 : profile->get_cruise_velocity();
+  restore_interrupts(irq_state);
+  ctx.low_mm = std::min(now, dest);
+  ctx.high_mm = std::max(now, dest);
+
+  reply = execute_sine_command(cmd, ctx, *sine, save_and_disable_interrupts, restore_interrupts);
 }
 
 void SingleAxisCommandProcessor::process_telemetry_command(const GCodeCommand& cmd, std::string& reply) {

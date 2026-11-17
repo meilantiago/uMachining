@@ -83,6 +83,7 @@ python3 tools/send_gcode.py "M56" "M17" "G1 X10" "M114" --timeout 600
 | `M55 A B C D F` | Ganancias del PID en caliente |
 | `M58 V<0\|1> F<0\|1>` | Velocidad con la tabla de calibración / realimentación anticipada |
 | `M120 S1 P<n>` | Telemetría binaria |
+| `M60 A<µm> F<Hz> N<ciclos> [R<s>] [T<s>]` / `M60 S0` / `M60` | Senoide sumada a la posición para medir la respuesta en frecuencia; frenar; estado. Marca la ventana de medición en el pin 22 y en la telemetría (flags bit2). Ver `src/sine_command.h` |
 | `M57 X<mm>` / `M121` | Diagnóstico de conmutación / traza del último corte por falla |
 
 ## Herramientas

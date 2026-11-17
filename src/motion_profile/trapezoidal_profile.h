@@ -34,6 +34,9 @@ class TrapezoidalProfile {
     // posición objetivo actual (la última que devolvió update(), o start_pos si todavía no corrió)
     double get_current_position() const;
 
+    // velocidad de crucero efectiva del movimiento actual (0 si está quieto)
+    float get_cruise_velocity() const { return active ? max_vel : 0.0f; }
+
   private:
     double current_pos = 0.0;
     double start_pos = 0.0;

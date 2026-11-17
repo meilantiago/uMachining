@@ -18,6 +18,7 @@
 #include "hardware/pll.h"
 #include "hardware/vreg.h"
 #include "hardware/spi.h"
+#include "hardware/gpio.h"
 #include "pico/multicore.h"
 
 #include "hw_config.h"
@@ -27,6 +28,8 @@
 #include "hardware/TB6612_motor_driver.h"
 #include "axis_controller.h"
 #include "motion_profile/trapezoidal_profile.h"
+#include "motion_profile/sine_profile.h"
+#include "motion_profile/setpoint.h"
 #include "servo_control/cascade_corrector.h"
 #include "shared_data.h"
 #include "command_processor.h"
@@ -38,6 +41,7 @@ constexpr int SPINLOCK_ID_SHARED_DATA = 0;
 
 AxisController* axis = nullptr;
 TrapezoidalProfile motion_profile;
+SineProfile sine_profile;   // M60: se suma al perfil trapezoidal
 LinearCascadeCorrector cascade_corrector;
 SharedData shared_data(SPINLOCK_ID_SHARED_DATA);
 
@@ -69,9 +73,14 @@ bool update_motion_profile_isr(repeating_timer_t* timer) {
   float dt = float(time_us - last_profile_update_time_us) * 1e-6f;
   last_profile_update_time_us = time_us;
 
-  double pos_mm;
-  float vel_mm_s;
-  motion_profile.update(dt, pos_mm, vel_mm_s);
+  // Con el corte por falla el motor queda apagado: la senoide no tiene que seguir.
+  if (axis->has_servo_fault()) sine_profile.abort();
+
+  // Perfil trapezoidal + senoide (M60). Mismo codigo que usan los tests de PC (setpoint.h).
+  Setpoint sp = update_setpoint(motion_profile, sine_profile, dt);
+  double pos_mm = sp.pos_mm;
+  float vel_mm_s = sp.vel_mm_s;
+  gpio_put(PIN_SINE_SYNC, sp.measuring);
 
   // --- Lazo externo de cascada (encoder lineal) ---
   // Lee la posición del encoder lineal y aplica la corrección PI.
@@ -107,7 +116,8 @@ bool update_motion_profile_isr(repeating_timer_t* timer) {
     tp.out          = servo->get_output();
     tp.chip_raw     = axis->get_encoder()->get_last_chip_raw_angle();
     tp.status       = axis->get_encoder()->get_status();
-    tp.flags        = (servo->is_motor_update_enabled() ? 1 : 0) | (axis->has_servo_fault() ? 2 : 0);
+    tp.flags        = (servo->is_motor_update_enabled() ? 1 : 0) | (axis->has_servo_fault() ? 2 : 0) |
+                      (sp.measuring ? 4 : 0) | (sp.sine_active ? 8 : 0);
     tp.seq          = telemetry_seq++;
     shared_data.telemetry_buffer.try_push(tp, shared_data.lock);
   }
@@ -166,7 +176,12 @@ void setup() {
   axis = new AxisController(encoder, motor_driver, MOTOR_POLE_PAIRS, LEAD_SCREW_PITCH_MM);
   axis->init();
 
-  command_processor = new SingleAxisCommandProcessor(axis, &motion_profile, &shared_data, &cascade_corrector);
+  gpio_init(PIN_SINE_SYNC);
+  gpio_set_dir(PIN_SINE_SYNC, GPIO_OUT);
+  gpio_put(PIN_SINE_SYNC, false);
+
+  command_processor = new SingleAxisCommandProcessor(axis, &motion_profile, &shared_data, &cascade_corrector,
+                                                     &sine_profile);
   command_parser.set_command_processor(command_processor);
 
   last_profile_update_time_us = time_us_64();
