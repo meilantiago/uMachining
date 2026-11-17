@@ -89,7 +89,9 @@ class AxisController {
     // 'distance_mm' desde la posicion actual (solo ida) e imprime por serie (CSV), cada
     // 'decimation' pasos, el desfase entre el campo comandado y el que da la tabla para la
     // posicion que lee el encoder. Desfase = error de conmutacion +/- atraso del rotor.
-    void commutation_sweep(float distance_mm, float speed_mm_s, int decimation);
+    // raw_rows (M57 R1): en vez del desfase imprime el angulo crudo del chip y el campo
+    // comandado (D,t_us,sentido,campo,crudo,estado), como el firmware de barrido del encoder.
+    void commutation_sweep(float distance_mm, float speed_mm_s, int decimation, bool raw_rows = false);
 
     // Tabla de compensacion de la retencion del motor (M59): guardar/cargar en flash.
     bool store_cogging();

@@ -25,6 +25,9 @@ class PIDController {
     void  set_parameter(float kP, float kI, float kD, float output_limit, float windup_limit);
     float compute(float error, float dt, float one_over_dt);
     void  reset();
+    // Cambia solo kI. La integral se guarda ya multiplicada por kI: el cambio no produce salto.
+    void  set_ki(float ki) { kI = ki; kI_half = 0.5f * ki; }
+    float get_ki() const { return kI; }
 
   protected:
     float output_limit; // Maximum output value

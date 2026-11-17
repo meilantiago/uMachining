@@ -147,9 +147,10 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
   }
   if (c == "M121") { axis->dump_trace(); reply = "ok\n"; return; }
   if (c == "M57") {
-    // Diagnostico: M57 X<distancia mm> [F<mm/s>] [P<decimacion>]. Barrido en lazo abierto
-    // (solo ida) imprimiendo el desfase de conmutacion. Deja el motor energizado con el
-    // lazo cerrado apagado: despues mandar M17.
+    // Diagnostico: M57 X<distancia mm> [F<mm/s>] [P<decimacion>] [R1]. Barrido en lazo abierto
+    // (solo ida) imprimiendo el desfase de conmutacion; con R1, el angulo crudo del encoder
+    // (pestaña Encoder de tools/interfaz.py). Deja el motor energizado con el lazo cerrado
+    // apagado: despues mandar M17.
     if (!axis->is_homed() || !axis->is_calibrated()) { reply = "error: eje no homeado/calibrado\n"; return; }
     if (!cmd.has_word('X')) { reply = "error: falta X (distancia en mm)\n"; return; }
     float dist = cmd.get_value('X');
@@ -163,7 +164,7 @@ void SingleAxisCommandProcessor::process_command(const GCodeCommand& cmd, std::s
 
     shared_data->servo_loop_enabled = false;
     sleep_ms(5);
-    axis->commutation_sweep(dist, speed, decimation);
+    axis->commutation_sweep(dist, speed, decimation, cmd.get_value('R', 0.0f) >= 1.0f);
     double pos_mm = axis->get_position_mm();
     uint32_t irq_state = save_and_disable_interrupts();
     profile->start(pos_mm, pos_mm, max_velocity_mm_s, max_accel_mm_s2);
@@ -318,10 +319,17 @@ static bool relearn_cogging(AxisController* axis, TrapezoidalProfile* profile, S
       ok = false;
     }
     if (!ok) {
-      LOG_ERROR("Reaprendizaje anti-cogging: pasada cortada, quedan las tablas de antes");
-      for (int i = 0; i < N; i++) { ts[i] = ts0[i]; ta[i] = ta0[i]; }
-      set_cogging_tables(servo, ts, ta);
-      servo->cogging_enabled = was_enabled;
+      if (best_k >= 0) {
+        // una pasada anterior termino bien: quedarse con esa tabla y no con la de antes de M56
+        LOG_ERROR("Reaprendizaje anti-cogging: pasada %i cortada, queda la tabla de la pasada %i",
+                  k + 1, best_k + 1);
+        set_cogging_tables(servo, best_ts, best_ta);
+      } else {
+        LOG_ERROR("Reaprendizaje anti-cogging: pasada cortada, quedan las tablas de antes");
+        for (int i = 0; i < N; i++) { ts[i] = ts0[i]; ta[i] = ta0[i]; }
+        set_cogging_tables(servo, ts, ta);
+        servo->cogging_enabled = was_enabled;
+      }
       reply += " cortado\n";
       return false;
     }
@@ -379,20 +387,58 @@ void SingleAxisCommandProcessor::process_home_command(const GCodeCommand& cmd, s
 }
 
 void SingleAxisCommandProcessor::process_tune_pid_command(const GCodeCommand& cmd, std::string& reply) {
+  // M55 A B C D F: todas las ganancias juntas (D = VEL_KI en movimiento).
+  // M55 H<vel_ki quieto> V<mm/s>: VEL_KI_HOLD y VEL_KI_HOLD_SPEED_MM_S, solos o junto con las demas.
   bool has_all = cmd.has_word('A') && cmd.has_word('B') && cmd.has_word('C') &&
                  cmd.has_word('D') && cmd.has_word('F');
-  if (!has_all) {
-    reply = "error: parametros esperados A(pos_kp) B(pos_ki) C(vel_kp) D(vel_ki) F(vel_lowpass_tc)\n";
+  bool has_hold = cmd.has_word('H') || cmd.has_word('V');
+  if (!has_all && !has_hold) {
+    reply = "error: parametros esperados A(pos_kp) B(pos_ki) C(vel_kp) D(vel_ki) F(vel_lowpass_tc), "
+            "o H(vel_ki quieto) V(mm/s)\n";
     return;
   }
 
   ServoController* servo = axis->get_servo_controller();
-  servo->velocity_lowpass.set_time_constant(cmd.get_value('F'));
-  servo->pos_controller.set_parameter(cmd.get_value('A'), cmd.get_value('B'), 0.0f,
-                                      Constants::PI_F * 2.0f, Constants::PI_F * 0.5f);
-  servo->velocity_controller.set_parameter(cmd.get_value('C'), cmd.get_value('D'), 0.0f,
-                                           Constants::PI_F * 0.45f, Constants::PI_F * 0.45f);
-  reply = "ok\n";
+  if (has_all) {
+    servo->velocity_lowpass.set_time_constant(cmd.get_value('F'));
+    servo->pos_controller.set_parameter(cmd.get_value('A'), cmd.get_value('B'), 0.0f,
+                                        Constants::PI_F * 2.0f, Constants::PI_F * 0.5f);
+    servo->velocity_controller.set_parameter(cmd.get_value('C'), cmd.get_value('D'), 0.0f,
+                                             Constants::PI_F * 0.45f, Constants::PI_F * 0.45f);
+    servo->vel_ki_move = cmd.get_value('D');
+  }
+  if (cmd.has_word('H')) servo->vel_ki_hold = cmd.get_value('H');
+  if (cmd.has_word('V')) servo->hold_speed = cmd.get_value('V') / LEAD_SCREW_PITCH_MM * Constants::TWO_PI_F;
+  char buf[96];
+  snprintf(buf, sizeof(buf), "vel_ki movimiento=%g quieto=%g (debajo de %g mm/s)\nok\n", (double)servo->vel_ki_move,
+           (double)servo->vel_ki_hold, (double)(servo->hold_speed / Constants::TWO_PI_F * LEAD_SCREW_PITCH_MM));
+  reply = buf;
+}
+
+// Si el reaprendizaje se corta, el perfil queda frenado donde iba (a mitad del stage) pero
+// current_target_mm seguia en 0. El G1 siguiente salia de ese 0 falso (G91, o la interfaz, que toma
+// target_mm de M119) y el carro "volvia solo" hacia 0. Ahora se intenta volver a 0 a la velocidad
+// de aprendizaje y, llegue o no, el objetivo queda donde esta el carro.
+void SingleAxisCommandProcessor::finish_after_relearn_abort(std::string& reply) {
+  ServoController* servo = axis->get_servo_controller();
+  if (!axis->has_servo_fault() && servo->is_motor_update_enabled())
+    relearn_leg(axis, profile, shared_data, 0.0f, max_accel_mm_s2, false);
+
+  bool fault = axis->has_servo_fault() || !servo->is_motor_update_enabled();
+  // con falla el lazo esta apagado: el objetivo va a donde esta el carro (como M17)
+  double p = fault ? axis->get_position_mm() : profile->get_current_position();
+  uint32_t irq_state = save_and_disable_interrupts();
+  profile->start(p, p, max_velocity_mm_s, max_accel_mm_s2);
+  restore_interrupts(irq_state);
+  shared_data->set_target_position_mm(p);
+  cascade_corrector->reset();
+  current_target_mm = p;
+
+  char buf[160];
+  snprintf(buf, sizeof(buf), "atencion: anti-cogging cortado, el carro quedo en %.3f mm%s\n", p,
+           fault ? " con el lazo apagado por falla (ver M119, rearmar con M17)" : "");
+  reply += buf;
+  LOG_ERROR("Reaprendizaje anti-cogging cortado: carro en %.3f mm, falla %d", p, (int)fault);
 }
 
 void SingleAxisCommandProcessor::process_calibrate_command(const GCodeCommand& cmd, std::string& reply) {
@@ -423,8 +469,8 @@ void SingleAxisCommandProcessor::process_calibrate_command(const GCodeCommand& c
   // M56 A<0|1>: reaprender las tablas anti-cogging despues de calibrar
   bool relearn = cmd.has_word('A') ? cmd.get_value('A') >= 1.0f : (COGGING_RELEARN_ON_CALIBRATION && search_stop);
   reply.clear();
-  if (ok && relearn)
-    relearn_cogging(axis, profile, shared_data, max_accel_mm_s2, store_to_flash, reply);
+  if (ok && relearn && !relearn_cogging(axis, profile, shared_data, max_accel_mm_s2, store_to_flash, reply))
+    finish_after_relearn_abort(reply);
   reply += ok ? "ok\n" : "error: calibracion fallida\n";
 }
 

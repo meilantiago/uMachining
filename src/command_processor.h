@@ -11,6 +11,7 @@
 //   M17 / M18                  habilitar / deshabilitar corriente del motor
 //   M55 A B C D F               tunear PID en caliente (pos_kp, pos_ki, vel_kp, vel_ki, vel_lowpass_tc)
 //   M56 [S] [P] [D<1|-1>]       calibrar (S=guardar en flash, P=imprimir mediciones, D=sentido de homing)
+//   M57 X<mm> [F] [P] [R1]      barrido en lazo abierto (R1: angulo crudo del encoder)
 //   M114                        reportar posición actual
 //   M119                        reportar estado (homed, calibrado, ángulo de encoder, etc.)
 //   M120 S<1|0> [P<n>]           telemetría binaria (P: un punto cada n ticks de 2 kHz)
@@ -41,6 +42,7 @@ class SingleAxisCommandProcessor : public ICommandProcessor {
     void process_home_command(const GCodeCommand& cmd, std::string& reply);
     void process_tune_pid_command(const GCodeCommand& cmd, std::string& reply);
     void process_calibrate_command(const GCodeCommand& cmd, std::string& reply);
+    void finish_after_relearn_abort(std::string& reply);
     void process_report_position_command(std::string& reply);
     void process_report_status_command(std::string& reply);
     void process_telemetry_command(const GCodeCommand& cmd, std::string& reply);

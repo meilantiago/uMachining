@@ -49,6 +49,13 @@ class ServoController {
     volatile bool velocity_from_lut = true;
     volatile bool feedforward_enabled = true;
 
+    // Integral del lazo de velocidad segun la velocidad del perfil (ver VEL_KI_HOLD en hw_config.h):
+    // vel_ki_move si |velocidad del perfil| >= hold_speed, vel_ki_hold por debajo (quieto y pasos
+    // chicos). vel_ki_hold <= 0 desactiva el cambio. M55 D/H/V los cambia en caliente.
+    volatile float vel_ki_move = 0.0f;
+    volatile float vel_ki_hold = 0.0f;
+    volatile float hold_speed = 0.0f;   // [rad/s de motor]
+
     // Compensacion anticipada de la retencion del motor (anti-cogging, M59). Tabla de COGGING_TABLE_SIZE
     // puntos sobre un ciclo electrico, indexada por el angulo electrico del campo (absoluto: no depende
     // del homing ni de la calibracion). Se suma como adelanto del campo [rad electricos] a la salida del

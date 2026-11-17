@@ -53,6 +53,9 @@ void ServoController::init(float max_motor_amplitude) {
 
   pos_controller.set_parameter(POS_KP, POS_KI, 0.0f, Constants::PI_F*2.0F, Constants::PI_F*0.5F);
   velocity_controller.set_parameter(VEL_KP, VEL_KI, 0.0f, Constants::PI_F*0.45f, Constants::PI_F*0.45f);
+  vel_ki_move = VEL_KI;
+  vel_ki_hold = VEL_KI_HOLD;
+  hold_speed = VEL_KI_HOLD_SPEED_MM_S / LEAD_SCREW_PITCH_MM * Constants::TWO_PI_F;
 
   // large 0.9° steppers
 //  pos_controller.set_parameter(75.0f, 50000.0f, 0.0f, Constants::PI_F*2.0F, Constants::PI_F*0.5F);
@@ -158,7 +161,9 @@ void ServoController::update(double target_motor_pos, float dt, float one_over_d
   if (feedforward_enabled)
     velocity_target += velocity_ff;
 
-  // velocity controll loop
+  // velocity controll loop. Quieto y en pasos chicos, integral mas rapida: despega antes el carro
+  // de la friccion estatica y lo frena antes. En movimiento, la de VEL_KI (con la alta oscila).
+  velocity_controller.set_ki(vel_ki_hold > 0.0f && fabsf(velocity_ff) < hold_speed ? vel_ki_hold : vel_ki_move);
   float torque_target = velocity_controller.compute(velocity_target-velocity, dt, one_over_dt);
 
   // torque controll loop

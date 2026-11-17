@@ -143,6 +143,15 @@ bool AxisController::calibrate(float homing_direction_sign, bool store_to_flash,
   LookupTable encoder_raw_to_motor_pos_lut;
   LookupTable motor_pos_to_field_angle_lut;
 
+  // barridos en lazo abierto con OPEN_LOOP_CURRENT (ver hw_config.h); al salir vuelve la de antes
+  auto& driver = servo_controller->get_motor_driver();
+  const float run_current = driver.get_amplitude();
+  driver.set_amplitude_smooth(OPEN_LOOP_CURRENT, 100);
+  struct RestoreCurrent {
+    ServoController::MOTOR_DRIVER_TYPE& d; float a;
+    ~RestoreCurrent() { d.set_amplitude_smooth(a, 100); }
+  } restore_current{driver, run_current};
+
   bool ok = measure_calibration_data(
     encoder_raw_to_motor_pos_lut,
     motor_pos_to_field_angle_lut,
@@ -251,7 +260,7 @@ void AxisController::dump_trace() {
   trace_frozen = was_frozen;
 }
 
-void AxisController::commutation_sweep(float distance_mm, float speed_mm_s, int decimation) {
+void AxisController::commutation_sweep(float distance_mm, float speed_mm_s, int decimation, bool raw_rows) {
   servo_controller->set_motor_update_enabled(false);
   servo_controller->resync();
   // energiza con el campo donde la tabla dice que esta el rotor (igual que M17)
@@ -264,18 +273,42 @@ void AxisController::commutation_sweep(float distance_mm, float speed_mm_s, int 
   const int dir = distance_mm >= 0.0f ? 1 : -1;
   int step = 0;
 
-  Serial.println("dir,pos_mm,offset_deg,status");
+  const bool crc_was = encoder->is_crc_enabled();
+  if (raw_rows) {
+    // M57 R1: mismo formato que el firmware de barrido (variantes_main/main_barrido_encoder.cpp),
+    // asi tools/interfaz.py y encoder_sweep.py analizan igual: angulo crudo del chip contra el
+    // campo comandado [rad electricos]. t_us es el reloj absoluto de la placa, comun a varias M57.
+    encoder->set_crc_enabled(true);
+    encoder->get_crc_error_count(true);
+    // field_zero: campo que corresponde a 0 mm, para numerar los imanes desde el home
+    Serial.printf("META,pole_pairs=%d,cpr=%d,distance_mm=%.4f,speed_mm_s=%.4f,pitch_mm=%.4f,decimation=%d,"
+                  "field_zero=%.5f\n", (int)pole_pairs, MT6835_CPR, distance_mm, speed_mm_s, lead_screw_pitch_mm,
+                  decimation, field_angle_at_zero());
+  } else {
+    Serial.println("dir,pos_mm,offset_deg,status");
+  }
   motor_driver->rotate_field(sweep, field_velocity, [&]() {
     MT6835Encoder::AbsRawAngleType raw = encoder->read_abs_angle_raw();
     if ((step++ % decimation) != 0)
       return;
+    if (raw_rows) {
+      Serial.printf("D,%llu,%d,%.5f,%ld,%u\n", (unsigned long long)time_us_64(), dir,
+                    motor_driver->get_field_angle(), (long)encoder->get_last_chip_raw_angle(),
+                    (unsigned)encoder->get_status());
+      return;
+    }
     float pos = servo_controller->encoder_angle_to_motor_pos(raw);
     float r = remainderf(motor_driver->get_field_angle() - servo_controller->motor_pos_to_field_angle(pos),
                          Constants::TWO_PI_F);
     Serial.printf("%d,%.4f,%.2f,%u\n", dir, motor_pos_rad_to_mm(pos), r * Constants::RAD2DEG,
                   (unsigned)encoder->get_status());
   });
-  Serial.println("end");
+  if (raw_rows) {
+    Serial.printf("END,crc_errors=%lu\n", (unsigned long)encoder->get_crc_error_count(false));
+    encoder->set_crc_enabled(crc_was);
+  } else {
+    Serial.println("end");
+  }
 
   servo_controller->resync();
   publish_position();
