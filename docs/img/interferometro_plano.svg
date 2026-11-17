@@ -1,0 +1,359 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1200" width="1700" height="1200" font-family="DejaVu Sans, Arial, Helvetica, sans-serif">
+  <title>Interferómetro de Michelson homodino en cuadratura: esquema de montaje</title>
+  <defs>
+    <style>
+      .panel { fill: none; stroke: #9ca3af; stroke-width: 1.2; }
+      .ptitle { font-size: 15px; font-weight: bold; fill: #111827; }
+      .t { font-size: 11.5px; fill: #1f2937; }
+      .ts { font-size: 10px; fill: #4b5563; }
+      .tb { font-size: 12px; fill: #111827; font-weight: bold; }
+      .opt { fill: #dbeafe; stroke: #1e3a8a; }
+      .mnt { fill: #d1d5db; stroke: #4b5563; }
+      .det { fill: #fde68a; stroke: #92400e; }
+      .box { fill: #f3f4f6; stroke: #4b5563; stroke-width: 1; }
+      .ns { vector-effect: non-scaling-stroke; }
+      .ida { stroke: #16a34a; stroke-width: 2.2; fill: none; }
+      .vta { stroke: #16a34a; stroke-width: 2.2; fill: none; stroke-dasharray: 6 4; }
+      .rec { stroke: #0f766e; stroke-width: 3; fill: none; }
+      .lead { stroke: #6b7280; stroke-width: 0.8; fill: none; }
+      .dim { stroke: #374151; stroke-width: 1; fill: none; }
+    </style>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#374151"/>
+    </marker>
+    <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#9ca3af" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect x="0" y="0" width="1700" height="1200" fill="#ffffff"/>
+
+  <!-- ============================== encabezado -->
+  <text x="20" y="38" font-size="24" font-weight="bold" fill="#111827">Interferómetro de Michelson homodino en cuadratura</text>
+  <text x="20" y="62" font-size="14" fill="#374151">Esquema de montaje para medir el carro del eje μMachining · láser de diodo de 516 nm · detección por polarización con 4 fotodiodos</text>
+
+  <!-- ============================== A: vista general en planta -->
+  <rect class="panel" x="20" y="80" width="1660" height="250" rx="6"/>
+  <text class="ptitle" x="35" y="102">A · Vista general en planta (no a escala)</text>
+
+  <rect x="50" y="120" width="1450" height="195" fill="#eef1f4" stroke="#9ca3af"/>
+  <text class="ts" x="60" y="308">Granito de apoyo (cabezal y eje sobre la misma base)</text>
+
+  <rect class="mnt" x="66" y="165" width="124" height="110"/>
+  <text class="t" x="128" y="212" text-anchor="middle">Motor paso a paso</text>
+  <text class="t" x="128" y="228" text-anchor="middle">+ encoder MT6835</text>
+  <rect class="mnt" x="190" y="208" width="20" height="24"/>
+
+  <rect x="210" y="195" width="1000" height="50" fill="#e5e7eb" stroke="#6b7280"/>
+  <line x1="210" y1="220" x2="1210" y2="220" stroke="#6b7280" stroke-width="1" stroke-dasharray="12 4 2 4"/>
+  <text class="ts" x="220" y="258">guía de rodillos cruzados + husillo de bolas (paso 5 mm)</text>
+
+  <line class="dim" x1="610" y1="150" x2="1150" y2="150" marker-start="url(#ar)" marker-end="url(#ar)"/>
+  <text class="t" x="880" y="144" text-anchor="middle">recorrido del carro 0 … 255 mm</text>
+
+  <rect x="600" y="170" width="150" height="100" fill="#cbd5e1" stroke="#334155"/>
+  <text class="tb" x="640" y="190" text-anchor="middle">Carro</text>
+  <path d="M669,214 L681,226 M681,214 L669,226" stroke="#7c3aed" stroke-width="2"/>
+  <text class="ts" x="675" y="246" text-anchor="middle">punto de trabajo</text>
+
+  <rect class="mnt" x="750" y="205" width="22" height="30"/>
+  <circle cx="785" cy="220" r="13" class="opt"/>
+  <path d="M785,220 L785,207 M785,220 L796,226.5 M785,220 L774,226.5" stroke="#1e3a8a" stroke-width="1"/>
+  <text class="ts" x="785" y="190" text-anchor="middle">cubo de medición</text>
+
+  <line class="ida" x1="1290" y1="216" x2="798" y2="216"/>
+  <line class="vta" x1="798" y1="224" x2="1290" y2="224"/>
+
+  <circle cx="1050" cy="262" r="6" fill="#fef3c7" stroke="#92400e"/>
+  <text class="ts" x="1062" y="266">sensor de aire T, P, HR junto al haz</text>
+
+  <line class="dim" x1="785" y1="292" x2="1335" y2="292" marker-start="url(#ar)" marker-end="url(#ar)"/>
+  <text class="t" x="1060" y="287" text-anchor="middle">L = 50 … 310 mm  (diferencia de camino 2·(L − L_ref))</text>
+
+  <rect x="1290" y="160" width="190" height="120" fill="#ffffff" stroke="#111827" stroke-width="1.5"/>
+  <rect x="1325" y="207" width="26" height="26" class="opt"/>
+  <line x1="1325" y1="207" x2="1351" y2="233" stroke="#1e3a8a"/>
+  <text class="tb" x="1385" y="182" text-anchor="middle">Cabezal óptico</text>
+  <text class="ts" x="1410" y="262" text-anchor="middle">(detalle B)</text>
+
+  <line x1="1480" y1="220" x2="1530" y2="220" stroke="#111827" stroke-width="2"/>
+  <rect class="box" x="1530" y="170" width="135" height="100"/>
+  <text class="tb" x="1597" y="200" text-anchor="middle">Adquisición</text>
+  <text class="t" x="1597" y="220" text-anchor="middle">(detalle D)</text>
+  <text class="t" x="1597" y="245" text-anchor="middle">USB → PC</text>
+
+  <!-- ============================== B: cabezal óptico (coordenadas en mm, origen en el centro del divisor) -->
+  <rect class="panel" x="20" y="345" width="820" height="560" rx="6"/>
+  <text class="ptitle" x="35" y="367">B · Cabezal óptico, vista superior (a escala; medidas en mm)</text>
+
+  <g transform="translate(341,593) scale(3.5)">
+    <!-- caja -->
+    <rect x="-32" y="-58" width="124" height="118" fill="#f9fafb"/>
+    <path class="ns" d="M-32,-8 L-32,-58 L92,-58 L92,60 L-32,60 L-32,8" fill="none" stroke="#6b7280" stroke-width="2"/>
+    <text x="-30" y="57.5" font-size="2.6" fill="#6b7280">caja de aluminio, interior negro mate · ventana de salida a la izquierda</text>
+
+    <!-- láser -->
+    <rect class="mnt ns" x="72" y="-11" width="16" height="16"/>
+    <rect x="74" y="-11" width="12" height="2.2" fill="#ef4444"/>
+    <circle cx="85" cy="2" r="1.2" fill="#1f2937"/>
+    <rect x="70" y="-5" width="2" height="4" fill="#16a34a"/>
+    <ellipse class="opt ns" cx="66" cy="-3" rx="1.2" ry="4.5"/>
+    <line class="ns" x1="50" y1="-10" x2="50" y2="-5" stroke="#111827" stroke-width="2.5"/>
+    <line class="ns" x1="50" y1="-1" x2="50" y2="4" stroke="#111827" stroke-width="2.5"/>
+
+    <!-- divisor no polarizante 25,4 mm -->
+    <rect class="opt ns" x="-12.7" y="-12.7" width="25.4" height="25.4" stroke-width="1.2"/>
+    <line class="ns" x1="-12.7" y1="-12.7" x2="12.7" y2="12.7" stroke="#1e3a8a" stroke-width="1.2"/>
+
+    <!-- brazo de referencia -->
+    <rect class="ns" x="-9" y="-26" width="18" height="2" fill="#c7d2fe" stroke="#3730a3"/>
+    <rect class="mnt ns" x="-8" y="-56" width="16" height="4.5"/>
+    <circle class="opt ns" cx="0" cy="-45" r="6.35"/>
+    <path class="ns" d="M0,-45 L0,-51.35 M0,-45 L5.5,-41.8 M0,-45 L-5.5,-41.8" stroke="#1e3a8a" stroke-width="0.8"/>
+
+    <!-- brazo de medición: corte y cubo sobre el carro -->
+    <path class="ns" d="M-51,-9 L-53,-5 L-51,-1 L-53,3 L-51,7 M-56,-9 L-58,-5 L-56,-1 L-58,3 L-56,7" fill="none" stroke="#6b7280" stroke-width="1"/>
+    <rect class="mnt ns" x="-89" y="-7" width="3" height="14"/>
+    <circle class="opt ns" cx="-80" cy="0" r="6.35"/>
+    <path class="ns" d="M-80,0 L-86.35,0 M-80,0 L-76.8,5.5 M-80,0 L-76.8,-5.5" stroke="#1e3a8a" stroke-width="0.8"/>
+    <text x="-62" y="11" font-size="2.9" fill="#1f2937" text-anchor="middle">Cubo de esquina de medición</text>
+    <text x="-62" y="14.6" font-size="2.9" fill="#1f2937" text-anchor="middle">sobre el carro (ver C)</text>
+    <text x="-62" y="18.2" font-size="2.6" fill="#4b5563" text-anchor="middle">a L = 50 … 310 mm del divisor</text>
+
+    <!-- haces de ida -->
+    <path class="ida ns" d="M70,-3 L-51,-3 M-58,-3 L-73.65,-3"/>
+    <path class="ida ns" d="M-3,-3 L-3,-38.65"/>
+    <!-- haces de vuelta (desplazados 6 mm por los cubos) -->
+    <path class="vta ns" d="M-73.65,3 L-58,3 M-51,3 L3,3"/>
+    <path class="vta ns" d="M3,-38.65 L3,3"/>
+    <!-- haces recombinados: salida S (abajo) y salida E (hacia el láser, tomada por el espejo en D) -->
+    <path class="rec ns" d="M3,3 L3,44 M3,28 L-14,28"/>
+    <path class="rec ns" d="M3,3 L30,3 L30,44 M30,28 L47,28"/>
+
+    <text x="-30" y="-4.5" font-size="2.4" fill="#166534">ida</text>
+    <text x="-30" y="7.2" font-size="2.4" fill="#166534">vuelta</text>
+    <text x="5" y="19" font-size="2.4" fill="#0f766e">salida S</text>
+    <text x="16" y="1.5" font-size="2.4" fill="#0f766e">salida E</text>
+
+    <!-- espejo en D -->
+    <line class="ns" x1="27.6" y1="0.6" x2="32.4" y2="5.4" stroke="#111827" stroke-width="3"/>
+
+    <!-- divisores polarizantes 10 mm -->
+    <rect class="opt ns" x="-2" y="23" width="10" height="10"/>
+    <line class="ns" x1="-2" y1="33" x2="8" y2="23" stroke="#1e3a8a"/>
+    <rect class="opt ns" x="25" y="23" width="10" height="10"/>
+    <line class="ns" x1="25" y1="23" x2="35" y2="33" stroke="#1e3a8a"/>
+
+    <!-- fotodiodos -->
+    <rect class="det ns" x="1" y="44" width="4" height="3"/>
+    <rect class="det ns" x="-17" y="26" width="3" height="4"/>
+    <rect class="det ns" x="28" y="44" width="4" height="3"/>
+    <rect class="det ns" x="47" y="26" width="3" height="4"/>
+
+    <!-- rótulos a la derecha -->
+    <g font-size="2.9" fill="#1f2937">
+      <path class="lead ns" d="M88,-3 L95,-3"/>
+      <text x="96" y="-4">Diodo láser PLT5 516FA</text>
+      <text x="96" y="-0.3" font-size="2.6" fill="#4b5563">girado 45° · calefactor + NTC</text>
+      <path class="lead ns" d="M66,-7.5 L66,-17 L95,-17"/>
+      <text x="96" y="-16">Lente asférica colimadora</text>
+      <path class="lead ns" d="M50,-10 L50,-26 L95,-26"/>
+      <text x="96" y="-25">Diafragma (iris)</text>
+      <path class="lead ns" d="M32.5,5.5 L95,10"/>
+      <text x="96" y="11">Espejo en D (toma la salida E)</text>
+      <path class="lead ns" d="M35,24 L95,21"/>
+      <text x="96" y="22">Divisor polarizante 10 mm</text>
+      <path class="lead ns" d="M50,28 L95,30"/>
+      <text x="96" y="31">FD4 (s) → 1 + V·sen φ</text>
+      <path class="lead ns" d="M32,46 L95,46"/>
+      <text x="96" y="47">FD3 (p) → 1 − V·cos φ</text>
+    </g>
+    <!-- rótulos a la izquierda -->
+    <g font-size="2.9" fill="#1f2937" text-anchor="end">
+      <path class="lead ns" d="M-6.4,-46 L-35,-48"/>
+      <text x="-36" y="-49">Cubo de esquina</text>
+      <text x="-36" y="-45">de referencia (fijo)</text>
+      <path class="lead ns" d="M-9,-25 L-35,-27"/>
+      <text x="-36" y="-28">Lámina λ/8</text>
+      <text x="-36" y="-24.3" font-size="2.6" fill="#4b5563">ejes a 0° y 90°, doble pasada = λ/4</text>
+      <path class="lead ns" d="M-12.7,-9 L-35,-15"/>
+      <text x="-36" y="-16">Divisor no polarizante</text>
+      <text x="-36" y="-12.3" font-size="2.6" fill="#4b5563">50:50, cubo de 25,4 mm</text>
+      <path class="lead ns" d="M-2,25 L-35,24.5"/>
+      <text x="-36" y="25.5">Divisor polarizante 10 mm</text>
+      <path class="lead ns" d="M-17,28 L-35,30"/>
+      <text x="-36" y="31">FD2 (s) → 1 − V·sen φ</text>
+      <path class="lead ns" d="M1,45.5 L-35,45.5"/>
+      <text x="-36" y="46.5">FD1 (p) → 1 + V·cos φ</text>
+    </g>
+  </g>
+
+  <!-- leyenda y barra de escala de B -->
+  <line class="ida" x1="40" y1="848" x2="80" y2="848"/>
+  <text class="t" x="88" y="852">haz de ida</text>
+  <line class="vta" x1="180" y1="848" x2="220" y2="848"/>
+  <text class="t" x="228" y="852">haz de vuelta (desplazado 6 mm)</text>
+  <line class="rec" x1="450" y1="848" x2="490" y2="848"/>
+  <text class="t" x="498" y="852">haces superpuestos (interferencia)</text>
+  <line x1="40" y1="882" x2="110" y2="882" stroke="#111827" stroke-width="3"/>
+  <line x1="40" y1="876" x2="40" y2="888" stroke="#111827"/>
+  <line x1="75" y1="878" x2="75" y2="886" stroke="#111827"/>
+  <line x1="110" y1="876" x2="110" y2="888" stroke="#111827"/>
+  <text class="ts" x="40" y="900" text-anchor="middle">0</text>
+  <text class="ts" x="75" y="900" text-anchor="middle">10</text>
+  <text class="ts" x="110" y="900" text-anchor="middle">20 mm</text>
+  <text class="ts" x="150" y="886">Cubo de esquina con el vértice desplazado 3 mm del haz: devuelve el haz paralelo y corrido 6 mm, así no vuelve al diodo.</text>
+
+  <!-- ============================== C: elevación -->
+  <rect class="panel" x="860" y="345" width="820" height="295" rx="6"/>
+  <text class="ptitle" x="875" y="367">C · Elevación lateral: el haz a la altura del punto de trabajo</text>
+
+  <rect x="880" y="610" width="785" height="10" fill="url(#hatch)" stroke="#9ca3af"/>
+  <line x1="880" y1="610" x2="1665" y2="610" stroke="#374151" stroke-width="1.5"/>
+  <rect x="900" y="575" width="520" height="35" fill="#e5e7eb" stroke="#6b7280"/>
+  <line x1="900" y1="592" x2="1420" y2="592" stroke="#6b7280" stroke-dasharray="12 4 2 4"/>
+  <text class="ts" x="910" y="604">guía + husillo</text>
+
+  <rect x="1060" y="530" width="160" height="45" fill="#cbd5e1" stroke="#334155"/>
+  <text class="tb" x="1100" y="560" text-anchor="middle">Carro</text>
+  <rect x="1100" y="512" width="80" height="18" fill="#fef3c7" stroke="#92400e"/>
+  <text class="ts" x="1160" y="525" text-anchor="middle">pieza</text>
+  <line x1="1140" y1="392" x2="1140" y2="510" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#ar)"/>
+  <text class="t" x="1150" y="405">haz fs (1030 nm)</text>
+  <path d="M1134,506 L1146,518 M1146,506 L1134,518" stroke="#7c3aed" stroke-width="2"/>
+  <path d="M1070,548 A 18 18 0 0 1 1082,532" fill="none" stroke="#b91c1c" stroke-width="1.5" marker-end="url(#ar)"/>
+  <text class="ts" x="1050" y="548" fill="#b91c1c" text-anchor="end">ε cabeceo</text>
+
+  <rect class="mnt" x="1220" y="500" width="10" height="75"/>
+  <path d="M1232,512 L1262,496 L1262,528 Z" class="opt"/>
+  <text class="ts" x="1247" y="488" text-anchor="middle">cubo</text>
+
+  <line class="ida" x1="1480" y1="509" x2="1250" y2="509"/>
+  <line class="vta" x1="1250" y1="515" x2="1480" y2="515"/>
+  <text class="ts" x="1272" y="500">haz a la altura del punto de trabajo</text>
+
+  <line x1="1262" y1="565" x2="1480" y2="565" stroke="#b91c1c" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text class="ts" x="1272" y="542" fill="#b91c1c">✗ haz más abajo (d):</text>
+  <text class="ts" x="1272" y="556" fill="#b91c1c">error de Abbe e = d·ε</text>
+  <line class="dim" x1="1455" y1="515" x2="1455" y2="565" marker-start="url(#ar)" marker-end="url(#ar)"/>
+  <text class="t" x="1462" y="545">d</text>
+
+  <rect x="1480" y="470" width="170" height="140" fill="#ffffff" stroke="#111827" stroke-width="1.5"/>
+  <text class="tb" x="1565" y="545" text-anchor="middle">Cabezal (B)</text>
+  <text class="ts" x="1565" y="563" text-anchor="middle">sobre un suplemento</text>
+  <text class="ts" x="1565" y="577" text-anchor="middle">a la altura justa</text>
+
+  <text class="t" x="875" y="633">Ejemplo: d = 50 mm y ε = 20 µrad dan e = 1 µm. El cubo va en la línea del punto de trabajo en altura y de costado.</text>
+
+  <!-- ============================== D: electrónica -->
+  <rect class="panel" x="860" y="655" width="820" height="345" rx="6"/>
+  <text class="ptitle" x="875" y="677">D · Electrónica y procesamiento</text>
+
+  <g text-anchor="middle">
+    <rect class="box" x="875" y="692" width="145" height="92" rx="4"/>
+    <text class="tb" x="947" y="712">4 fotodiodos PIN</text>
+    <text class="t" x="947" y="730">SFH229 sin lente</text>
+    <text class="t" x="947" y="747">+ 4 amplificadores de</text>
+    <text class="t" x="947" y="764">transimpedancia</text>
+
+    <rect class="box" x="1033" y="692" width="145" height="92" rx="4"/>
+    <text class="tb" x="1105" y="712">Cuadratura</text>
+    <text class="t" x="1105" y="730">I = FD1 − FD3</text>
+    <text class="t" x="1105" y="747">Q = FD4 − FD2</text>
+    <text class="ts" x="1105" y="764">(restador o software)</text>
+
+    <rect class="box" x="1191" y="692" width="145" height="92" rx="4" stroke-width="2"/>
+    <text class="tb" x="1263" y="712">ADC simultáneo</text>
+    <text class="t" x="1263" y="730">12 bit, ≥ 100 kS/s</text>
+    <text class="ts" x="1263" y="747">ej. STM32G431</text>
+    <text class="ts" x="1263" y="764">(ADC1 + ADC2)</text>
+
+    <rect class="box" x="1349" y="692" width="145" height="92" rx="4"/>
+    <text class="tb" x="1421" y="712">Procesamiento</text>
+    <text class="t" x="1421" y="730">Heydemann → atan2</text>
+    <text class="t" x="1421" y="747">→ desenrollado</text>
+    <text class="t" x="1421" y="764">x = λ₀·φ / (4π·n)</text>
+
+    <rect class="box" x="1507" y="692" width="145" height="92" rx="4"/>
+    <text class="tb" x="1579" y="712">USB → PC</text>
+    <text class="t" x="1579" y="730">x(t) con marca</text>
+    <text class="t" x="1579" y="747">de tiempo</text>
+    <text class="t" x="1579" y="764">+ T, P, HR del aire</text>
+  </g>
+  <g class="dim">
+    <line x1="1020" y1="738" x2="1031" y2="738" marker-end="url(#ar)"/>
+    <line x1="1178" y1="738" x2="1189" y2="738" marker-end="url(#ar)"/>
+    <line x1="1336" y1="738" x2="1347" y2="738" marker-end="url(#ar)"/>
+    <line x1="1494" y1="738" x2="1505" y2="738" marker-end="url(#ar)"/>
+    <line x1="967" y1="815" x2="967" y2="802"/>
+    <line x1="1165" y1="815" x2="1165" y2="802"/>
+    <line x1="1363" y1="815" x2="1363" y2="802"/>
+    <line x1="1561" y1="815" x2="1561" y2="802"/>
+    <line x1="967" y1="802" x2="1561" y2="802"/>
+    <line x1="1263" y1="802" x2="1263" y2="786" marker-end="url(#ar)"/>
+  </g>
+
+  <g text-anchor="middle">
+    <rect class="box" x="875" y="815" width="185" height="80" rx="4"/>
+    <text class="tb" x="967" y="835">Fuente de corriente</text>
+    <text class="t" x="967" y="853">del diodo, ~36 mA</text>
+    <text class="ts" x="967" y="870">op-amp + transistor + R sensora</text>
+    <text class="ts" x="967" y="885">consigna desde un DAC</text>
+
+    <rect class="box" x="1073" y="815" width="185" height="80" rx="4"/>
+    <text class="tb" x="1165" y="835">Temperatura del diodo</text>
+    <text class="t" x="1165" y="853">NTC + calefactor PWM</text>
+    <text class="ts" x="1165" y="870">lazo PI, objetivo ±0,01 °C</text>
+    <text class="ts" x="1165" y="885">(evita saltos de modo)</text>
+
+    <rect class="box" x="1271" y="815" width="185" height="80" rx="4"/>
+    <text class="tb" x="1363" y="835">Sensor del aire</text>
+    <text class="t" x="1363" y="853">T, P, HR (ej. BME280)</text>
+    <text class="ts" x="1363" y="870">índice n por Edlén o Ciddor</text>
+    <text class="ts" x="1363" y="885">1 °C ≈ 0,9 ppm · 1 hPa ≈ 0,27 ppm</text>
+
+    <rect class="box" x="1469" y="815" width="185" height="80" rx="4"/>
+    <text class="tb" x="1561" y="835">Sincronismo con el eje</text>
+    <text class="t" x="1561" y="853">GPIO del RP2040</text>
+    <text class="ts" x="1561" y="870">disparo o marca de tiempo</text>
+    <text class="ts" x="1561" y="885">común con el encoder</text>
+  </g>
+
+  <rect x="875" y="910" width="779" height="78" rx="4" fill="#ffffff" stroke="#4b5563" stroke-dasharray="5 3"/>
+  <text class="tb" x="890" y="930">Alternativa sin ADC rápido</text>
+  <text class="t" x="890" y="948">Comparadores con histéresis sobre I y Q → contador de cuadratura en un PIO del RP2040 (1/4 de franja = 64,5 nm),</text>
+  <text class="t" x="890" y="965">más un ADC lento para interpolar dentro de la franja. Franjas: f = 2v/λ = 7,8 kHz a 2 mm/s y 39 kHz a 10 mm/s.</text>
+  <text class="t" x="890" y="982">Ancho de banda de los amplificadores ≥ 40 kHz, con f ≈ 1/(2π·Rf·Cf).</text>
+
+  <!-- ============================== notas -->
+  <rect class="panel" x="20" y="915" width="820" height="265" rx="6"/>
+  <text class="ptitle" x="35" y="937">Señales y notas de diseño</text>
+  <g class="t" font-size="12">
+    <text x="35" y="960">FD1 ∝ 1 + V·cos φ,  FD3 ∝ 1 − V·cos φ   →   I = FD1 − FD3 ∝ cos φ</text>
+    <text x="35" y="978">FD4 ∝ 1 + V·sen φ,  FD2 ∝ 1 − V·sen φ   →   Q = FD4 − FD2 ∝ sen φ</text>
+    <text x="35" y="996">φ = 4π·n·L / λ₀  ·  1 franja = λ/2 = 258 nm  ·  1 rad = 41 nm  ·  los signos dependen de la convención</text>
+    <text x="35" y="1022">1. Cubos de esquina con recubrimiento metálico, o huecos: la reflexión total interna cambia la polarización</text>
+    <text x="50" y="1038">y deforma la elipse I–Q. Lo mismo vale para el recubrimiento del divisor no polarizante.</text>
+    <text x="35" y="1056">2. Ningún haz vuelve al diodo: los retornos salen corridos 6 mm. Si hay saltos de modo, agregar un aislador óptico.</text>
+    <text x="35" y="1074">3. Brazo de referencia corto y L mínima chica: menos camino muerto y menos sensibilidad a la deriva de λ.</text>
+    <text x="35" y="1092">4. Cabezal y eje sobre el mismo granito. Tubo o fuelle sobre el haz contra corrientes de aire.</text>
+    <text x="35" y="1110">5. Medir λ₀ (espectrómetro calibrado o comparación con un HeNe) antes de hablar de exactitud.</text>
+    <text x="35" y="1128">6. Opcional: polarizador a 45° después del diafragma y polarizadores delante de cada fotodiodo.</text>
+    <text x="35" y="1154" fill="#b91c1c" font-weight="bold">Láser clase 3B (30 mW, 516 nm): anteojos con DO ≥ 3 a 516 nm, haz horizontal y debajo de la altura</text>
+    <text x="50" y="1170" fill="#b91c1c" font-weight="bold">de los ojos, sin relojes ni anillos cerca del haz.</text>
+  </g>
+
+  <!-- ============================== rótulo -->
+  <rect x="860" y="1010" width="820" height="170" fill="#ffffff" stroke="#111827" stroke-width="1.5"/>
+  <line x1="860" y1="1060" x2="1680" y2="1060" stroke="#111827"/>
+  <line x1="860" y1="1100" x2="1680" y2="1100" stroke="#111827"/>
+  <line x1="860" y1="1140" x2="1680" y2="1140" stroke="#111827"/>
+  <line x1="1270" y1="1140" x2="1270" y2="1180" stroke="#111827"/>
+  <line x1="1475" y1="1140" x2="1475" y2="1180" stroke="#111827"/>
+  <text x="875" y="1042" font-size="18" font-weight="bold" fill="#111827">Interferómetro de Michelson en cuadratura · esquema de montaje</text>
+  <text class="t" x="875" y="1085">Proyecto: eje lineal μMachining · Laboratorio 6 · Grupo 33 (Maresca, Meilán)</text>
+  <text class="t" x="875" y="1125">Basado en nmWave (0x23) · cuadratura por polarización (Downs y Raine, 1979) · corrección de Heydemann (1981)</text>
+  <text class="t" x="875" y="1165">Láser 516 nm · 1 franja = 258 nm</text>
+  <text class="t" x="1285" y="1165">Rev. A (propuesta)</text>
+  <text class="t" x="1490" y="1165">13/11/2026 · Hoja 1/1</text>
+</svg>
