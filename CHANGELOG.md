@@ -8,6 +8,7 @@ Git empieza el 16/10/2026. Lo anterior está reconstruido de los `docs/CAMBIOS_*
 
 | Desde | Versión | `POS_KP` | `POS_KI` | `VEL_KP` | `VEL_KI` | Factor de corriente | Lazo de velocidad |
 |---|---|---|---|---|---|---|---|
+| 17/11 | `INTI-VAMO-ARRIBA` (cople nuevo) | 120 | 0 | 0,09 | 30 (60 quieto) | 0,8 (lazo abierto 0,8) | V1 F1 + anti-cogging |
 | 06/11 | `prueba/acoplado-velocidad` | 60 | 100 | 0,12 | 54 | 0,6 | V1 F1 + anti-cogging |
 | 27/10 | `v2026-10-27` | 60 | 100 | 0,2 | 90 | 0,6 | V1 F1 + anti-cogging |
 | 20/10 | `v2026-10-20` | 60 | 100 | 0,2 | 90 | 0,6 | V1 F1 |
@@ -25,6 +26,27 @@ El factor de corriente 1,0 (con `VEL_KP` 0,12 y `VEL_KI` 54) se probó el 23/10 
 
 - **Identificación con chirp (`M60`).** Nunca se commiteó ni se probó en el banco. Al ordenar las ramas el 27/10 se guardó afuera del repo, en `~/Desktop/respaldo_ramas_2026-10-27/` (patch sobre `cc58abf` + archivos).
 - **Limpieza para publicación** (rama `limpieza/publicacion`, `de19ab6`, 20/10): se borró sin mergear el 27/10. Sacaba `docs/` y `mediciones/` del repo; se rehace cuando se decida publicar.
+
+## 17/11 — Cople nuevo: corriente 0,8, PID re-sintonizado y `VEL_KI` según velocidad (`INTI-VAMO-ARRIBA`)
+
+Grabado y probado en el banco (SHA-256 del `.uf2`: `e7dcb53d…`). Detalle en [mediciones/2026-11-17/RESULTADOS.md](mediciones/2026-11-17/RESULTADOS.md).
+
+- **Diagnóstico.** El cople nuevo mete un punto duro una vez por vuelta (cada 5 mm), donde el lazo cerrado necesitaba más que el tope de la salida (81°). El cople además **patina**: los puntos duros se corrieron ~2,2 mm durante el día, y a la mañana el cero estaba corrido ~13 mm. Hay que arreglarlo mecánicamente.
+- `MOTOR_MAX_CURRENT_FACTOR` 0,6 → **0,8**. Los puntos duros a 2 mm/s pasan con 6–7 µm de error (antes ~90 µm).
+- `OPEN_LOOP_CURRENT` = 0,8 (nuevo) para el homing y los barridos de calibración: con 0,6, `M56` se trababa en los puntos duros.
+- PID: `POS_KP` 60 → 120 y `POS_KI` 100 → 0. Con la integral de posición, el carro "cazaba" en reposo después de mover (onda cuadrada de ~0,5 Hz, 0,7 µm p-p); ahora 0,03–0,26 µm.
+- `VEL_KP` 0,12 → 0,09 y `VEL_KI` 54 → 30: son los 0,12 / 40 elegidos con 0,6, escalados ×0,75 por la corriente.
+- **`VEL_KI` según velocidad** (`VEL_KI_HOLD` 60 por debajo de `VEL_KI_HOLD_SPEED_MM_S` 0,5 mm/s; `M55 H<ki> V<mm/s>`, `H0` lo desactiva). Una integral rápida despega antes el carro de la fricción estática en pasos chicos, pero en movimiento oscila. Con 0,6, 100 nm se asentaban en ~145 ms en vez de ~280 ms. El cambio es sin salto (`PIDController::set_ki`).
+- `M56`: si el reaprendizaje anti-cogging se corta, el carro vuelve a 0 y el objetivo queda donde está el carro. Antes quedaba a mitad del stage con el objetivo en 0, y el `G1` siguiente "volvía solo". La interfaz avisa el corte en ámbar.
+- `tools/pid_sweep.py --start`: punta cercana distinta de 0.
+- Queda: el reposo a 30 mm es de 3–5 nm (modo de ~130 Hz, más grande que con 0,6), y los pasos de 1 µm saltan 3–4 µm durante 10–20 ms al despegar (torsión del cople). No correr `M56` con anti-cogging hasta arreglar el cople: usar `M56 A0`.
+
+## 17/11 — Pestaña «Encoder» en la interfaz: barrido de 2 vueltas con el firmware real (`INTI-VAMO-ARRIBA`)
+
+- `M57 … R1`: el barrido en lazo abierto imprime el ángulo crudo del MT6835 y el campo comandado (`D,t_us,sentido,campo,crudo,estado`, con `META` y `END`). Es el formato del firmware de barrido (`G56`, `variantes_main/main_barrido_encoder.cpp`), que ya no hace falta grabar. El `META` trae `field_zero`, así que los imanes se cuentan desde el home. Sin `R1`, `M57` sigue igual.
+- `tools/interfaz.py`: pestañas **Control** (lo de antes) y **Encoder**. La pestaña Encoder corre ida y vuelta, grafica en vivo, guarda `encoder_sweep_*.csv` y rehabilita el lazo con `M17`. También abre mediciones viejas y exporta los PNG con los scripts. Guía: [docs/GUIA_INTERFAZ.md](docs/GUIA_INTERFAZ.md#7-pestaña-encoder-barrido-de-2-vueltas).
+- `tools/encoder_analysis.py`: las cuentas de `encoder_sweep.py` (que ahora las importa de ahí) y las ventanas de `plot_periods.py`. Sobre `mediciones/2026-10-13/encoder_sweep_20261013_153220.csv` da los mismos números que los dos scripts.
+- Validado: compila. La interfaz se probó con una placa simulada que devuelve las muestras del 13/10. **Falta probarla en el banco**, con el firmware grabado.
 
 ## 06/11 — `VEL_KP` 0,2 → 0,12 y `VEL_KI` 90 → 54 con el motor reacoplado (`prueba/acoplado-velocidad`)
 

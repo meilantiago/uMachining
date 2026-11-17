@@ -76,7 +76,37 @@ d = pd.read_csv("mediciones/.../interfaz_....csv", comment="#")
 
 Abajo a la izquierda se puede escribir cualquier comando del firmware (ver la tabla del [README](../README.md#comandos)) y apretar Enter. Las flechas ↑ ↓ recorren los comandos anteriores. Ahí también aparecen los mensajes de la placa. Los botones **Estado** (M119), **Anti-cogging** (M59) y **Traza corte** (M121) son atajos.
 
-## 7. Si algo sale mal
+## 7. Pestaña Encoder: barrido de 2 vueltas
+
+Sirve para ver si la rueda de imanes y el sensor están bien puestos y si la lectura del encoder es pareja a lo largo de las vueltas. Hace lo mismo que `tools/encoder_sweep.py` y `tools/plot_periods.py`, pero con el **firmware real**: no hace falta grabar el `main.cpp` de barrido.
+
+**Correr un barrido**
+
+1. El eje tiene que estar calibrado (**Calibrar e iniciar**). El barrido usa la posición para no salirse del recorrido.
+2. En la pestaña **Encoder**, elegir el **Recorrido** y la **Velocidad**. Por defecto son 2 vueltas a 1,25 mm/s (0,25 vueltas/s), lo mismo que el firmware de barrido de octubre. Así las mediciones se pueden comparar.
+3. Apretar **Correr barrido** y confirmar. El motor gira en **lazo abierto** (`M57 X10 F1.25 P2 R1`) y vuelve (`M57 X-10 …`). Si no hay lugar hacia adelante, va primero hacia atrás. Tarda unos 20 s y los gráficos se van llenando mientras corre.
+4. Al terminar, la interfaz rehabilita el lazo (`M17`) donde quedó el carro y guarda `mediciones/AAAA-MM-DD/encoder_sweep_<fecha>_<hora>.csv`. Es el mismo formato de siempre: `plot_periods.py` y `encoder_sweep.py --from-csv` lo leen igual.
+
+> Mientras barre, la placa no atiende otros comandos, ni siquiera **Apagar motor** (igual que al calibrar).
+
+**Qué se ve**
+
+- **Resultado** (a la izquierda) resume si la lectura está bien:
+  - **Períodos por vuelta**: tiene que dar 30,00. Si no da, se perdieron períodos o el motor patinó.
+  - **Saltos**: tiene que dar 0. Cuenta las muestras seguidas cuyo paso difiere en más de 45° del esperado.
+  - **Campo débil** y los bits del chip.
+  - **Error contra la recta ideal**, en ida y en vuelta.
+- **A lo largo del barrido**: el ángulo crudo y el error a lo largo de las vueltas. Las líneas punteadas marcan cada vuelta del motor. Los saltos se marcan con ✕.
+- **Ventanas de 2 períodos**: lo de `plot_periods.py`. Arriba, el error RMS y el % de campo débil de cada ventana de 4 imanes. Abajo, la ventana elegida, ida y vuelta, con las pasadas superpuestas. Si una deformación aparece igual en las dos pasadas, es propia de esa zona de la rueda. Para cambiar de ventana: ← →, ◀ ▶ o un clic en las barras.
+- **Por fase e imán** y **Saltos y estado**: el resto de los gráficos de `encoder_sweep.py`.
+
+**Mediciones guardadas** lista los barridos de `mediciones/`, también los de octubre hechos con `G56`, para abrirlos sin placa. **Exportar PNG** corre los dos scripts sobre la medición elegida y deja los PNG de siempre junto al CSV.
+
+En los barridos de la interfaz, los imanes se cuentan **desde el home** (0 mm). Eso permite comparar corridas entre sí. En los de `G56`, el imán 0 es el que estaba frente al sensor al empezar.
+
+El error incluye el atraso del rotor en lazo abierto. En un punto duro del cople (ver `mediciones/2026-11-17/`), el motor puede patinar y aparecer como salto. Para distinguirlo de un problema del encoder, ver si el salto cae en el mismo lugar en ida y en vuelta.
+
+## 8. Si algo sale mal
 
 | Qué se ve | Qué hacer |
 |---|---|
@@ -87,13 +117,14 @@ Abajo a la izquierda se puede escribir cualquier comando del firmware (ver la ta
 | Aviso **El lazo está apagado** | Se apagó el motor: **Habilitar lazo**. |
 | Los botones de mover están grises | Falta alguno de los pasos de arriba: la barra de abajo dice cuál. |
 | **sin telemetría** abajo a la derecha | Es normal mientras calibra. Si sigue después, desconectar y volver a conectar. |
+| **Barrido del encoder: la placa respondió ok pero sin muestras** | El firmware grabado es anterior al 17/11 y no tiene `M57 … R1`. Grabar el firmware nuevo (`pio run -t upload`). |
 | **3 % perdidos** abajo a la derecha | Es normal: el firmware descarta un punto suelto cuando el otro núcleo está ocupado. No afecta el control. |
 
 ## Teclado
 
 | Tecla | Acción |
 |---|---|
-| ← → | Un paso para atrás o para adelante |
+| ← → | Un paso para atrás o para adelante (en la pestaña Encoder: ventana anterior o siguiente) |
 | Espacio | Detener |
 | Esc | Apagar el motor |
 | Enter (en Destino) | Ir |

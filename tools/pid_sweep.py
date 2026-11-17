@@ -153,7 +153,7 @@ def back_to_base(link, base, args, why):
     link.command("M17", echo=False)
     wait_rows(link, 0.5)
     link.current_leg = -2
-    T.run_move(link, 0.0, args.feed, args.settle, "retorno al 0 con la base")
+    T.run_move(link, args.start, args.feed, args.settle, "retorno a la punta cercana con la base")
 
 
 def save_config(out_dir, cfg, base, rows, legs, meta_common, legs_meta, status):
@@ -168,7 +168,7 @@ def save_config(out_dir, cfg, base, rows, legs, meta_common, legs_meta, status):
 
 def sweep(args, configs, base, out_dir):
     link = T.Link(args.port, args.baud)
-    meta_common = {"fecha": datetime.datetime.now().isoformat(timespec="seconds"), "end_mm": args.end,
+    meta_common = {"fecha": datetime.datetime.now().isoformat(timespec="seconds"), "end_mm": args.end, "start_mm": args.start,
                    "cycles": args.cycles, "feed_mm_s": args.feed, "decimation": args.decimation}
     log = {"configs": [], "base": base}
     try:
@@ -186,8 +186,8 @@ def sweep(args, configs, base, out_dir):
         link.command(f"M120 S1 P{args.decimation}")
         wait_rows(link, 0.5)
         link.current_leg = -2
-        if abs(link.rows[-1][2]) > 0.01:
-            T.run_move(link, 0.0, args.feed, args.settle, "aproximacion")
+        if abs(link.rows[-1][2] - args.start) > 0.01:
+            T.run_move(link, args.start, args.feed, args.settle, "aproximacion")
 
         for i, cfg in enumerate(configs):
             p = cfg["params"]
@@ -207,7 +207,7 @@ def sweep(args, configs, base, out_dir):
             else:
                 dests = []
                 for c in range(args.cycles):
-                    dests += [(args.end, +1, c), (0.0, -1, c)]
+                    dests += [(args.end, +1, c), (args.start, -1, c)]
                 for k, (dest, dsign, c) in enumerate(dests):
                     link.current_leg = k
                     name = f"{'ida' if dsign > 0 else 'vuelta'} {c + 1}"
@@ -323,7 +323,7 @@ def write_summary(runs, out_dir):
         for meta, d, m in runs:
             w.writerow([meta["config"], meta["cambio"], meta["estado"]] + [meta["pid"][k] for k in PARAMS] +
                        [f"{m[k]:.3f}" for k, _ in METRICS])
-    lines = [f"Barrido de PID {runs[0][0]['fecha']}: 0 -> {runs[0][0]['end_mm']:g} mm, {runs[0][0]['cycles']} ciclo(s), "
+    lines = [f"Barrido de PID {runs[0][0]['fecha']}: {runs[0][0].get('start_mm', 0):g} -> {runs[0][0]['end_mm']:g} mm, {runs[0][0]['cycles']} ciclo(s), "
              f"{runs[0][0]['feed_mm_s']:g} mm/s, {runs[0][0].get('m58', '')}",
              "base: " + ", ".join(f"{k}={runs[0][0]['pid_base'][k]:g}" for k in PARAMS), "",
              f"{'config':14s} {'cambio':26s} {'estado':22s} {'rms':>6s} {'max':>6s} {'const':>6s} {'imán':>5s} "
@@ -607,6 +607,8 @@ def main():
     ap.add_argument("--no-base", action="store_true", help="con --config, no agregar la base al principio y al final")
     ap.add_argument("--list", action="store_true", help="mostrar las configuraciones y salir")
     ap.add_argument("--end", type=float, default=255.0, help="punta lejana [mm]")
+    ap.add_argument("--start", type=float, default=0.0,
+                    help="punta cercana [mm]; >0 para no medir pegado al tope de 0")
     ap.add_argument("--cycles", type=int, default=1, help="idas y vueltas por configuracion")
     ap.add_argument("--feed", type=float, default=2.0, help="velocidad [mm/s]")
     ap.add_argument("--decimation", type=int, default=2, help="M120 P: 2 = 1 kHz")
@@ -634,7 +636,7 @@ def main():
     if len(set(names)) != len(names):
         raise SystemExit("hay nombres de configuracion repetidos")
 
-    per_cfg_s = args.cycles * 2 * (args.end / args.feed + 2.5) + 3
+    per_cfg_s = args.cycles * 2 * ((args.end - args.start) / args.feed + 2.5) + 3
     print("base (src/hw_config.h): " + ", ".join(f"{k}={base[k]:g}" for k in PARAMS))
     for c in configs:
         print(f"  {c['name']:14s} {describe(c, base):30s} {m55(c['params'])}")

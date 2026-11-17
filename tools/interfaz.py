@@ -8,7 +8,9 @@ Guía de uso: docs/GUIA_INTERFAZ.md. Cerrar antes cualquier otro programa que te
 puerto abierto (monitor serie de PlatformIO, otros scripts de tools/).
 
 No cambia nada del firmware: manda los mismos comandos G-code que se escriben a mano y
-prende la telemetría binaria (M120). Protocolo (ver src/command_processor.cpp y
+prende la telemetría binaria (M120). La pestaña «Encoder» corre el barrido de caracterización
+del encoder con M57 … R1 (firmware del 17/11/2026 en adelante) y lo grafica como
+tools/encoder_sweep.py y tools/plot_periods.py. Protocolo (ver src/command_processor.cpp y
 src/shared_data.h): una respuesta por comando, terminada en "ok" o "error: ...", con los
 paquetes de telemetría mezclados en el mismo puerto: 0xAA 0x56 + 28 bytes little endian
     uint32 t_us, int32 target [0,25 nm], int32 pos [0,25 nm], float vel [rad/s], float out [rad],
@@ -51,6 +53,9 @@ from PyQt5 import QtCore, QtGui, QtWidgets  # noqa: E402
 from PyQt5.QtCore import Qt  # noqa: E402
 import pyqtgraph as pg  # noqa: E402
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import encoder_analysis as ea  # noqa: E402
+
 # --- montaje y firmware (ver src/hw_config.h) ---
 BAUD = 921600
 PITCH_MM = 5.0                 # husillo: mm por vuelta de motor
@@ -75,7 +80,15 @@ STATUS_BITS = {0x01: "sobrevelocidad", 0x02: "campo débil", 0x04: "subtensión"
 LOG_PREFIXES = ("I)", "W)", "E)", "D)")
 # comandos que bloquean el firmware un buen rato (el resto responde en milisegundos)
 LONG_TIMEOUTS = {"M56": 900.0, "G28": 240.0, "M57": 300.0, "M121": 30.0}
-LONG_LABELS = {"M56": "Calibrando (M56)", "G28": "Homing (G28)", "M57": "Barrido de conmutación (M57)"}
+LONG_LABELS = {"M56": "Calibrando (M56)", "G28": "Homing (G28)", "M57": "Barrido en lazo abierto (M57)"}
+
+# --- barrido del encoder (pestaña Encoder, ver tools/encoder_analysis.py) ---
+MOTOR_POLE_PAIRS = 50          # si el META del barrido no lo trae
+WHEEL_MAGNETS = 60             # rueda de imanes: 60 imanes = 30 períodos del encoder por vuelta
+WHEEL_PITCH_MM = 3.0           # paso entre imanes de la rueda
+SWEEP_REVS_DEFAULT = 2         # vueltas de motor por sentido, como el firmware de barrido (G56)
+SWEEP_SPEED_DEFAULT = 1.25     # mm/s de carro = 0,25 vueltas/s, también como G56
+SWEEP_DECIMATION = 2           # M57 lee el encoder cada ~0,5 ms: una muestra por ms
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -90,6 +103,11 @@ ORANGE = "#eb6834"
 RED = "#d03b3b"
 GREEN = "#2e9e5b"
 AMBER = "#d99a1e"
+PASS_COLORS = (BLUE, GREEN, "#7a5cc7", INK2)   # pasada 1, 2, ... en las ventanas de 2 períodos
+# referencias de color en los títulos de la pestaña Encoder (los puntos de 2 px no se ven en una leyenda)
+KEY_DIRS = f"<span style='color:{BLUE}'>■</span> ida &nbsp;<span style='color:{ORANGE}'>■</span> vuelta"
+KEY_WEAK = f" &nbsp;<span style='color:{RED}'>✕</span> campo débil"
+KEY_JUMP = f" &nbsp;<span style='color:{RED}'>✕</span> salto (&gt; 45° entre muestras)"
 
 
 def clamp(x, lo, hi):
@@ -597,7 +615,8 @@ class GcodeLine(QtWidgets.QLineEdit):
 
 class KeyFilter(QtCore.QObject):
     """Atajos: ←/→ un paso, ↑/↓ paso ×10 / ÷10, Espacio detener, Esc apagar el motor. Las flechas y el espacio no
-    se toman mientras se escribe en un campo de texto o número."""
+    se toman mientras se escribe en un campo de texto o número. En la pestaña Encoder, ←/→ cambian de ventana
+    (Esc sigue apagando el motor)."""
 
     def __init__(self, win):
         super().__init__()
@@ -614,6 +633,12 @@ class KeyFilter(QtCore.QObject):
             return True
         if isinstance(QtWidgets.QApplication.focusWidget(), (QtWidgets.QLineEdit, QtWidgets.QAbstractSpinBox)):
             return False
+        if self.win.tabs.currentWidget() is self.win.enc_tab:
+            # en la pestaña Encoder las flechas recorren las ventanas, no mueven el carro
+            if key in (Qt.Key_Left, Qt.Key_Right):
+                self.win.enc_tab.step_window(+1 if key == Qt.Key_Right else -1)
+                return True
+            return False
         if key in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Space):
             if not ev.isAutoRepeat():
                 if key == Qt.Key_Space:
@@ -625,6 +650,841 @@ class KeyFilter(QtCore.QObject):
             self.win.step_scale(+1 if key == Qt.Key_Up else -1)
             return True
         return False
+
+
+# ======================================================================================
+# Pestaña «Encoder»: barrido de caracterización (encoder_sweep.py + plot_periods.py)
+# ======================================================================================
+
+def _sweep_csvs():
+    """CSV de barridos guardados en mediciones/, el más nuevo primero."""
+    files = glob.glob(os.path.join(REPO, "mediciones", "*", "encoder_sweep_*.csv"))
+    return sorted(files, key=lambda p: os.path.basename(p), reverse=True)
+
+
+def _sweep_label(path):
+    name = os.path.splitext(os.path.basename(path))[0]
+    try:
+        ts = datetime.datetime.strptime(name.replace("encoder_sweep_", ""), "%Y%m%d_%H%M%S")
+        return f"{ts:%d/%m/%Y  %H:%M:%S}"
+    except ValueError:
+        return name
+
+
+def _pass_index(T):
+    """Número de pasada (0, 1, ...) dentro de cada sentido, contado desde donde arranca ese sentido."""
+    p = np.zeros(len(T["dir"]), int)
+    for s in (+1, -1):
+        m = T["dir"] == s
+        if m.any():
+            md = T["motor_deg"][m]
+            n = max(1, int(round(np.ptp(md) / 360.0)))
+            p[m] = np.minimum(np.floor(np.abs(md - md[0]) / 360.0 + 1e-9).astype(int), n - 1)
+    return p
+
+
+class EncoderTab(QtWidgets.QWidget):
+    """Corre el barrido en lazo abierto con el firmware real (M57 R1: ida y vuelta, N vueltas de
+    motor) y muestra lo mismo que tools/encoder_sweep.py y tools/plot_periods.py, con zoom."""
+
+    BUSY_LABEL = "Barrido del encoder (M57 R1)"
+
+    def __init__(self, win):
+        super().__init__()
+        self.win = win
+        self.proc = None               # QProcess de «Exportar PNG»
+        self.table = None              # columnas de ea.COLS
+        self.T = None
+        self.stats = None
+        self.windows = None
+        self.cur_win = 0
+        self.from_home = False         # motor_deg cuenta desde el 0 del eje (M57) o desde el inicio (G56)
+        self.path = None
+        # barrido en curso
+        self.running = False
+        self.legs = []
+        self.leg_i = 0
+        self._cmd = None
+        self._seen = 0
+        self.rows = []
+        self.meta = {}
+        self.leg_field0 = None
+        self._live_dirty = False
+        self._pending_select = None
+
+        self._build()
+        self.refresh_list()
+        self.live_timer = QtCore.QTimer(self, timeout=self._tick_live)
+        self.live_timer.start(250)
+
+    # --- UI ---------------------------------------------------------------------------
+    def _build(self):
+        lay = QtWidgets.QHBoxLayout(self)
+        lay.setContentsMargins(0, 4, 0, 0)
+        lay.setSpacing(8)
+
+        left = QtWidgets.QWidget()
+        ll = QtWidgets.QVBoxLayout(left)
+        ll.setContentsMargins(0, 0, 4, 0)
+        ll.setSpacing(8)
+
+        box, b = self.win._group("Barrido del encoder")
+        intro = QtWidgets.QLabel(
+            "Gira el motor en <b>lazo abierto</b>, ida y vuelta, y registra el ángulo crudo del MT6835 "
+            "contra el campo comandado (<code>M57 … R1</code>): ¿la rueda y el sensor están bien puestos?")
+        intro.setWordWrap(True)
+        intro.setStyleSheet(f"color:{INK2}; font-weight:400")
+        b.addWidget(intro)
+        form = QtWidgets.QGridLayout()
+        form.setHorizontalSpacing(8)
+        self.spin_revs = QtWidgets.QSpinBox()
+        self.spin_revs.setRange(1, 4)
+        self.spin_revs.setValue(SWEEP_REVS_DEFAULT)
+        self.spin_revs.setSuffix(" vueltas")
+        self.spin_revs.setToolTip(f"Vueltas de motor en cada sentido (1 vuelta = {PITCH_MM:g} mm de carro)")
+        self.spin_sweep_speed = SpinBox(0.25, 2.0, 2, 0.25, " mm/s")
+        self.spin_sweep_speed.setValue(SWEEP_SPEED_DEFAULT)
+        self.spin_sweep_speed.setToolTip("Velocidad del campo. 1,25 mm/s = 0,25 vueltas/s, la del firmware de\n"
+                                         "barrido (G56): así se compara con las mediciones de octubre.\n"
+                                         "M57 no acepta más de 2 mm/s.")
+        form.addWidget(QtWidgets.QLabel("Recorrido"), 0, 0)
+        form.addWidget(self.spin_revs, 0, 1)
+        form.addWidget(QtWidgets.QLabel("Velocidad"), 1, 0)
+        form.addWidget(self.spin_sweep_speed, 1, 1)
+        form.setColumnStretch(1, 1)
+        b.addLayout(form)
+        self.btn_run = QtWidgets.QPushButton("▶  Correr barrido")
+        self.btn_run.setObjectName("primary")
+        self.btn_run.clicked.connect(self.start)
+        b.addWidget(self.btn_run)
+        self.progress = QtWidgets.QProgressBar()
+        self.progress.setRange(0, 1000)
+        self.progress.setTextVisible(False)
+        self.progress.setFixedHeight(10)
+        self.lbl_run = QtWidgets.QLabel()
+        self.lbl_run.setWordWrap(True)
+        self.lbl_run.setStyleSheet(f"color:{MUTED}; font-weight:400")
+        b.addWidget(self.progress)
+        b.addWidget(self.lbl_run)
+        ll.addWidget(box)
+
+        box, b = self.win._group("Mediciones guardadas")
+        self.list = QtWidgets.QListWidget()
+        self.list.setMaximumHeight(110)
+        self.list.setToolTip("mediciones/AAAA-MM-DD/encoder_sweep_*.csv — clic para verla")
+        self.list.currentItemChanged.connect(self._list_picked)
+        b.addWidget(self.list)
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(4)
+        btn_open = QtWidgets.QPushButton("Abrir CSV…", objectName="seg")
+        btn_open.clicked.connect(self.open_dialog)
+        btn_ref = QtWidgets.QPushButton("↻", objectName="seg", toolTip="Volver a buscar en mediciones/")
+        btn_ref.clicked.connect(lambda: self.refresh_list())
+        self.btn_png = QtWidgets.QPushButton("Exportar PNG", objectName="seg")
+        self.btn_png.setToolTip("Corre tools/encoder_sweep.py --from-csv y tools/plot_periods.py sobre esta\n"
+                                "medición: deja los PNG de siempre junto al CSV (para el informe).")
+        self.btn_png.clicked.connect(self.export_png)
+        row.addWidget(btn_open)
+        row.addWidget(btn_ref)
+        row.addStretch(1)
+        row.addWidget(self.btn_png)
+        b.addLayout(row)
+        ll.addWidget(box)
+
+        box, b = self.win._group("Resultado")
+        self.lbl_src = QtWidgets.QLabel("Correr un barrido o elegir una medición guardada.")
+        self.lbl_src.setWordWrap(True)
+        self.lbl_src.setStyleSheet(f"color:{MUTED}; font-weight:400")
+        b.addWidget(self.lbl_src)
+        self.lbl_verdict = QtWidgets.QLabel()
+        self.lbl_verdict.setWordWrap(True)
+        self.lbl_verdict.hide()
+        b.addWidget(self.lbl_verdict)
+        grid = QtWidgets.QGridLayout()
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(5)
+        self.res = {}
+        for i, (key, title, tip) in enumerate((
+                ("ppr", "Períodos por vuelta", "Pendiente del ángulo desenrollado contra la posición comandada (ida).\n"
+                                               "Con 60 imanes tiene que dar 30,00: si no, la lectura se\n"
+                                               "corrió (se perdieron períodos) o el motor patinó."),
+                ("jumps", "Saltos", "Muestras seguidas cuyo paso difiere en más de 45° del esperado"),
+                ("weak", "Campo débil", "Muestras con el bit de campo débil del MT6835"),
+                ("ida", "Error ida", "Ángulo medido menos la recta ideal, en grados de encoder (1 período =\n"
+                                     "360°). Incluye el atraso del rotor en lazo abierto. Entre paréntesis,\n"
+                                     "en grados de eje (÷ 30)."),
+                ("vuelta", "Error vuelta", "Igual que la ida, en el sentido contrario"),
+                ("bits", "Sobrevel. / CRC / subt.", "Bits de estado del chip: sobrevelocidad, error de CRC, subtensión"),
+                ("n", "Muestras", "Cantidad, duración y vueltas recorridas"))):
+            t = QtWidgets.QLabel(title)
+            t.setStyleSheet(f"color:{INK2}; font-weight:400")
+            t.setToolTip(tip)
+            v = QtWidgets.QLabel("—")
+            v.setObjectName("resValue")
+            v.setToolTip(tip)
+            v.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            v.setWordWrap(True)
+            grid.addWidget(t, i, 0)
+            grid.addWidget(v, i, 1)
+            self.res[key] = v
+        grid.setColumnStretch(1, 1)
+        b.addLayout(grid)
+        ll.addWidget(box)
+        ll.addStretch(1)
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidget(left)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setFixedWidth(410)
+        scroll.setStyleSheet(f"QScrollArea, QScrollArea > QWidget > QWidget {{ background: {SURFACE}; }}")
+        lay.addWidget(scroll)
+
+        self.sub = QtWidgets.QTabWidget()
+        self.sub.addTab(self._build_sweep_plots(), "A lo largo del barrido")
+        self.sub.addTab(self._build_window_plots(), "Ventanas de 2 períodos")
+        self.sub.addTab(self._build_phase_plots(), "Por fase e imán")
+        self.sub.addTab(self._build_status_plots(), "Saltos y estado")
+        lay.addWidget(self.sub, 1)
+
+    def _plot(self, glw, row, col, title, xlabel, ylabel, **kw):
+        p = glw.addPlot(row=row, col=col, **kw)
+        MainWindow._set_title(p, title)
+        p.setLabel("bottom", xlabel)
+        p.setLabel("left", ylabel)
+        p.showGrid(x=True, y=True, alpha=0.25)
+        font = QtGui.QFont()
+        font.setPointSize(8)
+        for ax in ("left", "bottom"):
+            p.getAxis(ax).setTickFont(font)
+            p.getAxis(ax).enableAutoSIPrefix(False)
+        p.getAxis("left").setWidth(52)
+        return p
+
+    @staticmethod
+    def _legend(p):
+        """Leyenda con fondo, para que se lea encima de los puntos."""
+        return p.addLegend(offset=(8, 4), labelTextColor=INK2, brush=pg.mkBrush(255, 255, 255, 225),
+                           pen=pg.mkPen(GRID), verSpacing=-4)
+
+    @staticmethod
+    def _dots(p, color, size=2, name=None, symbol="o", alpha=255):
+        c = QtGui.QColor(color)
+        c.setAlpha(alpha)
+        return p.plot([], [], pen=None, symbol=symbol, symbolSize=size, symbolPen=None if symbol == "o" else
+                      pg.mkPen(color, width=1.2), symbolBrush=c, name=name)
+
+    def _build_sweep_plots(self):
+        w = QtWidgets.QWidget()
+        lay = QtWidgets.QVBoxLayout(w)
+        lay.setContentsMargins(4, 4, 4, 4)
+        hint = QtWidgets.QLabel("Rueda para zoom en x, arrastrar para desplazar, doble clic para ver todo. "
+                                "El diente de sierra tiene que ser parejo: 30 períodos por vuelta, sin escalones.")
+        hint.setStyleSheet(f"color:{MUTED}; font-weight:400")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+        glw = pg.GraphicsLayoutWidget()
+        glw.ci.setSpacing(6)
+        self.p_ang = self._plot(glw, 0, 0, "Ángulo crudo del encoder", "", "° encoder")
+        self.p_errx = self._plot(glw, 1, 0, "Error contra la recta ideal",
+                                 "posición del motor [vueltas]", "° encoder")
+        self.p_errx.setXLink(self.p_ang)
+        for p in (self.p_ang, self.p_errx):
+            p.setMouseEnabled(x=True, y=False)
+        MainWindow._set_title(self.p_errx, "Error contra la recta ideal", KEY_DIRS + KEY_JUMP)
+        self.p_ang.setYRange(-185, 185, padding=0)
+        self.c_ang = [self._dots(self.p_ang, BLUE, name="ida"), self._dots(self.p_ang, ORANGE, name="vuelta"),
+                      self._dots(self.p_ang, RED, 5, "campo débil", "x")]
+        self.p_errx.addLine(y=0, pen=pg.mkPen(GRID, width=1))
+        self.c_errx = [self._dots(self.p_errx, BLUE, name="ida"), self._dots(self.p_errx, ORANGE, name="vuelta"),
+                       self._dots(self.p_errx, RED, 9, "salto (> 45° entre muestras)", "x")]
+        self.rev_lines = []
+        glw.scene().sigMouseClicked.connect(lambda ev: self._dbl_autorange(ev, (self.p_ang, self.p_errx)))
+        lay.addWidget(glw, 1)
+        return w
+
+    def _build_window_plots(self):
+        w = QtWidgets.QWidget()
+        lay = QtWidgets.QVBoxLayout(w)
+        lay.setContentsMargins(4, 4, 4, 4)
+        bar = QtWidgets.QHBoxLayout()
+        bar.addWidget(QtWidgets.QLabel("Ventana:"))
+        self.btn_prev = QtWidgets.QPushButton("◀", objectName="seg", toolTip="Ventana anterior (←)")
+        self.btn_next = QtWidgets.QPushButton("▶", objectName="seg", toolTip="Ventana siguiente (→)")
+        self.win_combo = QtWidgets.QComboBox()
+        self.win_combo.setMinimumWidth(300)
+        self.win_combo.currentIndexChanged.connect(self.select_window)
+        self.btn_prev.clicked.connect(lambda: self.step_window(-1))
+        self.btn_next.clicked.connect(lambda: self.step_window(+1))
+        for x in (self.btn_prev, self.win_combo, self.btn_next):
+            bar.addWidget(x)
+        note = QtWidgets.QLabel("← → cambian de ventana · clic en las barras para ir a una")
+        note.setStyleSheet(f"color:{MUTED}; font-weight:400")
+        bar.addSpacing(10)
+        bar.addWidget(note)
+        bar.addStretch(1)
+        lay.addLayout(bar)
+
+        ov = pg.GraphicsLayoutWidget()
+        ov.setFixedHeight(250)
+        ov.ci.setSpacing(4)
+        self.p_ov_rms = self._plot(ov, 0, 0, "Error RMS por ventana", "", "° enc.")
+        self.p_ov_weak = self._plot(ov, 1, 0, "Campo débil por ventana", "imanes", "%")
+        self.p_ov_weak.setXLink(self.p_ov_rms)
+        self.ov_items = []
+        self.ov_regions = []
+        for p in (self.p_ov_rms, self.p_ov_weak):
+            p.setMouseEnabled(x=False, y=False)
+            p.hideButtons()
+            reg = pg.LinearRegionItem(movable=False, brush=pg.mkBrush(42, 120, 214, 28),
+                                      pen=pg.mkPen(BLUE, width=1))
+            reg.setZValue(-10)
+            p.addItem(reg)
+            self.ov_regions.append(reg)
+        ov.scene().sigMouseClicked.connect(self._ov_clicked)
+        lay.addWidget(ov)
+
+        det = pg.GraphicsLayoutWidget()
+        det.ci.setSpacing(6)
+        self.p_win = [self._plot(det, 0, 0, "Ida", "posición en la rueda [imanes]", "° encoder"),
+                      self._plot(det, 0, 1, "Vuelta", "posición en la rueda [imanes]", "° encoder")]
+        self.p_win[1].setYLink(self.p_win[0])
+        for p in self.p_win:
+            self._legend(p)
+            p.setYRange(-190, 190, padding=0)
+        lay.addWidget(det, 1)
+        return w
+
+    def _build_phase_plots(self):
+        glw = pg.GraphicsLayoutWidget()
+        glw.ci.setSpacing(6)
+        self.p_phase = self._plot(glw, 0, 0, "Forma del error dentro de un período",
+                                  "fase ideal dentro del período [°]", "° encoder")
+        self.p_phase_bits = self._plot(glw, 0, 1, "Dónde aparece el campo débil dentro del período",
+                                       "fase ideal dentro del período [°]", "% de muestras")
+        self.p_mag = self._plot(glw, 1, 0, "Campo débil a lo largo de la vuelta (1 barra = 1 imán)",
+                                "imán", "% de muestras", colspan=2)
+        self._legend(self.p_phase_bits)
+        MainWindow._set_title(self.p_phase, "Forma del error dentro de un período", KEY_DIRS)
+        self.c_phase = [self._dots(self.p_phase, BLUE, name="ida"), self._dots(self.p_phase, ORANGE, name="vuelta")]
+        self.phase_items = []
+        return glw
+
+    def _build_status_plots(self):
+        glw = pg.GraphicsLayoutWidget()
+        glw.ci.setSpacing(6)
+        self.p_jump = self._plot(glw, 0, 0, "Saltos de la lectura entre muestras seguidas",
+                                 "", "medido − esperado [°]")
+        self.p_bits = self._plot(glw, 1, 0, "Bits de estado del chip", "tiempo [s]", "")
+        self.p_bits.setXLink(self.p_jump)
+        self._legend(self.p_jump)
+        for y in (ea.JUMP_DEG, -ea.JUMP_DEG):
+            self.p_jump.addLine(y=y, pen=pg.mkPen(RED, width=1, style=Qt.DashLine))
+        self.c_jump = self.p_jump.plot([], [], pen=pg.mkPen(BLUE, width=1), name="paso medido − esperado")
+        self.c_jump_x = self._dots(self.p_jump, RED, 8, "salto", "x")
+        names = ["sobrevelocidad", "campo débil", "subtensión", "error CRC"]
+        self.p_bits.getAxis("left").setTicks([list(enumerate(names))])
+        self.p_bits.getAxis("left").setWidth(100)
+        self.p_bits.setYRange(-0.6, 3.6, padding=0)
+        self.c_bits = [self._dots(self.p_bits, c, 9, None, "|") for c in (AMBER, RED, INK2, BLUE)]
+        return glw
+
+    @staticmethod
+    def _dbl_autorange(ev, plots):
+        if ev.double():
+            for p in plots:
+                if p.sceneBoundingRect().contains(ev.scenePos()):
+                    p.getViewBox().enableAutoRange(x=True)
+
+    # --- estado de los botones (lo llama MainWindow.update_controls) -------------------
+    def update_controls(self):
+        w = self.win
+        ok = (w.link.is_open and w.busy is None and bool(w.homed) and bool(w.calibrated) and not w.fault)
+        self.btn_run.setEnabled(ok and not self.running)
+        if self.running:
+            self.btn_run.setToolTip("Barrido en curso")
+        elif not w.link.is_open:
+            self.btn_run.setToolTip("No hay conexión con la placa")
+        elif not (w.homed and w.calibrated):
+            self.btn_run.setToolTip("Primero «Calibrar e iniciar» (M56) en la pestaña Control:\n"
+                                    "M57 necesita saber dónde está el carro para no salirse del recorrido")
+        else:
+            self.btn_run.setToolTip("Corre M57 … R1 ida y vuelta y rehabilita el lazo (M17) al terminar")
+        self.btn_png.setEnabled(self.path is not None and self.proc is None)
+
+    # --- barrido ----------------------------------------------------------------------
+    def start(self):
+        w = self.win
+        if not self.btn_run.isEnabled():
+            return
+        revs = self.spin_revs.value()
+        v = self.spin_sweep_speed.value()
+        dist = revs * PITCH_MM
+        pos = w.last[History.POS] if (w.last is not None and w.telemetry_alive()) else w.dest
+        if pos is None:
+            w.message("No se sabe dónde está el carro (sin telemetría): esperar un momento", AMBER)
+            return
+        if pos + dist <= AXIS_MAX_MM - 0.5:
+            legs = [dist, -dist]
+        elif pos - dist >= AXIS_MIN_MM + 0.5:
+            legs = [-dist, dist]
+        else:
+            w.message("No entra el barrido en el recorrido", RED)
+            return
+        dur = 2 * dist / v
+        ans = QtWidgets.QMessageBox.question(
+            self, "Barrido del encoder",
+            f"El motor gira {revs} vuelta{'s' if revs > 1 else ''} en lazo abierto y vuelve "
+            f"(el carro va de {pos:.2f} a {pos + legs[0]:.2f} mm y regresa), a {v:g} mm/s: unos {dur + 2:.0f} s.\n\n"
+            "Durante el barrido el lazo cerrado está apagado y la placa no atiende otros comandos "
+            "(ni «Apagar motor»). Al terminar se rehabilita el lazo (M17) donde quedó el carro.\n\n"
+            "Asegurate de que el recorrido esté libre. ¿Empezar?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+        if ans != QtWidgets.QMessageBox.Yes:
+            return
+        self.rows, self.meta, self.end_lines = [], {}, []
+        self.legs, self.leg_i, self.speed = legs, 0, v
+        self.running = True
+        self.path = None
+        self.list.blockSignals(True)
+        self.list.clearSelection()
+        self.list.setCurrentRow(-1)
+        self.list.blockSignals(False)
+        self.lbl_src.setText("Barrido en curso…")
+        self.lbl_verdict.hide()
+        w.busy = self.BUSY_LABEL
+        w.busy_since = time.monotonic()
+        w.busy_detail = ""
+        w.update_controls()
+        self._send_leg()
+
+    def _send_leg(self):
+        d = self.legs[self.leg_i]
+        text = f"M57 X{d:.4f} F{self.speed:g} P{SWEEP_DECIMATION} R1"
+        self.win.log_line(f"> {text}   (pestaña Encoder, pasada {self.leg_i + 1} de {len(self.legs)})", "cmd")
+        self._seen = 0
+        self.leg_field0 = None
+        self._leg_rows0 = len(self.rows)
+        self._cmd = self.win.link.send(text, silent=True, on_done=self._leg_done)
+
+    def _consume(self, cmd):
+        lines = cmd.lines
+        n = len(lines)
+        for line in lines[self._seen:n]:
+            r = ea.parse_line(line)
+            if r is not None:
+                self.rows.append(r)
+                if self.leg_field0 is None:
+                    self.leg_field0 = r[2]
+            elif line.startswith("META"):
+                if not self.meta:
+                    self.meta = ea.parse_meta(line)
+                    self.win.log_line(line, "reply")
+            elif line.startswith("END"):
+                self.end_lines.append(line)
+                self.win.log_line(line, "reply")
+            elif line.startswith("error"):
+                self.win.log_line(line, "error")
+        if n > self._seen:
+            self._live_dirty = True
+        self._seen = n
+
+    def _leg_progress(self):
+        if self.leg_field0 is None or not self.rows or not self.meta:
+            return 0.0
+        pp = self.meta.get("pole_pairs", MOTOR_POLE_PAIRS)
+        total = abs(self.legs[self.leg_i]) / PITCH_MM * 2 * math.pi * pp
+        return clamp(abs(self.rows[-1][2] - self.leg_field0) / total, 0.0, 1.0)
+
+    def _tick_live(self):
+        if not self.running or self._cmd is None:
+            return
+        self._consume(self._cmd)
+        frac = (self.leg_i + self._leg_progress()) / len(self.legs)
+        self.progress.setValue(int(frac * 1000))
+        sense = "ida" if self.leg_i == 0 else "vuelta"
+        self.lbl_run.setText(f"Pasada {self.leg_i + 1} de {len(self.legs)} ({sense}) · {len(self.rows)} muestras")
+        self.win.busy_detail = f"{sense}, {100 * frac:.0f} %"
+        if self._live_dirty and len(self.rows) > 50:
+            self._live_dirty = False
+            self.T = ea.columns(self._make_table(np.array(self.rows, dtype=float)))
+            self._draw_sweep()
+
+    def _leg_done(self, cmd):
+        self._consume(cmd)
+        got = len(self.rows) - self._leg_rows0
+        if cmd.ok is not True or got == 0:
+            if cmd.ok is None:
+                why = ("se perdió la conexión" if not self.win.link.is_open
+                       else f"la placa no respondió en {cmd.timeout:g} s")
+            else:
+                why = cmd.lines[-1] if cmd.lines else "sin respuesta"
+            if cmd.ok and got == 0:
+                why = "la placa respondió ok pero sin muestras: ¿el firmware grabado tiene M57 R1?"
+            self._finish(why)
+            return
+        self.leg_i += 1
+        if self.leg_i < len(self.legs):
+            self._send_leg()
+        else:
+            self._finish()
+
+    def _finish(self, error=None):
+        w = self.win
+        self.running = False
+        self._cmd = None
+        w.busy = None
+        if w.link.is_open:
+            w.link.send("M17", on_done=w._enable_done)    # el M57 deja el lazo cerrado apagado
+        self.progress.setValue(1000 if error is None else self.progress.value())
+        if len(self.rows) >= 100:
+            table = self._make_table(np.array(self.rows, dtype=float))
+            now = datetime.datetime.now()
+            folder = os.path.join(REPO, "mediciones", now.strftime("%Y-%m-%d"))
+            os.makedirs(folder, exist_ok=True)
+            path = os.path.join(folder, now.strftime("encoder_sweep_%Y%m%d_%H%M%S.csv"))
+            ea.save_csv(table, path)
+            with open(path, "a") as f:
+                # al final: np.loadtxt y genfromtxt(names=True) saltean los comentarios
+                f.write(f"# barrido desde tools/interfaz.py (M57 R1), {now:%Y-%m-%d %H:%M:%S}; "
+                        f"motor_deg y x_mm cuentan desde el 0 del eje (home)\n")
+                f.write("# META," + ",".join(f"{a}={b}" for a, b in self.meta.items()) + "\n")
+                for line in self.end_lines:
+                    f.write(f"# {line}\n")
+            self.path = path
+            self._show(table)
+            self.refresh_list(select=path)
+            self.lbl_run.setText(f"{len(self.rows)} muestras · guardado en {os.path.relpath(path, REPO)}")
+            w.log_line(f"— barrido del encoder guardado: {path} —", "info")
+        if error:
+            self.lbl_run.setText(f"Barrido cortado: {error}")
+            w.message(f"Barrido del encoder: {error}", RED)
+            QtWidgets.QMessageBox.warning(self, "Barrido del encoder", f"El barrido no terminó:\n\n{error}")
+        else:
+            w.message("Barrido del encoder terminado; el lazo se rehabilita donde quedó el carro", GREEN)
+        w.update_controls()
+
+    # --- cargar mediciones --------------------------------------------------------------
+    def refresh_list(self, select=None):
+        cur = select or self.path
+        self.list.blockSignals(True)
+        self.list.clear()
+        for p in _sweep_csvs():
+            it = QtWidgets.QListWidgetItem(_sweep_label(p))
+            it.setData(Qt.UserRole, p)
+            it.setToolTip(os.path.relpath(p, REPO))
+            self.list.addItem(it)
+            if p == cur:
+                self.list.setCurrentItem(it)
+        self.list.blockSignals(False)
+
+    def _list_picked(self, item, _prev=None):
+        if item is not None and not self.running:
+            self.load(item.data(Qt.UserRole))
+
+    def open_dialog(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Abrir barrido del encoder",
+                                                        os.path.join(REPO, "mediciones"), "CSV (*.csv)")
+        if path:
+            self.load(path)
+
+    def load(self, path):
+        if self.running:
+            return
+        try:
+            table = ea.load_csv(path)
+            if table.shape[1] != len(ea.COLS):
+                raise ValueError(f"tiene {table.shape[1]} columnas y un barrido tiene {len(ea.COLS)}")
+            with open(path, errors="replace") as f:
+                self.from_home = "desde el 0 del eje" in f.read()
+        except (OSError, ValueError) as e:
+            self.win.message(f"No se pudo leer {os.path.basename(path)}: {e}", RED)
+            return
+        self.path = path
+        self._show(table)
+
+    # --- análisis y gráficos -----------------------------------------------------------
+    def _make_table(self, raw):
+        pp = self.meta.get("pole_pairs", MOTOR_POLE_PAIRS)
+        ref = self.meta.get("field_zero")
+        self.from_home = ref is not None
+        return ea.build_table(raw, pp, ea.CPR, WHEEL_MAGNETS, WHEEL_PITCH_MM, field_ref=ref)[0]
+
+    def _show(self, table):
+        self.table = table
+        self.T = ea.columns(table)
+        self.stats = ea.summary(table, WHEEL_MAGNETS / 2)
+        self.windows = ea.window_stats(table, WHEEL_MAGNETS, WHEEL_PITCH_MM, 2)
+        name = os.path.relpath(self.path, REPO) if self.path else "barrido sin guardar"
+        ref = "posición contada desde el home (0 mm)" if self.from_home else \
+            "posición contada desde el inicio del barrido (imán 0 = el que estaba frente al sensor)"
+        self.lbl_src.setText(f"{name}<br><span style='color:{MUTED}'>{ref}</span>")
+        self._fill_results()
+        self._draw_sweep()
+        self._draw_overview()
+        n_win = len(self.windows) // 2
+        self.win_combo.blockSignals(True)
+        self.win_combo.clear()
+        for k in range(n_win):
+            r = self.windows[2 * k]
+            self.win_combo.addItem(f"{k + 1} de {n_win} · imanes {r['mag0']}–{r['mag1']} · "
+                                   f"{r['deg0']:.0f}–{r['deg1']:.0f}° de la vuelta")
+        self.win_combo.blockSignals(False)
+        self.select_window(min(self.cur_win, n_win - 1))
+        self._draw_phase()
+        self._draw_status()
+        self.update_controls()
+
+    def _fill_results(self):
+        s = self.stats
+        good, bad, warn = (f"color:{GREEN}", f"color:{RED}", f"color:{AMBER}")
+        ppr_ok = abs(s["periods_per_rev"] - WHEEL_MAGNETS / 2) < 0.2
+        self.res["ppr"].setText(f"{'✓' if ppr_ok else '✗'} {s['periods_per_rev']:.2f}  (esperado {WHEEL_MAGNETS // 2})")
+        self.res["ppr"].setStyleSheet(good if ppr_ok else bad)
+        self.res["jumps"].setText(f"{'✓' if s['jumps'] == 0 else '✗'} {s['jumps']}")
+        self.res["jumps"].setStyleSheet(good if s["jumps"] == 0 else bad)
+        self.res["weak"].setText(f"{s['weak_pct']:.1f} %  ({s['weak_n']} muestras)")
+        self.res["weak"].setStyleSheet(good if s["weak_n"] == 0 else warn)
+        for k in ("ida", "vuelta"):
+            e = s[k]
+            self.res[k].setText("—" if e is None else f"RMS {e['rms']:.1f}° · máx {e['max']:.0f}°")
+            if e is not None:
+                self.res[k].setToolTip(f"RMS {e['rms']:.2f}° de encoder = {e['rms_shaft']:.3f}° de eje "
+                                       f"(1 período del encoder = 360°, 30 períodos por vuelta)")
+            self.res[k].setStyleSheet(f"color:{INK}")
+        bits_ok = s["overspeed_n"] == 0 and s["crc_n"] == 0 and s["undervolt_n"] == 0
+        self.res["bits"].setText(f"{s['overspeed_n']} / {s['crc_n']} / {s['undervolt_n']}")
+        self.res["bits"].setStyleSheet(good if bits_ok else warn)
+        self.res["n"].setText(f"{s['n']} en {s['duration_s']:.1f} s · {s['revs']:.2f} vueltas")
+        self.res["n"].setStyleSheet(f"color:{INK}")
+
+        problems = []
+        if not ppr_ok:
+            problems.append(f"la lectura no da {WHEEL_MAGNETS // 2} períodos por vuelta")
+        if s["jumps"]:
+            problems.append(f"{s['jumps']} saltos (ver «Saltos y estado» para ubicarlos)")
+        if s["crc_n"]:
+            problems.append(f"{s['crc_n']} errores de CRC (cableado/SPI)")
+        if problems:
+            text = ("✗ " + "; ".join(problems) + ". En lazo abierto un salto también puede ser el motor "
+                    "patinando en un punto duro: comparar ida y vuelta y la posición donde aparece.")
+            self.lbl_verdict.setStyleSheet(f"background:#fbe3e3; color:{RED}; padding:6px 8px; border-radius:6px;"
+                                           "font-weight:600")
+        else:
+            text = (f"✓ La lectura sigue a la rueda en todo el barrido: {s['periods_per_rev']:.2f} períodos "
+                    f"por vuelta, sin saltos.")
+            self.lbl_verdict.setStyleSheet("background:#e2f3e8; color:#1f6e3f; padding:6px 8px; border-radius:6px;"
+                                           "font-weight:600")
+        self.lbl_verdict.setText(text)
+        self.lbl_verdict.show()
+
+    def _draw_sweep(self):
+        T = self.T
+        x = T["motor_deg"] / 360.0
+        y = ea.wrap180(T["enc_deg"])
+        fwd = T["dir"] > 0
+        bwd = ~fwd
+        wk = T["weak"] > 0
+        self.c_ang[0].setData(x[fwd], y[fwd])
+        self.c_ang[1].setData(x[bwd], y[bwd])
+        self.c_ang[2].setData(x[wk], y[wk])
+        self.c_errx[0].setData(x[fwd], T["error_deg"][fwd])
+        self.c_errx[1].setData(x[bwd], T["error_deg"][bwd])
+        jm = np.concatenate([[False], ea.jumps(T)[2]]) if len(x) > 1 else np.zeros(len(x), bool)
+        self.c_errx[2].setData(x[jm], T["error_deg"][jm])
+        for ln in self.rev_lines:
+            self.p_ang.removeItem(ln)
+        self.rev_lines = []
+        if len(x):
+            for k in range(int(math.ceil(np.nanmin(x))), int(math.floor(np.nanmax(x))) + 1):
+                ln = pg.InfiniteLine(pos=k, angle=90, pen=pg.mkPen(INK2, width=1, style=Qt.DotLine))
+                self.p_ang.addItem(ln)
+                self.rev_lines.append(ln)
+        unit = "posición del motor [vueltas desde el home]" if self.from_home else \
+            "posición del motor [vueltas desde el inicio]"
+        self.p_errx.setLabel("bottom", unit)
+        note = KEY_DIRS + KEY_WEAK + " &nbsp;· punteado: cada vuelta del motor"
+        if self.from_home and len(x):
+            a, b = (round(v * PITCH_MM, 2) + 0.0 for v in (np.nanmin(x), np.nanmax(x)))
+            note += f" · carro de {a:.2f} a {b:.2f} mm"
+        MainWindow._set_title(self.p_ang, "Ángulo crudo del encoder", note)
+        for p in (self.p_ang, self.p_errx):
+            p.getViewBox().enableAutoRange(x=True)
+
+    def _bars(self, p, store, x, h, width, color, name=None):
+        it = pg.BarGraphItem(x=x, height=h, width=width, brush=pg.mkBrush(color), pen=pg.mkPen(SURFACE, width=1))
+        p.addItem(it)
+        store.append(it)
+        if name is not None and p.legend is not None:
+            p.legend.addItem(it, name)
+        return it
+
+    def _draw_overview(self):
+        for it in self.ov_items:
+            for p in (self.p_ov_rms, self.p_ov_weak):
+                if it.scene() is not None and it in p.items:
+                    p.removeItem(it)
+        self.ov_items = []
+        def key_rms(flipped):
+            return key + (f" &nbsp;<span style='color:{RED}'>▼</span> hay muestras corridas ±180°" if flipped else "")
+        key = KEY_DIRS
+        MainWindow._set_title(self.p_ov_weak, "Campo débil por ventana", key)
+        n_win = len(self.windows) // 2
+        idx = np.arange(n_win)
+        for stat, p in (("rms", self.p_ov_rms), ("weak_pct", self.p_ov_weak)):
+            for s, off, col, name in ((+1, -0.2, BLUE, "ida"), (-1, 0.2, ORANGE, "vuelta")):
+                vals = np.array([r[stat] for r in self.windows if r["dir"] == s], dtype=float)
+                self._bars(p, self.ov_items, idx + off, np.nan_to_num(vals), 0.38, col)
+            flips = np.array([r["flips"] for r in self.windows if r["dir"] == +1]) + \
+                np.array([r["flips"] for r in self.windows if r["dir"] == -1])
+            if stat == "rms" and flips.any():
+                top = np.nanmax([r["rms"] for r in self.windows]) if self.windows else 1
+                sc = pg.ScatterPlotItem(idx[flips > 0], np.full((flips > 0).sum(), top * 1.08), symbol="t",
+                                        size=9, brush=pg.mkBrush(RED), pen=None)
+                p.addItem(sc)
+                self.ov_items.append(sc)
+            if stat == "rms":
+                MainWindow._set_title(p, "Error RMS por ventana", key_rms(flips.any()))
+        ticks = [(k, f"{self.windows[2 * k]['mag0']}–{self.windows[2 * k]['mag1']}") for k in range(n_win)]
+        self.p_ov_weak.getAxis("bottom").setTicks([ticks])
+        self.p_ov_rms.getAxis("bottom").setTicks([ticks])
+        self.p_ov_rms.getAxis("bottom").setStyle(showValues=False)
+        self.p_ov_rms.setXRange(-0.6, n_win - 0.4, padding=0)
+        for p in (self.p_ov_rms, self.p_ov_weak):
+            p.enableAutoRange(y=True)
+
+    def _ov_clicked(self, ev):
+        if self.windows is None:
+            return
+        for p in (self.p_ov_rms, self.p_ov_weak):
+            if p.sceneBoundingRect().contains(ev.scenePos()):
+                k = int(round(p.getViewBox().mapSceneToView(ev.scenePos()).x()))
+                if 0 <= k < self.win_combo.count():
+                    self.win_combo.setCurrentIndex(k)
+                return
+
+    def step_window(self, d):
+        n = self.win_combo.count()
+        if n:
+            self.win_combo.setCurrentIndex((self.win_combo.currentIndex() + d) % n)
+
+    def select_window(self, k):
+        if self.windows is None or k < 0:
+            return
+        if self.win_combo.currentIndex() != k:
+            self.win_combo.blockSignals(True)
+            self.win_combo.setCurrentIndex(k)
+            self.win_combo.blockSignals(False)
+        self.cur_win = k
+        for reg in self.ov_regions:
+            reg.setRegion((k - 0.5, k + 0.5))
+        T = self.T
+        steady = ea.steady_mask(T)
+        circ, win_mm, _ = ea.window_geometry(WHEEL_MAGNETS, WHEEL_PITCH_MM, 2)
+        xm = (T["motor_deg"] % 360.0) / 360.0 * circ / WHEEL_PITCH_MM      # en imanes
+        x0, x1 = k * win_mm / WHEEL_PITCH_MM, (k + 1) * win_mm / WHEEL_PITCH_MM
+        enc = ea.wrap180(T["enc_deg"])
+        ideal = ea.wrap180(T["ideal_deg"])
+        passes = _pass_index(T)
+        for p, s, name in ((self.p_win[0], +1, "Ida"), (self.p_win[1], -1, "Vuelta")):
+            p.clear()
+            p.legend.clear()
+            sel = steady & (T["dir"] == s) & (xm >= x0) & (xm < x1)
+            for kk in range(int(round(x0)), int(round(x1)) + 1):
+                p.addLine(x=kk, pen=pg.mkPen(GRID if kk % 2 else MUTED, width=1))
+            for r in sorted(set(passes[sel])):
+                m = sel & (passes == r)
+                o = np.argsort(xm[m])
+                col = PASS_COLORS[min(r, len(PASS_COLORS) - 1)]
+                first = r == min(set(passes[sel]))
+                c = QtGui.QColor(col)
+                c.setAlpha(90 if first else 255)
+                p.plot(xm[m][o], enc[m][o], pen=None, symbol="o", symbolSize=7 if first else 3, symbolPen=None,
+                       symbolBrush=c, name=f"pasada {r + 1}")
+                if first:
+                    p.plot(xm[m][o], ea.nan_at_wraps(ideal[m][o]), pen=pg.mkPen(INK2, width=1, style=Qt.DashLine),
+                           name="ideal", connect="finite")
+            for mask, col, sym, label in ((sel & (T["weak"] > 0), RED, "x", "campo débil"),
+                                          (sel & (T["overspeed"] > 0), AMBER, "+", "sobrevelocidad")):
+                if mask.any():
+                    p.plot(xm[mask], enc[mask], pen=None, symbol=sym, symbolSize=8, symbolPen=pg.mkPen(col, width=1.5),
+                           symbolBrush=None, name=label)
+            r = self.windows[2 * k + (0 if s > 0 else 1)]
+            MainWindow._set_title(p, name, f"débil {r['weak_pct']:.0f} % · error RMS {r['rms']:.0f}° · "
+                                           f"corridas {r['flips']}")
+            p.setXRange(x0, x1, padding=0.01)
+            p.setYRange(-190, 190, padding=0)
+
+    def _draw_phase(self):
+        T = self.T
+        fwd = T["dir"] > 0
+        self.c_phase[0].setData(T["ideal_deg"][fwd], T["error_deg"][fwd])
+        self.c_phase[1].setData(T["ideal_deg"][~fwd], T["error_deg"][~fwd])
+        for it in self.phase_items:
+            for p in (self.p_phase_bits, self.p_mag):
+                if it in p.items:
+                    p.removeItem(it)
+        self.phase_items = []
+        self.p_phase_bits.legend.clear()
+        bins = np.linspace(0, 360, 37)
+        idx = np.clip(np.digitize(T["ideal_deg"], bins) - 1, 0, 35)
+        fw = [T["weak"][idx == k].mean() * 100 if np.any(idx == k) else 0 for k in range(36)]
+        fo = [T["overspeed"][idx == k].mean() * 100 if np.any(idx == k) else 0 for k in range(36)]
+        self._bars(self.p_phase_bits, self.phase_items, bins[:-1] + 2.75, fw, 4.5, RED, "campo débil")
+        self._bars(self.p_phase_bits, self.phase_items, bins[:-1] + 7.25, fo, 4.5, AMBER, "sobrevelocidad")
+        mags = (T["motor_deg"] % 360.0) / 360.0 * WHEEL_MAGNETS
+        idx = np.clip(np.floor(mags).astype(int), 0, WHEEL_MAGNETS - 1)
+        frac = [T["weak"][idx == k].mean() * 100 if np.any(idx == k) else 0 for k in range(WHEEL_MAGNETS)]
+        self._bars(self.p_mag, self.phase_items, np.arange(WHEEL_MAGNETS) + 0.5, frac, 0.8, RED)
+        ref = "desde el home" if self.from_home else "desde el inicio del barrido"
+        MainWindow._set_title(self.p_mag, "Campo débil a lo largo de la vuelta (1 barra = 1 imán)", f"imán 0: {ref}")
+        self.p_mag.setXRange(0, WHEEL_MAGNETS, padding=0.01)
+        for p in (self.p_phase, self.p_phase_bits, self.p_mag):
+            p.enableAutoRange()
+
+    def _draw_status(self):
+        T = self.T
+        t, dev, mask = ea.jumps(T)
+        self.c_jump.setData(t, dev)
+        self.c_jump_x.setData(t[mask], dev[mask])
+        for k, c in enumerate(["overspeed", "weak", "undervolt", "crc_err"]):
+            m = T[c] > 0
+            self.c_bits[k].setData(T["t_s"][m], np.full(int(m.sum()), k))
+        self.p_jump.enableAutoRange()
+        self.p_bits.setXRange(T["t_s"][0], T["t_s"][-1], padding=0.01)
+
+    # --- PNG con los scripts ----------------------------------------------------------
+    def export_png(self):
+        if not self.path or self.proc is not None:
+            return
+        tools = os.path.join(REPO, "tools")
+        self._jobs = [[os.path.join(tools, "encoder_sweep.py"), "--from-csv", self.path],
+                      [os.path.join(tools, "plot_periods.py"), self.path]]
+        self._job_out = []
+        self.win.message("Generando los PNG con encoder_sweep.py y plot_periods.py…")
+        self._next_job()
+
+    def _next_job(self):
+        if not self._jobs:
+            self.proc = None
+            pngs = [l.split(" en ", 1)[1] for l in self._job_out if l.startswith("grafico")]
+            self.win.message("PNG: " + " · ".join(os.path.relpath(p, REPO) for p in pngs) if pngs
+                             else "No se generaron PNG (ver la consola)", GREEN if pngs else RED)
+            for l in self._job_out[-4:]:
+                self.win.log_line(l, "info")
+            self.update_controls()
+            return
+        args = self._jobs.pop(0)
+        self.proc = QtCore.QProcess(self)
+        self.proc.setProcessChannelMode(QtCore.QProcess.MergedChannels)
+        self.proc.finished.connect(self._job_done)
+        self.proc.start(sys.executable, args)
+        self.update_controls()
+
+    def _job_done(self, *_):
+        out = bytes(self.proc.readAll()).decode(errors="replace")
+        self._job_out += [l.strip() for l in out.splitlines() if l.strip()]
+        self._next_job()
 
 
 # ======================================================================================
@@ -737,7 +1597,14 @@ class MainWindow(QtWidgets.QMainWindow):
         split.setStretchFactor(0, 0)
         split.setStretchFactor(1, 1)
         split.setSizes([400, 1100])
-        root.addWidget(split, 1)
+        # la barra de arriba (conexión, estado, APAGAR MOTOR) y el aviso quedan fuera de las pestañas
+        self.tabs = QtWidgets.QTabWidget()
+        self.tabs.setObjectName("mainTabs")
+        self.tabs.addTab(split, "Control")
+        self.enc_tab = EncoderTab(self)
+        self.tabs.addTab(self.enc_tab, "Encoder")
+        self.tabs.setTabToolTip(1, "Barrido del encoder en lazo abierto (como encoder_sweep.py y plot_periods.py)")
+        root.addWidget(self.tabs, 1)
 
         # --- barra de estado ---
         self.status_msg = QtWidgets.QLabel()
@@ -1250,7 +2117,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.busy = None
         if cmd.ok:
             extra = [l for l in cmd.lines if not l.startswith("ok")]
-            self.message(f"{cmd.code} terminado" + (f": {extra[-1]}" if extra else ""), GREEN)
+            cut = [l for l in extra if "cortado" in l or "no pudo" in l or "no se asienta" in l]
+            if cut:
+                # calibró, pero el anti-cogging no terminó: el carro puede no estar en 0
+                self.message(f"{cmd.code} terminado con avisos: {cut[-1]}", AMBER)
+                QtWidgets.QMessageBox.warning(self, cmd.code, "La calibración terminó, pero el anti-cogging no:\n\n"
+                                              + "\n".join(extra[-6:]))
+            else:
+                self.message(f"{cmd.code} terminado" + (f": {extra[-1]}" if extra else ""), GREEN)
             if cmd.code in ("M56", "G28"):
                 self.link.send("M119", silent=True, on_done=self._after_long_status)
         else:
@@ -1493,6 +2367,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 w.setEnabled(movable)
         self.btn_off.setEnabled(open_)
         self.gcode.setEnabled(open_)
+        if hasattr(self, "enc_tab"):
+            self.enc_tab.update_controls()
 
         # aviso
         if not open_:
@@ -1607,6 +2483,11 @@ QPushButton:checked {{ background: #fbe3e3; border-color: {RED}; color: {RED}; }
 QPlainTextEdit#console {{ font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt; background: #fafaf8;
                           border: 1px solid {GRID}; border-radius: 6px; }}
 QProgressBar {{ border: 1px solid {GRID}; border-radius: 4px; background: #f3f2ef; }}
+QLabel#resValue {{ font-family: 'DejaVu Sans Mono', monospace; font-size: 10pt; font-weight: 600; }}
+QTabWidget#mainTabs::pane {{ border: none; }}
+QTabBar::tab {{ padding: 6px 16px; border: 1px solid {GRID}; border-bottom: none; border-top-left-radius: 6px;
+                border-top-right-radius: 6px; background: #f3f2ef; color: {INK2}; margin-right: 2px; }}
+QTabBar::tab:selected {{ background: white; color: {INK}; border-color: #c3c2b7; }}
 """
 
 

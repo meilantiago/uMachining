@@ -5,6 +5,9 @@ Manda 'G56', captura las muestras que manda la placa mientras el motor gira en l
 abierto (2 vueltas ida + 2 vuelta), guarda un CSV por corrida en mediciones/AAAA-MM-DD/ y genera
 un PNG con los graficos.
 
+Las cuentas estan en tools/encoder_analysis.py (las comparte la pestaña «Encoder» de
+tools/interfaz.py, que corre el mismo barrido con el firmware real: M57 ... R1).
+
 Uso:
     python3 tools/encoder_sweep.py                      # corre un barrido nuevo
     python3 tools/encoder_sweep.py --from-csv archivo   # re-grafica un CSV ya guardado
@@ -27,12 +30,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-COLS = ["t_s", "dir", "field_rad", "motor_deg", "x_mm", "raw", "enc_deg",
-        "ideal_deg", "error_deg", "overspeed", "weak", "undervolt", "crc_err"]
-
-
-def wrap180(a):
-    return (np.asarray(a) + 180.0) % 360.0 - 180.0
+from encoder_analysis import COLS, build_table, save_csv, wrap180  # noqa: E402
 
 
 class TeleplotUDP:
@@ -93,37 +91,6 @@ def capture(port, baud, timeout_s, teleplot=None):
             else:
                 print("  " + line)
     return np.array(rows, dtype=float), meta, end
-
-
-def build_table(raw_rows, pole_pairs, cpr, magnets, pitch_mm):
-    t_us, direction, field, raw, status = raw_rows.T
-    motor_rad = (field - field[0]) / pole_pairs
-    periods = magnets / 2.0
-    enc = raw / cpr * 360.0
-    phase_cmd = np.degrees(motor_rad) * periods          # angulo esperado del campo, sin offset
-
-    # sentido y offset de la relacion encoder <-> posicion comandada
-    best = None
-    for s in (+1.0, -1.0):
-        r = np.radians(enc - s * phase_cmd)
-        strength = np.abs(np.mean(np.exp(1j * r)))
-        if best is None or strength > best[0]:
-            best = (strength, s)
-    s = best[1]
-    ideal = np.zeros_like(enc)
-    for d in (+1, -1):
-        m = direction == d
-        off = np.degrees(np.angle(np.mean(np.exp(1j * np.radians(enc[m] - s * phase_cmd[m])))))
-        ideal[m] = s * phase_cmd[m] + off
-    error = wrap180(enc - ideal)
-
-    st = status.astype(int)
-    circumference = magnets * pitch_mm
-    table = np.column_stack([
-        t_us * 1e-6, direction, field, np.degrees(motor_rad), motor_rad / (2 * np.pi) * circumference,
-        raw, enc, wrap180(ideal) % 360.0, error,
-        st & 1, (st >> 1) & 1, (st >> 2) & 1, (st >> 3) & 1])
-    return table, s
 
 
 def analyze(table, periods, title, png_path):
@@ -273,9 +240,7 @@ def main():
         table, sign = build_table(raw_rows, args.pole_pairs, cpr, args.magnets, args.pitch)
         os.makedirs(args.outdir, exist_ok=True)
         base = os.path.join(args.outdir, "encoder_sweep_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
-        np.savetxt(base + ".csv", table, delimiter=",", header=",".join(COLS), comments="",
-                   fmt=["%.6f", "%d", "%.5f", "%.4f", "%.4f", "%d", "%.4f", "%.4f", "%.4f",
-                        "%d", "%d", "%d", "%d"])
+        save_csv(table, base + ".csv")
         print(f"CSV guardado en {os.path.abspath(base)}.csv")
 
     analyze(table, periods, os.path.basename(base), base + ".png")
