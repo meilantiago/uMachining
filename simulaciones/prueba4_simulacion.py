@@ -333,7 +333,7 @@ def figuras(res, sinc):
     am.legend(loc="lower left")
     fig.tight_layout(); fig.savefig(SALIDA / "fig1_bode_lazo.png", dpi=150); plt.close(fig)
 
-    # 2. Transmisión mecánica G_m en 30 y 230 mm, con el ajuste de resonancia
+    # 3. Transmisión mecánica G_m en 30 y 230 mm, con el ajuste de resonancia
     fig, (am, af) = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
     for clave, c in (("D", C1), ("E", C3)):
         filas = res[clave]["hw"]
@@ -348,16 +348,16 @@ def figuras(res, sinc):
     am.set_title("Transmisión motor → carro deslizando: la resonancia queda arriba de 200 Hz, pero se ve la curvatura",
                  loc="left")
     am.legend(loc="upper left")
-    fig.tight_layout(); fig.savefig(SALIDA / "fig2_transmision.png", dpi=150); plt.close(fig)
+    fig.tight_layout(); fig.savefig(SALIDA / "fig3_transmision.png", dpi=150); plt.close(fig)
 
-    # 3. Dependencia de la amplitud y del régimen de fricción
+    # 2. Dependencia de la amplitud y del régimen de fricción
     fig, (am, af) = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
     for clave, c in (("A", C1), ("B", C2), ("D", C3)):
         bode(am, af, res[clave]["hw"], "Gi", c, res[clave]["cfg"]["nombre"])
     am.set_ylabel("ganancia (dB)"); af.set_ylabel("fase (°)"); af.set_xlabel("frecuencia (Hz)")
     am.set_title("x_i / x_c según amplitud y régimen de fricción", loc="left")
     am.legend(loc="lower left")
-    fig.tight_layout(); fig.savefig(SALIDA / "fig3_amplitud_friccion.png", dpi=150); plt.close(fig)
+    fig.tight_layout(); fig.savefig(SALIDA / "fig2_amplitud_friccion.png", dpi=150); plt.close(fig)
 
     # 4. Error de fase según el sincronismo
     fig, ax = plt.subplots(figsize=(9, 3.6))

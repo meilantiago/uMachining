@@ -324,7 +324,7 @@ def figuras(res, sims, elipses, resB, casoC, s2, em):
     ax.legend(loc="upper right")
     fig.tight_layout(); fig.savefig(SALIDA / "fig4_espectro_espacial.png", dpi=150); plt.close(fig)
 
-    # 5. Submuestreo
+    # 6. Submuestreo
     fig, ax = plt.subplots(figsize=(10, 3.4))
     st = slice(None, None, 25)
     t = casoC["t"]
@@ -335,9 +335,9 @@ def figuras(res, sims, elipses, resB, casoC, s2, em):
     ax.set_title(f"5 mm/s (franja de 15,8 kHz) muestreado a 25 kS/s: la velocidad aparente es "
                  f"{casoC['v_aparente']:+.2f} mm/s", loc="left")
     ax.legend(loc="center left")
-    fig.tight_layout(); fig.savefig(SALIDA / "fig5_submuestreo.png", dpi=150); plt.close(fig)
+    fig.tight_layout(); fig.savefig(SALIDA / "fig6_submuestreo.png", dpi=150); plt.close(fig)
 
-    # 6. e_m = x_e − x_i según el sincronismo
+    # 5. e_m = x_e − x_i según el sincronismo
     fig, ax = plt.subplots(figsize=(10, 3.8))
     for (nom, d), c in reversed(list(zip(em.items(), (C_I, C_E, C_3)))):
         ax.loglog(d["f"][1:], np.maximum(d["amp"][1:], 1e-3), color=c, lw=0.7, label=nom)
@@ -348,7 +348,7 @@ def figuras(res, sims, elipses, resB, casoC, s2, em):
     ax.set_title("e_m = x_e − x_i a 2 mm/s: con buen sincronismo el paso del motor (fuerza) se cancela", loc="left")
     h, l = ax.get_legend_handles_labels()
     ax.legend(h[::-1], l[::-1], loc="upper right", bbox_to_anchor=(1.0, 0.88))
-    fig.tight_layout(); fig.savefig(SALIDA / "fig6_em_sincronismo.png", dpi=150); plt.close(fig)
+    fig.tight_layout(); fig.savefig(SALIDA / "fig5_em_sincronismo.png", dpi=150); plt.close(fig)
 
 
 # ======================================================================
