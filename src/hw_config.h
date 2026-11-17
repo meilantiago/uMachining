@@ -42,7 +42,12 @@ constexpr float MOTOR_POLE_PAIRS = 50;
 
 // factor de corriente máxima en [0..1]. Valores por debajo de 0.4 reducen mucho
 // la resolución del PWM, no se recomienda bajar de ahí.
-constexpr float MOTOR_MAX_CURRENT_FACTOR = 0.6f;
+// 17/11/2026: 0.6 -> 0.8 (mediciones/2026-11-17/RESULTADOS.md, seccion 8). Con el cople nuevo, en el punto
+// duro de cada vuelta el lazo cerrado pedia mas que el tope de la salida (81 grados): en lazo abierto con 0.6 el
+// rotor llegaba a atrasarse 90-107 grados ahi. Con 33 % mas de torque, ese punto deberia pedir ~50-60 grados.
+// Las ganancias del lazo de velocidad (VEL_KP, VEL_KI, VEL_KI_HOLD) se escalaron x0.75 para que el lazo tenga
+// la misma ganancia que con 0.6. Vigilar la temperatura del motor y del driver.
+constexpr float MOTOR_MAX_CURRENT_FACTOR = 0.8f;
 
 //--- ENCODER ROTATIVO (MT6835, montado en el eje del motor) -------------------
 // Rueda de imanes alternados N-S: el angulo del encoder da una vuelta (un periodo de 2*PI)
@@ -73,7 +78,12 @@ constexpr float HOMING_SEARCH_RANGE_MM = AXIS_MAX_POSITION_MM + 15.0f;
 // [0..1] corriente durante el homing. Antes era 0.4 (reducida): con el husillo de 5 mm
 // el motor necesita mas torque para mover el carro, y a 0.4 el rotor patinaba en lazo
 // abierto y el homing frenaba en cualquier lado. Igual a la corriente del lazo cerrado.
-constexpr float HOMING_CURRENT  = MOTOR_MAX_CURRENT_FACTOR;
+// 17/11/2026: con el cople nuevo, a 0.6 el homing y la calibracion se trababan en los puntos duros
+// (una vez por vuelta, mediciones/2026-11-17/RESULTADOS.md): homing "en falso" a 0.1-0.2 vueltas y
+// "Periodos por vuelta no enteros". El lazo abierto (homing, barridos de calibracion y su verificacion)
+// usa ahora OPEN_LOOP_CURRENT. Son segundos; el lazo cerrado sigue en MOTOR_MAX_CURRENT_FACTOR.
+constexpr float OPEN_LOOP_CURRENT = 0.8f;
+constexpr float HOMING_CURRENT  = OPEN_LOOP_CURRENT;
 
 //--- CALIBRACIÓN (LUT encoder<->motor, LUT motor<->campo) ---------------------
 // Debe cubrir al menos una vuelta completa del motor: la tabla se repite cada vuelta
@@ -114,7 +124,10 @@ constexpr float COMMUTATION_MAX_OFFSET_DEG = 45.0f;  // desfase residual maximo 
 // AJUSTAR: estos valores vienen del proyecto original (brazos delta livianos).
 // Con el carro + husillo la inercia y fricción son distintas: usar M55 para
 // retunear en caliente sin recompilar antes de fijar estos defaults.
-constexpr float POS_KP = 60.0f;
+// 17/11/2026, cople nuevo: 60 -> 120 junto con POS_KI 0 (mediciones/2026-11-17/RESULTADOS.md, seccion 5).
+// Con el cople nuevo, despues de cada movimiento el carro quedaba "cazando" contra la friccion estatica
+// (onda cuadrada de ~0,5 Hz, 0,6-0,7 um p-p a 11 mm). Con 120 / 0 baja a 0,26 um a 11 mm y 0,04 um a 14,2 mm.
+constexpr float POS_KP = 120.0f;
 // 13/10/2026: 30000 -> 3000. Con 30000 el lazo quedaba en un ciclo limite en reposo en
 // algunas posiciones (40-50 Hz, +-17 um, salida +-60 grados; contra el tope en X0 se oia).
 // Con 3000 el seguimiento a 2 mm/s es el mismo (~11 um) y el reposo queda en ~1-4 um pico a pico.
@@ -122,7 +135,10 @@ constexpr float POS_KP = 60.0f;
 // cambia el error en movimiento; en reposo, desde ~250 la integral "caza" contra la friccion estatica
 // (1500: +-0.17 um a 2.7 Hz). Con 100: reposo 0.002 um, margen x2 bajo el umbral, y conserva la
 // integral de posicion para desajustes lentos en movimiento (con 0 el atraso deriva +0.2 um).
-constexpr float POS_KI = 100.0f;
+// 17/11/2026, cople nuevo: 100 -> 0 (con POS_KP 120). La integral de posicion era la que alimentaba la
+// caza en reposo. La integral de VEL_KI sigue anulando el error permanente: error medio en reposo <= 0.016 um,
+// y el atraso en crucero no cambio (0.72 um contra 0.69).
+constexpr float POS_KI = 0.0f;
 
 // 16/10/2026 (ver docs/REPORTE_PRUEBA_LAZO_CERRADO_2026-10-16.md, Parte 2). Se cambian en
 // caliente con M58 V<0|1> F<0|1>.
@@ -159,8 +175,22 @@ constexpr float VEL_LOWPASS_TC = 0.004f;
 // 06/11/2026: 0.2 / 90 -> 0.12 / 54 (mediciones/2026-11-06/RESULTADOS.md). Con el motor reacoplado,
 // VEL_KP >= 0.16 oscila a ~214 Hz en reposo (10-27 nm de desvio); VEL_KI casi no influye. Con 0.12:
 // reposo 1.3-1.6 nm y seguimiento a 2 mm/s de 0.9-1.0 um RMS (antes 1.7).
-constexpr float VEL_KP = 0.12f;
-constexpr float VEL_KI = 54.0f;
+// 17/11/2026: 0.12 -> 0.09 al pasar MOTOR_MAX_CURRENT_FACTOR de 0.6 a 0.8 (x0.75: misma ganancia de lazo).
+constexpr float VEL_KP = 0.09f;
+// 17/11/2026, cople nuevo: VEL_KI 54 -> 40. Con POS_KP 120 / POS_KI 0, 54 deja el reposo algo mas quieto
+// (0.16 um a 11 mm) pero la salida llega a 79 grados de 81 a 2 mm/s; con 40 llega a 76. VEL_KP sigue en 0.12:
+// 0.14-0.15 da lo mismo en movimiento y 0.10 o menos empeora (0.06: 3 um RMS).
+// 17/11/2026: 40 -> 30 por la corriente 0.8 (x0.75); equivale al 40 medido con 0.6.
+constexpr float VEL_KI = 30.0f;
+// 17/11/2026: VEL_KI quieto y en pasos chicos (mediciones/2026-11-17/RESULTADOS.md, seccion 6). Por debajo de
+// VEL_KI_HOLD_SPEED_MM_S de velocidad del perfil se usa VEL_KI_HOLD. Con la friccion del cople nuevo, la
+// proporcional da ~4 grados de salida por um de error: en pasos de menos de ~2 um lo que despega el carro
+// es la integral. Con 40, 10 nm tardan 0.6-1.1 s y 100 nm se pasan ~100 %; con 80, 0.3-0.5 s y ~40-50 %.
+// Pero 80 en movimiento a 2 mm/s oscila (5 um RMS, salida saturada): por eso solo quieto. Un paso de
+// 50 um llega a ~0.5 mm/s con 5 mm/s^2, asi que hasta ahi todo el paso va con VEL_KI_HOLD. 0 lo desactiva.
+// 17/11/2026: 80 -> 60 por la corriente 0.8 (x0.75); equivale al 80 medido con 0.6.
+constexpr float VEL_KI_HOLD = 60.0f;
+constexpr float VEL_KI_HOLD_SPEED_MM_S = 0.5f;
 
 //--- PINES (variante de placa de 1 solo eje) -----------------------------------
 // Mismo pinout que la opción "SINGLE_AXIS_BOARD" del hw_config.h original.
