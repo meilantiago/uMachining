@@ -175,7 +175,7 @@ umachining/          paquete de Python: interfaz, herramientas y firmware compil
 firmware/            fuente del firmware (proyecto de PlatformIO)
   src/hw_config.h    pines, parámetros del montaje y ganancias del control
 docs/                guía de la interfaz, arquitectura del firmware y origen del código
-pyproject.toml       definición del paquete para pip
+setup.cfg            definición del paquete para pip (pyproject.toml solo elige setuptools)
 ```
 
 ## Hardware
