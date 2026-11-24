@@ -10,6 +10,7 @@ Solo usa la biblioteca estándar de Python (3.8 o más nuevo).
 """
 import argparse
 import glob
+import math
 import os
 import platform
 import shutil
@@ -24,22 +25,125 @@ LINUX = sys.platform.startswith("linux")
 ARM = platform.machine().lower() in ("aarch64", "arm64", "armv7l", "armv6l") and LINUX
 PASOS = 4
 
-ARTE = [
-    "████████╗███████╗ ██████╗███████╗ ██████╗██╗",
-    "╚══██╔══╝██╔════╝██╔════╝██╔════╝██╔════╝██║",
-    "   ██║   █████╗  ██║     ███████╗██║     ██║",
-    "   ██║   ██╔══╝  ██║     ╚════██║██║     ██║",
-    "   ██║   ███████╗╚██████╗███████║╚██████╗██║",
-    "   ╚═╝   ╚══════╝ ╚═════╝╚══════╝ ╚═════╝╚═╝",
-]
-ARTE_ASCII = [            # si la terminal no puede mostrar los caracteres de bloque
-    "########  #######   ######   ######   ######  ##",
-    "   ##     ##       ##       ##       ##       ##",
-    "   ##     #####    ##        #####   ##       ##",
-    "   ##     ##       ##            ##  ##       ##",
-    "   ##     #######   ######  ######    ######  ##",
-]
-DEGRADE = [51, 45, 39, 33, 63, 99, 135, 171, 207, 213]   # cian -> azul -> violeta -> rosa (256 colores)
+# --- logo de TECSCI (Technology for Science) ----------------------------------------------
+# «TEC» va en el color del texto de la terminal (negro en fondo claro, blanco en fondo oscuro) y
+# «SCI» y la red de fondo en el turquesa del logo.
+
+LETRAS = {
+    "T": ["█████████",
+          "█████████",
+          "   ███   ",
+          "   ███   ",
+          "   ███   ",
+          "   ███   "],
+    "E": ["████████",
+          "███     ",
+          "███▄▄▄▄ ",
+          "███▀▀▀▀ ",
+          "███     ",
+          "████████"],
+    "C": [" ▄███████",
+          "███▀     ",
+          "███      ",
+          "███      ",
+          "███▄     ",
+          " ▀███████"],
+    "S": [" ▄███████",
+          "███▀     ",
+          "▀████▄▄  ",
+          "  ▀▀▀████",
+          "     ▄███",
+          "███████▀ "],
+    "I": ["████",
+          "████",
+          "████",
+          "████",
+          "████",
+          "████"],
+}
+SUBTITULO = "Technology for Science"
+MARGEN = 6                     # columnas de red a cada lado de las letras
+# ondas de la red: centro [filas], amplitud [filas], longitud de onda [columnas], fase, columnas con nodo
+ONDAS = [(1.5, 1.0, 70, 0.4, (5, 40, 68)),
+         (3.8, 1.3, 60, 2.6, (12, 50)),
+         (2.6, 1.6, 44, 4.4, (2, 30, 63))]
+
+
+
+def armar_logo():
+    """Capas del logo: letras (con su parte TEC/SCI), red de fondo y recorrido de cada onda."""
+    alto = 6
+    letras = [[None] * MARGEN for _ in range(alto)]
+    for i, l in enumerate("TECSCI"):
+        parte = "tec" if i < 3 else "sci"
+        for r in range(alto):
+            letras[r] += [(ch, parte) if ch != " " else None for ch in LETRAS[l][r]]
+            if i < 5:
+                letras[r].append(None)
+    for r in range(alto):
+        letras[r] += [None] * MARGEN
+    ancho = len(letras[0])
+
+    red = [[None] * ancho for _ in range(alto)]
+    caminos = []
+    for centro, amp, lam, fase, nodos in ONDAS:
+        filas = [min(alto - 1, max(0, round(centro + amp * math.sin(2 * math.pi * x / lam + fase))))
+                 for x in range(ancho)]
+        camino = []
+        for x, r in enumerate(filas):
+            sig = filas[x + 1] if x + 1 < ancho else r
+            if sig == r:
+                celdas = [(r, "•" if x in nodos else "─")]
+            elif sig > r:                    # baja: ╮ arriba, ╰ abajo, con │ si salta más de una fila
+                celdas = [(r, "╮")] + [(k, "│") for k in range(r + 1, sig)] + [(sig, "╰")]
+            else:                            # sube: ╯ abajo, ╭ arriba
+                celdas = [(r, "╯")] + [(k, "│") for k in range(r - 1, sig, -1)] + [(sig, "╭")]
+            for rr, ch in celdas:
+                red[rr][x] = ch
+                camino.append((rr, x))
+        caminos.append(camino)
+    return letras, red, caminos, ancho, alto
+
+
+def color_turquesa():
+    vivo = (os.environ.get("COLORTERM", "").lower() in ("truecolor", "24bit")
+            or os.environ.get("WT_SESSION") or os.name == "nt")
+    return "38;2;102;204;207" if vivo else "38;5;80"
+
+
+def dibujar(letras, red, caminos, ancho, alto, ver_red, ver_letras, ver_sub, brillo=None, pulso=None,
+            color=True, turquesa="38;5;80"):
+    pulsos = set()
+    if pulso is not None:
+        for k, camino in enumerate(caminos):
+            i = int(pulso * len(camino)) - 3 * k
+            for j in (i - 1, i):
+                if 0 <= j < len(camino):
+                    pulsos.add(camino[j])
+    filas = []
+    for r in range(alto):
+        s, actual = ["  "], None
+        for c in range(ancho):
+            ch, cod = " ", None
+            if c < ver_letras and letras[r][c]:
+                ch, parte = letras[r][c]
+                en_brillo = brillo is not None and abs(c - brillo) <= 1
+                if parte == "tec":
+                    cod = ("1;" + turquesa) if en_brillo else "1;39"
+                else:
+                    cod = "1;97" if en_brillo else turquesa
+            elif c < ver_red and red[r][c]:
+                ch = red[r][c]
+                cod = "1;97" if (r, c) in pulsos else (("1;" + turquesa) if ch == "•" else "22;" + turquesa)
+            if color and cod != actual and ch != " ":
+                s.append(f"\x1b[0;{cod}m")
+                actual = cod
+            s.append(ch)
+        filas.append("".join(s) + ("\x1b[0m\x1b[K" if color else ""))
+    sub = " ".join(SUBTITULO)
+    pad = (ancho - len(sub)) // 2
+    filas.append("  " + " " * pad + sub[:ver_sub] + ("\x1b[0m\x1b[K" if color else ""))
+    return filas
 
 
 # --- salida en la terminal ----------------------------------------------------------------
@@ -86,41 +190,41 @@ def error(texto):
 
 
 def animacion():
-    arte = ARTE if _puede("".join(ARTE)) else ARTE_ASCII
-    ancho, alto = max(len(l) for l in arte), len(arte)
-    arte = [l.ljust(ancho) for l in arte]
-    if not COLOR:
-        print("\n" + "\n".join("  " + l for l in arte))
+    letras, red, caminos, ancho, alto = armar_logo()
+    n_sub = len(" ".join(SUBTITULO))
+    muestra = "".join(LETRAS["S"]) + "╭╮╯╰─│•"
+    if not _puede(muestra):
+        print("\n  TECSCI - Technology for Science")
         return
+    if not COLOR or shutil.get_terminal_size((80, 24)).columns < ancho + 4:
+        print()
+        print("\n".join(dibujar(letras, red, caminos, ancho, alto, ancho, ancho, n_sub, color=False)))
+        return
+    tq = color_turquesa()
+    total = alto + 1
 
-    def color(c):
-        return DEGRADE[min(len(DEGRADE) - 1, c * len(DEGRADE) // ancho)]
-
-    def cuadro(visible, brillo=None):
-        out = [f"\x1b[{alto}A"]
-        for linea in arte:
-            s = ["  "]
-            for c, ch in enumerate(linea):
-                if c >= visible or ch == " ":
-                    s.append(" ")
-                elif brillo is not None and abs(c - brillo) <= 2:
-                    s.append(f"\x1b[1;97m{ch}")
-                else:
-                    s.append(f"\x1b[22;38;5;{color(c)}m{ch}")
-            out.append("".join(s) + "\x1b[0m\x1b[K\n")
-        sys.stdout.write("".join(out))
+    def cuadro(**kw):
+        sys.stdout.write(f"\x1b[{total}A" + "\n".join(dibujar(letras, red, caminos, ancho, alto,
+                                                              turquesa=tq, **kw)) + "\n")
         sys.stdout.flush()
 
-    sys.stdout.write("\x1b[?25l" + "\n" * alto)       # esconde el cursor y reserva el lugar
+    sys.stdout.write("\n\x1b[?25l" + "\n" * total)        # esconde el cursor y reserva el lugar
     try:
-        for visible in range(0, ancho + 1, 2):         # aparece de izquierda a derecha
-            cuadro(visible)
-            time.sleep(0.025)
-        for _ in range(2):                             # dos pasadas de brillo
-            for b in range(-3, ancho + 4, 2):
-                cuadro(ancho, b)
-                time.sleep(0.012)
-        cuadro(ancho)
+        for v in range(0, ancho + 1, 2):                       # 1. se dibuja la red
+            cuadro(ver_red=v, ver_letras=0, ver_sub=0)
+            time.sleep(0.012)
+        for v in range(0, ancho + 1):                          # 2. aparecen las letras
+            cuadro(ver_red=ancho, ver_letras=v, ver_sub=0)
+            time.sleep(0.011)
+        for v in range(0, n_sub + 1):                          # 3. se escribe el subtítulo
+            cuadro(ver_red=ancho, ver_letras=ancho, ver_sub=v)
+            time.sleep(0.02)
+        pasos = 60                                             # 4. brillo y señales por la red
+        for i in range(pasos + 1):
+            cuadro(ver_red=ancho, ver_letras=ancho, ver_sub=n_sub,
+                   brillo=-3 + (ancho + 6) * i / pasos, pulso=i / pasos)
+            time.sleep(0.014)
+        cuadro(ver_red=ancho, ver_letras=ancho, ver_sub=n_sub)
     finally:
         sys.stdout.write("\x1b[0m\x1b[?25h")
         sys.stdout.flush()
@@ -130,7 +234,7 @@ def final(entorno):
     animacion()
     print()
     marca = "✔" if _puede("✔") else ">>"
-    print(estilo(f"  {marca}  Instalado correctamente", "1;32"))
+    print(estilo(f"  {marca}  Instalado correctamente", "1;" + color_turquesa()))
     print()
     print("  Para abrir la interfaz:")
     print("     " + estilo(_comillas(_ejecutable(entorno, "umachining")), "1"))
