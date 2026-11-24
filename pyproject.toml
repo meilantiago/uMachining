@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "umachining"
+version = "1.0.0"
+description = "Interfaz de PC y firmware del eje lineal de micromaquinado μMachining (Raspberry Pi Pico)"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+    { name = "Francisco Maresca" },
+    { name = "Tiago Meilán" },
+]
+dependencies = [
+    "numpy>=1.20",
+    "matplotlib>=3.3",
+    "pyserial>=3.4",
+    "PyQt5>=5.15",
+    "pyqtgraph>=0.12",
+]
+
+[project.urls]
+Repositorio = "https://github.com/meilantiago/uMachining"
+
+[project.scripts]
+umachining = "umachining.interfaz:main"
+umachining-gcode = "umachining.send_gcode:main"
+umachining-flashear = "umachining.flashear:main"
+
+[tool.setuptools]
+packages = ["umachining", "umachining.firmware"]
+
+[tool.setuptools.package-data]
+"umachining.firmware" = ["firmware.uf2", "SHA256SUMS", "INFO.txt"]

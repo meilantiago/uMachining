@@ -1,0 +1,30 @@
+# PlatformIO
+.pio/
+firmware/.pio/
+firmware/.vscode/.browse.c_cpp.db*
+firmware/.vscode/c_cpp_properties.json
+firmware/.vscode/launch.json
+firmware/.vscode/ipch
+
+# Python
+__pycache__/
+*.egg-info/
+/build/
+/dist/
+.venv/
+venv/
+
+# Datos y documentos que no se publican en esta rama
+# (si se hace checkout de esta rama sobre una copia de trabajo de laboratorio, quedan en disco sin subirse)
+/mediciones/
+/informe/
+/respaldos/
+/firmware_inti/
+/contribucion_upstream/
+/simulaciones/
+/simulations/
+/variantes_main/
+/tools/
+/src/
+*.npz
+*.csv

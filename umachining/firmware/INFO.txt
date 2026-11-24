@@ -1,0 +1,5 @@
+Firmware del eje μMachining para Raspberry Pi Pico (RP2040)
+Fuente: firmware/ de este repositorio (rama INTI-VAMO-ARRIBA, commit 1aa385a, 17/11/2026)
+Compilado con PlatformIO, env pico (board = rpipico)
+Es el mismo binario que está grabado en la placa del laboratorio desde el 17/11/2026.
+Parámetros: corriente 0,8; POS_KP 120, POS_KI 0, VEL_KP 0,09, VEL_KI 30 (60 por debajo de 0,5 mm/s)
