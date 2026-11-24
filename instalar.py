@@ -105,14 +105,33 @@ def armar_logo():
     return letras, red, caminos, ancho, alto
 
 
+def _color_vivo():
+    return bool(os.environ.get("COLORTERM", "").lower() in ("truecolor", "24bit")
+                or os.environ.get("WT_SESSION") or os.name == "nt")
+
+
 def color_turquesa():
-    vivo = (os.environ.get("COLORTERM", "").lower() in ("truecolor", "24bit")
-            or os.environ.get("WT_SESSION") or os.name == "nt")
-    return "38;2;102;204;207" if vivo else "38;5;80"
+    return "38;2;102;204;207" if _color_vivo() else "38;5;80"
 
 
-def dibujar(letras, red, caminos, ancho, alto, ver_red, ver_letras, ver_sub, brillo=None, pulso=None,
-            color=True, turquesa="38;5;80"):
+def color_reflejo():
+    """Borde de la luz que cruza el logo: turquesa casi blanco."""
+    return "38;2;205;245;247" if _color_vivo() else "38;5;195"
+
+
+LUZ_INCLINACION = 1.6          # columnas que se corre la luz por fila: la banda queda inclinada como «/»
+
+
+def _luz(c, r, alto, luz):
+    """0 fuera de la luz, 1 en el borde, 2 en el centro."""
+    if luz is None:
+        return 0
+    d = abs(c - luz - LUZ_INCLINACION * (alto - r))
+    return 2 if d <= 1.0 else 1 if d <= 2.6 else 0
+
+
+def dibujar(letras, red, caminos, ancho, alto, ver_red, ver_letras, ver_sub, pulso=None, luz=None,
+            color=True, turquesa="38;5;80", reflejo="38;5;195"):
     pulsos = set()
     if pulso is not None:
         for k, camino in enumerate(caminos):
@@ -127,14 +146,13 @@ def dibujar(letras, red, caminos, ancho, alto, ver_red, ver_letras, ver_sub, bri
             ch, cod = " ", None
             if c < ver_letras and letras[r][c]:
                 ch, parte = letras[r][c]
-                en_brillo = brillo is not None and abs(c - brillo) <= 1
-                if parte == "tec":
-                    cod = ("1;" + turquesa) if en_brillo else "1;39"
-                else:
-                    cod = "1;97" if en_brillo else turquesa
+                cod = "1;39" if parte == "tec" else turquesa
             elif c < ver_red and red[r][c]:
                 ch = red[r][c]
                 cod = "1;97" if (r, c) in pulsos else (("1;" + turquesa) if ch == "•" else "22;" + turquesa)
+            brillo = _luz(c, r, alto, luz) if ch != " " else 0
+            if brillo:
+                cod = "1;97" if brillo == 2 else "1;" + reflejo
             if color and cod != actual and ch != " ":
                 s.append(f"\x1b[0;{cod}m")
                 actual = cod
@@ -142,7 +160,15 @@ def dibujar(letras, red, caminos, ancho, alto, ver_red, ver_letras, ver_sub, bri
         filas.append("".join(s) + ("\x1b[0m\x1b[K" if color else ""))
     sub = " ".join(SUBTITULO)
     pad = (ancho - len(sub)) // 2
-    filas.append("  " + " " * pad + sub[:ver_sub] + ("\x1b[0m\x1b[K" if color else ""))
+    s, actual = ["  " + " " * pad], None
+    for i, ch in enumerate(sub[:ver_sub]):
+        brillo = _luz(pad + i, alto, alto, luz) if ch != " " else 0
+        cod = "1;97" if brillo == 2 else ("1;" + reflejo) if brillo else "0"
+        if color and cod != actual:
+            s.append(f"\x1b[0;{cod}m")
+            actual = cod
+        s.append(ch)
+    filas.append("".join(s) + ("\x1b[0m\x1b[K" if color else ""))
     return filas
 
 
@@ -200,12 +226,12 @@ def animacion():
         print()
         print("\n".join(dibujar(letras, red, caminos, ancho, alto, ancho, ancho, n_sub, color=False)))
         return
-    tq = color_turquesa()
+    tq, rf = color_turquesa(), color_reflejo()
     total = alto + 1
 
     def cuadro(**kw):
         sys.stdout.write(f"\x1b[{total}A" + "\n".join(dibujar(letras, red, caminos, ancho, alto,
-                                                              turquesa=tq, **kw)) + "\n")
+                                                              turquesa=tq, reflejo=rf, **kw)) + "\n")
         sys.stdout.flush()
 
     sys.stdout.write("\n\x1b[?25l" + "\n" * total)        # esconde el cursor y reserva el lugar
@@ -219,11 +245,17 @@ def animacion():
         for v in range(0, n_sub + 1):                          # 3. se escribe el subtítulo
             cuadro(ver_red=ancho, ver_letras=ancho, ver_sub=v)
             time.sleep(0.02)
-        pasos = 60                                             # 4. brillo y señales por la red
+        pasos = 50                                             # 4. señales que recorren la red
         for i in range(pasos + 1):
-            cuadro(ver_red=ancho, ver_letras=ancho, ver_sub=n_sub,
-                   brillo=-3 + (ancho + 6) * i / pasos, pulso=i / pasos)
+            cuadro(ver_red=ancho, ver_letras=ancho, ver_sub=n_sub, pulso=i / pasos)
             time.sleep(0.014)
+        cuadro(ver_red=ancho, ver_letras=ancho, ver_sub=n_sub)
+        time.sleep(0.25)
+        inicio, fin = -LUZ_INCLINACION * (alto + 1) - 4, ancho + 4
+        pasos = 45                                             # 5. una luz cruza todo el logo
+        for i in range(pasos + 1):
+            cuadro(ver_red=ancho, ver_letras=ancho, ver_sub=n_sub, luz=inicio + (fin - inicio) * i / pasos)
+            time.sleep(0.016)
         cuadro(ver_red=ancho, ver_letras=ancho, ver_sub=n_sub)
     finally:
         sys.stdout.write("\x1b[0m\x1b[?25h")
