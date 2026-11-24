@@ -8,11 +8,11 @@ Control en lazo cerrado de un eje lineal de micromaquinado: un motor paso a paso
 
 | Comando | Para qué |
 |---|---|
-| `umachining` | Interfaz gráfica: control remoto del eje y telemetría en vivo ([guía de uso](docs/GUIA_INTERFAZ.md)) |
+| `umachining` | Interfaz gráfica: control remoto del eje, telemetría en vivo y lectura del medidor de potencia óptica HP 8153A por GPIB ([guía de uso](docs/GUIA_INTERFAZ.md)) |
 | `umachining-gcode` | Mandar comandos G-code desde la terminal |
 | `umachining-flashear` | Grabar el firmware en la Pico (el `.uf2` ya compilado viene dentro del paquete) |
 
-Las dependencias (`numpy`, `matplotlib`, `pyserial`, `PyQt5`, `pyqtgraph`) se instalan solas. No hace falta PlatformIO salvo que se quiera modificar y recompilar el firmware.
+Las dependencias (`numpy`, `matplotlib`, `pyserial`, `PyQt5`, `pyqtgraph`, `pyvisa`, `pyvisa-py`) se instalan solas. No hace falta PlatformIO salvo que se quiera modificar y recompilar el firmware.
 
 ## Requisitos
 
@@ -136,6 +136,8 @@ La interfaz encuentra la placa y se conecta sola. **Cada vez que se enciende la 
 
 La [guía de la interfaz](docs/GUIA_INTERFAZ.md) explica cada control. Las grabaciones de telemetría y los barridos del encoder se guardan en `~/uMachining/mediciones/AAAA-MM-DD/` (en Windows, `C:\Users\<usuario>\uMachining\mediciones\`). Para usar otra carpeta: `umachining --datos <carpeta>`, o la variable de entorno `UMACHINING_DATOS`.
 
+**Medidor HP 8153A (opcional).** La pestaña **HP 8153A** lee el medidor de potencia óptica por una placa NI GPIB-USB-HS y graba sus lecturas en un CSV aparte (`hp8153a_*.csv`). Para el equipo real hace falta instalar el driver de la placa: NI-488.2 y NI-VISA de ni.com (en Linux, los "NI Linux Device Drivers" con `ni-488.2` y `ni-visa`). Sin el driver, la pestaña se puede probar con el equipo **SIMULADO**. Detalle en la [guía de la interfaz](docs/GUIA_INTERFAZ.md#8-pestaña-hp-8153a-medidor-de-potencia-óptica-por-gpib).
+
 **Desde la terminal**, sin la interfaz:
 
 ```bash
@@ -167,7 +169,8 @@ La placa usa 921 600 baudios. Solo un programa por vez puede tener abierto el pu
 | La placa no aparece en la lista de puertos | Probar otro cable USB (de datos) y otro puerto de la PC. `umachining-flashear --info` muestra lo que se detecta. |
 | `umachining-flashear` no encuentra la unidad `RPI-RP2` | Hacer el BOOTSEL a mano (punto 3b). En Linux sin escritorio la unidad no se monta sola: montarla (`sudo mount /dev/sdX1 /mnt`) y correr `umachining-flashear --unidad /mnt`. |
 | Raspberry Pi u otra PC ARM con Linux | PyQt5 no se instala desde pip ahí: `sudo apt install python3-pyqt5 python3-pyqtgraph`, crear el entorno con `python3 -m venv --system-site-packages ~/umachining-venv` y seguir el punto 1. |
-| **Corte por falla**, eje sin calibrar, lazo apagado | Ver «Si algo sale mal» en la [guía de la interfaz](docs/GUIA_INTERFAZ.md#8-si-algo-sale-mal). |
+| Pestaña HP 8153A: `Please install linux-gpib … or gpib-ctypes` o no encuentra el equipo | Falta el driver de la GPIB-USB-HS (NI-488.2 y NI-VISA, ver el punto 4). Revisar también que el equipo esté encendido y en la dirección GPIB 22, o escribir el recurso a mano. |
+| **Corte por falla**, eje sin calibrar, lazo apagado | Ver «Si algo sale mal» en la [guía de la interfaz](docs/GUIA_INTERFAZ.md#9-si-algo-sale-mal). |
 
 ## Actualizar y desinstalar
 

@@ -24,6 +24,7 @@ import glob
 import math
 import os
 import queue
+import re
 import struct
 import sys
 import threading
@@ -55,9 +56,10 @@ from PyQt5.QtCore import Qt  # noqa: E402
 import pyqtgraph as pg  # noqa: E402
 
 from . import encoder_analysis as ea  # noqa: E402
+from . import hp8153a as hp  # noqa: E402
 from . import puertos, rutas  # noqa: E402
 
-# --- montaje y firmware (ver src/hw_config.h) ---
+# --- montaje y firmware (ver firmware/src/hw_config.h) ---
 BAUD = 921600
 PITCH_MM = 5.0                 # husillo: mm por vuelta de motor
 AXIS_MIN_MM, AXIS_MAX_MM = 0.0, 255.0
@@ -92,17 +94,42 @@ SWEEP_SPEED_DEFAULT = 1.25     # mm/s de carro = 0,25 vueltas/s, también como G
 SWEEP_DECIMATION = 2           # M57 lee el encoder cada ~0,5 ms: una muestra por ms
 
 # --- estilo (mismos colores que los gráficos de las herramientas de laboratorio) ---
-SURFACE = "#fcfcfb"
-INK = "#0b0b0b"
-INK2 = "#52514e"
-MUTED = "#898781"
-GRID = "#e1e0d9"
+# Los colores de los datos son los mismos en los dos temas. Los neutros cambian con el modo oscuro
+# (set_theme): se leen como globales en el momento de dibujar o de armar el estilo, así que no hay que
+# copiarlos en atributos ni en argumentos por defecto.
 BLUE = "#2a78d6"
 ORANGE = "#eb6834"
 RED = "#d03b3b"
 GREEN = "#2e9e5b"
 AMBER = "#d99a1e"
-PASS_COLORS = (BLUE, GREEN, "#7a5cc7", INK2)   # pasada 1, 2, ... en las ventanas de 2 períodos
+THEMES = {
+    False: dict(SURFACE="#fcfcfb", CARD="#ffffff", INK="#0b0b0b", INK2="#52514e", MUTED="#898781",
+                GRID="#e1e0d9", BORDER="#c3c2b7", BTN="#f6f5f2", BTN_HOVER="#eeede8", BTN_PRESS="#e1e0d9",
+                DIS_FG="#b5b3ac", DIS_BG="#f3f2ef", SOFT_BORDER="#d6d4cd", CONSOLE_BG="#fafaf8",
+                TRACK="#efeeea", CUR_BORDER="#9fc2ec", SEL_BG="#e3eefb", SEL_FG="#184f95",
+                OK_FG="#1f7a45", WARN_FG="#8a5a00", STOP_BG="#2b2a27", STOP_HOVER="#45443f", STOP_FG="#ffffff", REC_BG="#fbe3e3",
+                BOX_ERR=("#fbe3e3", "#b02f2f"), BOX_WARN=("#fdf1dc", "#8a5a00"), BOX_INFO=("#e3eefb", "#184f95"),
+                BOX_OK=("#e2f3e8", "#1f6e3f")),
+    True: dict(SURFACE="#161615", CARD="#1f1f1d", INK="#ecebe7", INK2="#b4b2ab", MUTED="#8a8882",
+               GRID="#34332f", BORDER="#4a4944", BTN="#2a2a27", BTN_HOVER="#33322f", BTN_PRESS="#3d3c38",
+               DIS_FG="#5f5e59", DIS_BG="#232321", SOFT_BORDER="#3d3c38", CONSOLE_BG="#1a1a18",
+               TRACK="#2e2d2a", CUR_BORDER="#3d6fb0", SEL_BG="#1d3557", SEL_FG="#a9c9f2",
+               OK_FG="#4cc27e", WARN_FG="#e0b04a", STOP_BG="#d6d4cd", STOP_HOVER="#e9e8e3", STOP_FG="#161615", REC_BG="#3a2020",
+               BOX_ERR=("#3a1c1c", "#f08a8a"), BOX_WARN=("#3a2e14", "#f0c060"), BOX_INFO=("#172a45", "#9cc4f2"),
+               BOX_OK=("#173322", "#7fd6a0")),
+}
+DARK = False
+
+
+def set_theme(dark):
+    """Cambia los colores neutros globales (SURFACE, INK, ...) al tema claro u oscuro."""
+    global DARK
+    DARK = bool(dark)
+    globals().update(THEMES[DARK])
+
+
+set_theme(False)
+PASS_COLORS = (BLUE, GREEN, "#7a5cc7", "#898781")   # pasada 1, 2, ... en las ventanas de 2 períodos
 # referencias de color en los títulos de la pestaña Encoder (los puntos de 2 px no se ven en una leyenda)
 KEY_DIRS = f"<span style='color:{BLUE}'>■</span> ida &nbsp;<span style='color:{ORANGE}'>■</span> vuelta"
 KEY_WEAK = f" &nbsp;<span style='color:{RED}'>✕</span> campo débil"
@@ -398,8 +425,31 @@ def fmt_len(exp):
     return f"{10 ** e} {unit}"
 
 
+NNBSP = " "                # espacio fino que no corta: separa los decimales de a tres (SI)
+
+
+def es_num(s):
+    """Un número ya formateado con punto, a la notación de la pantalla: coma decimal y signo menos (−)."""
+    return s.replace(".", ",").replace("-", "−")
+
+
+def fnum(x, dec, sign=False, group=False):
+    """x con `dec` decimales como se muestra en pantalla: 49,525 712 · +0,850 · −5.
+    group: decimales de a tres (solo si hay más de tres). Los CSV y el G-code siguen con punto."""
+    s = f"{x:{'+' if sign else ''}.{dec}f}"
+    if group and dec > 3:
+        ip, fp = s.split(".")
+        s = ip + "." + NNBSP.join(fp[i:i + 3] for i in range(0, len(fp), 3))
+    return es_num(s)
+
+
+def _plain_num(text):
+    """Lo que se escribe en un campo numérico (coma o punto, decimales agrupados) a la forma de Python."""
+    return re.sub(r"(?<=\d)[   ](?=\d)", "", text).replace(",", ".").replace("−", "-")
+
+
 class SpinBox(QtWidgets.QDoubleSpinBox):
-    """Acepta coma o punto como separador decimal."""
+    """Muestra coma decimal y los decimales de a tres; acepta coma o punto al escribir."""
 
     def __init__(self, lo, hi, decimals, step, suffix):
         super().__init__()
@@ -412,23 +462,38 @@ class SpinBox(QtWidgets.QDoubleSpinBox):
         self.setAccelerated(True)
 
     def validate(self, text, pos):
-        return super().validate(text.replace(",", "."), pos)
+        # se valida la forma con punto pero se deja el texto como lo escribió el usuario
+        return super().validate(_plain_num(text), pos)[0], text, pos
 
     def valueFromText(self, text):
-        return super().valueFromText(text.replace(",", "."))
+        return super().valueFromText(_plain_num(text))
+
+    def textFromValue(self, value):
+        return fnum(value, self.decimals(), group=True)
+
+
+class EsAxis(pg.AxisItem):
+    """Eje con los rótulos en la notación de la pantalla (coma decimal, signo −)."""
+
+    def tickStrings(self, values, scale, spacing):
+        return [es_num(s) for s in super().tickStrings(values, scale, spacing)]
+
+
+def es_axes(**kw):
+    """axisItems para addPlot: izquierda y abajo con EsAxis, salvo los que se pasen."""
+    return {"left": kw.get("left") or EsAxis("left"), "bottom": kw.get("bottom") or EsAxis("bottom")}
 
 
 class OffsetAxis(pg.AxisItem):
     """Eje de posición para datos graficados respecto de `offset` (mm, un número redondo).
 
-    Con zoom de µm o nm sobre ~150 mm los rótulos absolutos (149.99996) no entran en el eje y
+    Con zoom de µm o nm sobre ~150 mm los rótulos absolutos (149,99996) no entran en el eje y
     pyqtgraph los esconde: con menos de 10 µm entre marcas rotula en µm sobre `offset`.
-    `on_reference(texto)` avisa cuándo mostrar la referencia (texto vacío: rótulos absolutos).
+    `on_reference(texto)` avisa la unidad para el título (texto vacío: rótulos absolutos en mm).
     """
 
-    def __init__(self, unit, on_reference):
+    def __init__(self, on_reference):
         super().__init__("left")
-        self.unit = unit
         self.on_reference = on_reference
         self.offset = 0.0
         self.offset_places = 0
@@ -443,10 +508,7 @@ class OffsetAxis(pg.AxisItem):
             self.update()
 
     def _update_label(self):
-        text = "µm" if self.relative else self.unit
-        if self.labelText != text:
-            self.setLabel(text)
-        self.on_reference(f"µm sobre {self.offset:.{self.offset_places}f} {self.unit}" if self.relative else "")
+        self.on_reference(f"x [µm] respecto de {fnum(self.offset, self.offset_places)} mm" if self.relative else "")
 
     def tickValues(self, minVal, maxVal, size):
         # se decide acá y no en tickStrings, que se llama por separado para mayores y menores
@@ -460,9 +522,9 @@ class OffsetAxis(pg.AxisItem):
     def tickStrings(self, values, scale, spacing):
         if self.relative:
             places = max(0, math.ceil(-math.log10(spacing * 1000)))
-            return [f"{v * 1000:.{places}f}" for v in values]
+            return [fnum(v * 1000, places) for v in values]
         places = max(0, math.ceil(-math.log10(spacing)))
-        return [f"{self.offset + v:.{places}f}" for v in values]
+        return [fnum(self.offset + v, places) for v in values]
 
 
 class RailWidget(QtWidgets.QWidget):
@@ -476,7 +538,7 @@ class RailWidget(QtWidgets.QWidget):
         super().__init__()
         self.pos_mm = None
         self.dest_mm = None
-        self.setMinimumHeight(86)
+        self.setFixedHeight(76)
         self.setCursor(Qt.PointingHandCursor)
         self.setToolTip("Clic en el carril: elegir ese punto como destino (después «Ir»)")
 
@@ -518,7 +580,7 @@ class RailWidget(QtWidgets.QWidget):
                 p.setPen(QtGui.QColor(INK2))
                 p.drawText(QtCore.QRectF(x - 20, y + 17, 40, 14), Qt.AlignCenter, f"{mm}")
         p.setPen(QtGui.QColor(INK2))
-        p.drawText(QtCore.QRectF(x1 - 40, y + 17, 64, 14), Qt.AlignRight, "255 mm")
+        p.drawText(QtCore.QRectF(x1 - 20, y + 17, 40, 14), Qt.AlignCenter, "255")
         # destino
         if self.dest_mm is not None:
             x = self._x(self.dest_mm)
@@ -537,45 +599,115 @@ class RailWidget(QtWidgets.QWidget):
         p.end()
 
 
-class Readout(QtWidgets.QFrame):
-    def __init__(self, title, unit, tooltip=""):
-        super().__init__()
-        self.setObjectName("readout")
-        lay = QtWidgets.QVBoxLayout(self)
-        lay.setContentsMargins(10, 6, 10, 6)
-        lay.setSpacing(0)
-        top = QtWidgets.QLabel(f"{title} <span style='color:{MUTED}'>[{unit}]</span>")
-        top.setObjectName("readoutTitle")
-        self.value = QtWidgets.QLabel("—")
-        self.value.setObjectName("readoutValue")
-        self.value.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        lay.addWidget(top)
-        lay.addWidget(self.value)
-        self.setToolTip(tooltip)
-
-    def set(self, text, color=INK):
-        self.value.setText(text)
-        if color != getattr(self, "_color", None):
-            self._color = color
-            self.value.setStyleSheet(f"color:{color}")
+def set_color(label, text, color=None):
+    """setText + color (None: el del texto del tema), sin tocar la hoja de estilo si el color no cambió
+    (se llama 10 veces por segundo)."""
+    label.setText(text)
+    if label.property("_color") != (color or ""):
+        label.setProperty("_color", color or "")
+        label.setStyleSheet(f"color:{color}" if color else "")
 
 
-class Chip(QtWidgets.QLabel):
+def legend_brush():
+    c = QtGui.QColor(CARD)
+    c.setAlpha(225)
+    return pg.mkBrush(c)
+
+
+def set_flag(widget, name, value):
+    """Propiedad dinámica que usa la hoja de estilo (QPushButton[ghost="true"]): hay que repulir el widget."""
+    if widget.property(name) != value:
+        widget.setProperty(name, value)
+        widget.style().unpolish(widget)
+        widget.style().polish(widget)
+
+
+class Led(QtWidgets.QWidget):
+    """Indicador de estado: un punto de color y el texto. No parece un botón porque no lo es."""
+
+    COLORS = {True: (GREEN, "#d3ecdc"), False: (RED, "#f6d3d3"), "warn": (AMBER, "#f6e6c4"), None: ("#c3c2b7", "#efeeea")}
+
     def __init__(self, text, tooltip=""):
-        super().__init__(text)
-        self.setAlignment(Qt.AlignCenter)
-        self.setMinimumWidth(92)
+        super().__init__()
+        lay = QtWidgets.QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(6)
+        self.dot = QtWidgets.QLabel()
+        self.dot.setFixedSize(12, 12)
+        self.label = QtWidgets.QLabel(text)
+        lay.addWidget(self.dot)
+        lay.addWidget(self.label)
         self.setToolTip(tooltip)
+        self._state = object()
         self.set_state(None)
+
+    def setText(self, text):
+        if text != self.label.text():
+            self.label.setText(text)
+            self._fit()
+
+    def _fit(self):
+        # el ancho justo del texto (en rojo va en negrita): que no se corte al cambiar de texto o de estado
+        font = QtGui.QFont(self.label.font())
+        font.setBold(self._state is False)
+        self.label.setFixedWidth(QtGui.QFontMetrics(font).horizontalAdvance(self.label.text()) + 4)
 
     def set_state(self, state):
         """True: verde, False: rojo, None: gris (desconocido), 'warn': ámbar."""
-        if getattr(self, "_state", object()) == state:
+        if self._state == state:
             return
         self._state = state
-        bg, fg = {True: (GREEN, "white"), False: (RED, "white"), "warn": (AMBER, "white")}.get(
-            state, ("#e9e8e3", MUTED))
-        self.setStyleSheet(f"background:{bg}; color:{fg}; border-radius:10px; padding:3px 10px; font-weight:600")
+        color, halo = self.COLORS.get(state, self.COLORS[None])
+        self.dot.setStyleSheet(f"background:{color}; border:2px solid {halo}; border-radius:6px")
+        self.label.setStyleSheet(f"color:{MUTED if state is None else RED if state is False else INK};"
+                                 f"font-weight:{600 if state is False else 400}")
+        self._fit()
+
+    def refresh(self):
+        """Volver a pintar con los colores del tema actual."""
+        state, self._state = self._state, object()
+        self.set_state(state)
+
+
+class StepCard(QtWidgets.QFrame):
+    """Un paso del panel de control: número (✓ cuando está hecho), título y contenido en `body`.
+    El paso que hay que hacer ahora (`current`) se resalta con un borde azul."""
+
+    def __init__(self, number, title):
+        super().__init__()
+        self.setObjectName("step")
+        self.number = str(number)
+        outer = QtWidgets.QHBoxLayout(self)
+        outer.setContentsMargins(12, 10, 12, 12)
+        outer.setSpacing(12)
+        self.badge = QtWidgets.QLabel(alignment=Qt.AlignCenter)
+        self.badge.setFixedSize(24, 24)
+        outer.addWidget(self.badge, 0, Qt.AlignTop)
+        self.body = QtWidgets.QVBoxLayout()
+        self.body.setSpacing(8)
+        self.body.addWidget(QtWidgets.QLabel(title, objectName="stepTitle"))
+        outer.addLayout(self.body, 1)
+        self._state = None
+        self.set_state("todo")
+
+    def set_state(self, state, current=False):
+        """'done': ✓ verde, 'active': número en azul (se puede usar), 'todo': número gris."""
+        if (state, current) == self._state:
+            return
+        self._state = (state, current)
+        bg, fg, border, text = {"done": (GREEN, "white", GREEN, "✓"),
+                                "active": (BLUE, "white", BLUE, self.number),
+                                "todo": (CARD, MUTED, BORDER, self.number)}[state]
+        self.badge.setText(text)
+        self.badge.setStyleSheet(f"background:{bg}; color:{fg}; border:1px solid {border}; border-radius:12px;"
+                                 f"font-weight:700")
+        set_flag(self, "current", current)
+
+    def refresh(self):
+        """Volver a pintar con los colores del tema actual."""
+        state, self._state = self._state, None
+        if state:
+            self.set_state(*state)
 
 
 class GcodeLine(QtWidgets.QLineEdit):
@@ -723,7 +855,7 @@ class EncoderTab(QtWidgets.QWidget):
             "Gira el motor en <b>lazo abierto</b>, ida y vuelta, y registra el ángulo crudo del MT6835 "
             "contra el campo comandado (<code>M57 … R1</code>): ¿la rueda y el sensor están bien puestos?")
         intro.setWordWrap(True)
-        intro.setStyleSheet(f"color:{INK2}; font-weight:400")
+        intro.setObjectName("ink2")
         b.addWidget(intro)
         form = QtWidgets.QGridLayout()
         form.setHorizontalSpacing(8)
@@ -807,7 +939,7 @@ class EncoderTab(QtWidgets.QWidget):
                 ("bits", "Sobrevel. / CRC / subt.", "Bits de estado del chip: sobrevelocidad, error de CRC, subtensión"),
                 ("n", "Muestras", "Cantidad, duración y vueltas recorridas"))):
             t = QtWidgets.QLabel(title)
-            t.setStyleSheet(f"color:{INK2}; font-weight:400")
+            t.setObjectName("ink2")
             t.setToolTip(tip)
             v = QtWidgets.QLabel("—")
             v.setObjectName("resValue")
@@ -827,7 +959,7 @@ class EncoderTab(QtWidgets.QWidget):
         scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setFixedWidth(410)
-        scroll.setStyleSheet(f"QScrollArea, QScrollArea > QWidget > QWidget {{ background: {SURFACE}; }}")
+        scroll.setObjectName("encScroll")         # fondo: en la hoja de estilo (cambia con el tema)
         lay.addWidget(scroll)
 
         self.sub = QtWidgets.QTabWidget()
@@ -838,6 +970,7 @@ class EncoderTab(QtWidgets.QWidget):
         lay.addWidget(self.sub, 1)
 
     def _plot(self, glw, row, col, title, xlabel, ylabel, **kw):
+        kw.setdefault("axisItems", es_axes())
         p = glw.addPlot(row=row, col=col, **kw)
         MainWindow._set_title(p, title)
         p.setLabel("bottom", xlabel)
@@ -854,7 +987,7 @@ class EncoderTab(QtWidgets.QWidget):
     @staticmethod
     def _legend(p):
         """Leyenda con fondo, para que se lea encima de los puntos."""
-        return p.addLegend(offset=(8, 4), labelTextColor=INK2, brush=pg.mkBrush(255, 255, 255, 225),
+        return p.addLegend(offset=(8, 4), labelTextColor=INK2, brush=legend_brush(),
                            pen=pg.mkPen(GRID), verSpacing=-4)
 
     @staticmethod
@@ -1025,7 +1158,7 @@ class EncoderTab(QtWidgets.QWidget):
         ans = QtWidgets.QMessageBox.question(
             self, "Barrido del encoder",
             f"El motor gira {revs} vuelta{'s' if revs > 1 else ''} en lazo abierto y vuelve "
-            f"(el carro va de {pos:.2f} a {pos + legs[0]:.2f} mm y regresa), a {v:g} mm/s: unos {dur + 2:.0f} s.\n\n"
+            f"(el carro va de {fnum(pos, 2)} a {fnum(pos + legs[0], 2)} mm y regresa), a {es_num(f'{v:g}')} mm/s: unos {dur + 2:.0f} s.\n\n"
             "Durante el barrido el lazo cerrado está apagado y la placa no atiende otros comandos "
             "(ni «Apagar motor»). Al terminar se rehabilita el lazo (M17) donde quedó el carro.\n\n"
             "Asegurate de que el recorrido esté libre. ¿Empezar?",
@@ -1229,23 +1362,23 @@ class EncoderTab(QtWidgets.QWidget):
         s = self.stats
         good, bad, warn = (f"color:{GREEN}", f"color:{RED}", f"color:{AMBER}")
         ppr_ok = abs(s["periods_per_rev"] - WHEEL_MAGNETS / 2) < 0.2
-        self.res["ppr"].setText(f"{'✓' if ppr_ok else '✗'} {s['periods_per_rev']:.2f}  (esperado {WHEEL_MAGNETS // 2})")
+        self.res["ppr"].setText(f"{'✓' if ppr_ok else '✗'} {fnum(s['periods_per_rev'], 2)}  (esperado {WHEEL_MAGNETS // 2})")
         self.res["ppr"].setStyleSheet(good if ppr_ok else bad)
         self.res["jumps"].setText(f"{'✓' if s['jumps'] == 0 else '✗'} {s['jumps']}")
         self.res["jumps"].setStyleSheet(good if s["jumps"] == 0 else bad)
-        self.res["weak"].setText(f"{s['weak_pct']:.1f} %  ({s['weak_n']} muestras)")
+        self.res["weak"].setText(f"{fnum(s['weak_pct'], 1)} %  ({s['weak_n']} muestras)")
         self.res["weak"].setStyleSheet(good if s["weak_n"] == 0 else warn)
         for k in ("ida", "vuelta"):
             e = s[k]
-            self.res[k].setText("—" if e is None else f"RMS {e['rms']:.1f}° · máx {e['max']:.0f}°")
+            self.res[k].setText("—" if e is None else f"RMS {fnum(e['rms'], 1)}° · máx {e['max']:.0f}°")
             if e is not None:
-                self.res[k].setToolTip(f"RMS {e['rms']:.2f}° de encoder = {e['rms_shaft']:.3f}° de eje "
+                self.res[k].setToolTip(f"RMS {fnum(e['rms'], 2)}° de encoder = {fnum(e['rms_shaft'], 3)}° de eje "
                                        f"(1 período del encoder = 360°, 30 períodos por vuelta)")
             self.res[k].setStyleSheet(f"color:{INK}")
         bits_ok = s["overspeed_n"] == 0 and s["crc_n"] == 0 and s["undervolt_n"] == 0
         self.res["bits"].setText(f"{s['overspeed_n']} / {s['crc_n']} / {s['undervolt_n']}")
         self.res["bits"].setStyleSheet(good if bits_ok else warn)
-        self.res["n"].setText(f"{s['n']} en {s['duration_s']:.1f} s · {s['revs']:.2f} vueltas")
+        self.res["n"].setText(f"{s['n']} en {fnum(s['duration_s'], 1)} s · {fnum(s['revs'], 2)} vueltas")
         self.res["n"].setStyleSheet(f"color:{INK}")
 
         problems = []
@@ -1258,12 +1391,12 @@ class EncoderTab(QtWidgets.QWidget):
         if problems:
             text = ("✗ " + "; ".join(problems) + ". En lazo abierto un salto también puede ser el motor "
                     "patinando en un punto duro: comparar ida y vuelta y la posición donde aparece.")
-            self.lbl_verdict.setStyleSheet(f"background:#fbe3e3; color:{RED}; padding:6px 8px; border-radius:6px;"
+            self.lbl_verdict.setStyleSheet(f"background:{BOX_ERR[0]}; color:{BOX_ERR[1]}; padding:6px 8px; border-radius:6px;"
                                            "font-weight:600")
         else:
-            text = (f"✓ La lectura sigue a la rueda en todo el barrido: {s['periods_per_rev']:.2f} períodos "
+            text = (f"✓ La lectura sigue a la rueda en todo el barrido: {fnum(s['periods_per_rev'], 2)} períodos "
                     f"por vuelta, sin saltos.")
-            self.lbl_verdict.setStyleSheet("background:#e2f3e8; color:#1f6e3f; padding:6px 8px; border-radius:6px;"
+            self.lbl_verdict.setStyleSheet(f"background:{BOX_OK[0]}; color:{BOX_OK[1]}; padding:6px 8px; border-radius:6px;"
                                            "font-weight:600")
         self.lbl_verdict.setText(text)
         self.lbl_verdict.show()
@@ -1296,7 +1429,7 @@ class EncoderTab(QtWidgets.QWidget):
         note = KEY_DIRS + KEY_WEAK + " &nbsp;· punteado: cada vuelta del motor"
         if self.from_home and len(x):
             a, b = (round(v * PITCH_MM, 2) + 0.0 for v in (np.nanmin(x), np.nanmax(x)))
-            note += f" · carro de {a:.2f} a {b:.2f} mm"
+            note += f" · carro de {fnum(a, 2)} a {fnum(b, 2)} mm"
         MainWindow._set_title(self.p_ang, "Ángulo crudo del encoder", note)
         for p in (self.p_ang, self.p_errx):
             p.getViewBox().enableAutoRange(x=True)
@@ -1477,6 +1610,579 @@ class EncoderTab(QtWidgets.QWidget):
 
 
 # ======================================================================================
+# Pestaña HP 8153A (medidor de potencia óptica por GPIB, ver hp8153a.py)
+# ======================================================================================
+
+def si_watts(v):
+    """(factor, prefijo) para mostrar v [W] con 1 a 3 cifras enteras: 1,2e-5 W -> (1e6, 'µ')."""
+    a = abs(v)
+    for base, pre in ((1.0, ""), (1e-3, "m"), (1e-6, "µ"), (1e-9, "n")):
+        if a >= base:
+            return 1.0 / base, pre
+    return 1e12, "p"
+
+
+def fmt_power(v, unidad):
+    """Lectura del HP como se muestra: 12,345 µW o −19,087 dBm (5 cifras, como la pantalla del equipo)."""
+    if not math.isfinite(v):
+        return "—"
+    if unidad == hp.UNIT_DBM:
+        return f"{fnum(v, 3, sign=v < 0)} dBm"
+    k, pre = si_watts(v)
+    x = v * k
+    digits = int(math.floor(math.log10(abs(x)))) + 1 if x != 0 else 1
+    return f"{fnum(x, max(0, 5 - digits))} {pre}W"
+
+
+def data_folder(now):
+    """Carpeta del día para las mediciones (la misma que «Grabar CSV»)."""
+    return rutas.del_dia(now)
+
+
+def short_path(path):
+    return rutas.corta(path)
+
+
+class HPTab(QtWidgets.QWidget):
+    """Lecturas del HP 8153A por GPIB, en vivo y a un CSV propio (hp8153a_*.csv), aparte del de la
+    telemetría del encoder. Las dos grabaciones pueden arrancar y parar juntas."""
+
+    WINDOWS = (10, 30, 60, 120, 300)
+
+    def __init__(self, win):
+        super().__init__()
+        self.win = win
+        self.link = hp.HPLink()
+        self.hist = hp.HPHistory()
+        self.info = None               # idn, modulos, canal, recurso del equipo conectado
+        self.cfg = None                # configuración leída del equipo
+        self.connecting = False
+        self.window_s = 30
+        self.paused = False
+        self.rec_file = None
+        self.rec_path = None
+        self.rec_t0 = None
+        self.rec_n = 0
+        self._rec_stamp = None         # hora de la grabación del encoder, para que los nombres coincidan
+        self.last_value = float("nan")
+        self.last_time = None
+        self.rate = 0.0
+        self._rate_count = 0
+        self._rate_t0 = time.monotonic()
+        self._plot_unit = None
+        self._settings = QtCore.QSettings("μMachining", "interfaz")
+
+        self.link.resources.connect(self._got_resources)
+        self.link.connected.connect(self._on_connected)
+        self.link.configured.connect(self._on_configured)
+        self.link.disconnected.connect(self._on_disconnected)
+        self.link.error.connect(self._on_error)
+        self._build()
+        self.refresh_resources()
+        self.update_controls()
+        self.timer = QtCore.QTimer(self, timeout=self._tick)
+        self.timer.start(100)
+
+    # --- UI ---------------------------------------------------------------------------
+    def _build(self):
+        lay = QtWidgets.QHBoxLayout(self)
+        lay.setContentsMargins(0, 4, 0, 0)
+        lay.setSpacing(8)
+        lay.addWidget(self._build_left())
+        lay.addWidget(self._build_right(), 1)
+
+    def _build_left(self):
+        left = QtWidgets.QWidget()
+        left.setMinimumWidth(370)
+        left.setMaximumWidth(440)
+        ll = QtWidgets.QVBoxLayout(left)
+        ll.setContentsMargins(0, 4, 4, 0)
+        ll.setSpacing(10)
+
+        box, b = self.win._group("Conexión por GPIB")
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(6)
+        self.res_combo = QtWidgets.QComboBox()
+        self.res_combo.setEditable(True)
+        self.res_combo.setToolTip(f"Recurso VISA del equipo. De fábrica el 8153A está en la dirección 22:\n"
+                                  f"{hp.DEFAULT_RESOURCE}. «{hp.SIMULADO}» sirve para probar sin el equipo.")
+        btn_ref = QtWidgets.QToolButton(text="↻", toolTip="Volver a buscar equipos GPIB")
+        btn_ref.clicked.connect(self.refresh_resources)
+        self.btn_ref = btn_ref
+        row.addWidget(self.res_combo, 1)
+        row.addWidget(btn_ref)
+        b.addLayout(row)
+        form = QtWidgets.QGridLayout()
+        form.setHorizontalSpacing(8)
+        self.ch_combo = QtWidgets.QComboBox()
+        self.ch_combo.addItems(["A  (canal 1)", "B  (canal 2)"])
+        self.ch_combo.setToolTip("Canal del 8153A donde está el módulo sensor")
+        self.ch_combo.currentIndexChanged.connect(self._channel_changed)
+        form.addWidget(QtWidgets.QLabel("Canal"), 0, 0)
+        form.addWidget(self.ch_combo, 0, 1)
+        form.setColumnStretch(1, 1)
+        b.addLayout(form)
+        self.btn_conn = QtWidgets.QPushButton("Conectar")
+        self.btn_conn.setObjectName("primary")
+        self.btn_conn.clicked.connect(self.toggle_connection)
+        b.addWidget(self.btn_conn)
+        self.lbl_idn = QtWidgets.QLabel(objectName="hint")
+        self.lbl_idn.setWordWrap(True)
+        self.lbl_idn.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        b.addWidget(self.lbl_idn)
+        if not hp.visa_disponible():
+            note = QtWidgets.QLabel("Falta <b>pyvisa</b>: solo anda el equipo simulado. Para el real: "
+                                    "<code>pip install pyvisa pyvisa-py</code> y el driver de la GPIB-USB-HS "
+                                    "(NI-488.2 o linux-gpib).", objectName="hint")
+            note.setWordWrap(True)
+            note.setStyleSheet(f"color:{AMBER}")
+            b.addWidget(note)
+        ll.addWidget(box)
+
+        box, b = self.win._group("Configuración del equipo")
+        form = QtWidgets.QGridLayout()
+        form.setHorizontalSpacing(8)
+        form.setVerticalSpacing(6)
+        self.cb_tavg = QtWidgets.QComboBox()
+        for ms in hp.TAVG_MS:
+            self.cb_tavg.addItem(f"{ms} ms" if ms < 1000 else f"{ms // 1000} s", ms / 1000)
+        self.cb_tavg.setToolTip("Tiempo de promediación (SENS:POW:ATIM): cada lectura es el promedio de la\n"
+                                "potencia durante este tiempo. Más corto: más lecturas por segundo y más ruido.")
+        self.spin_wave = SpinBox(450, 1700, 0, 1, " nm")
+        self.spin_wave.setToolTip("Longitud de onda de la luz (SENS:POW:WAVE): el equipo corrige la sensibilidad\n"
+                                  "del detector con ella. Los límites reales dependen del módulo.")
+        self.cb_unit = QtWidgets.QComboBox()
+        self.cb_unit.addItem("W", hp.UNIT_W)
+        self.cb_unit.addItem("dBm", hp.UNIT_DBM)
+        self.chk_auto = QtWidgets.QCheckBox("Automático")
+        self.chk_auto.setToolTip("Autorango: el equipo elige el rango solo. Con el rango fijo no hay saltos\n"
+                                 "cuando la potencia cruza de un rango a otro.")
+        self.chk_auto.toggled.connect(lambda _: self.update_controls())
+        self.spin_range = QtWidgets.QSpinBox()
+        self.spin_range.setRange(-110, 30)
+        self.spin_range.setSingleStep(10)
+        self.spin_range.setSuffix(" dBm")
+        self.spin_range.setToolTip("Fondo de escala (va de a 10 dBm): −10 dBm = 199,99 µW, −20 dBm = 19,999 µW")
+        rr = QtWidgets.QHBoxLayout()
+        rr.setSpacing(8)
+        rr.addWidget(self.chk_auto)
+        rr.addWidget(self.spin_range, 1)
+        for i, (label, w) in enumerate((("Promediación", self.cb_tavg), ("Longitud de onda", self.spin_wave),
+                                        ("Unidad", self.cb_unit))):
+            form.addWidget(QtWidgets.QLabel(label), i, 0)
+            form.addWidget(w, i, 1)
+        form.addWidget(QtWidgets.QLabel("Rango"), 3, 0)
+        form.addLayout(rr, 3, 1)
+        form.setColumnStretch(1, 1)
+        b.addLayout(form)
+        self.btn_apply = QtWidgets.QPushButton("Aplicar al equipo")
+        self.btn_apply.clicked.connect(self.apply_config)
+        b.addWidget(self.btn_apply)
+        self.lbl_cfg = QtWidgets.QLabel("Al conectar se muestra la configuración que tiene el equipo; "
+                                        "no se cambia nada hasta «Aplicar».", objectName="hint")
+        self.lbl_cfg.setWordWrap(True)
+        b.addWidget(self.lbl_cfg)
+        ll.addWidget(box)
+
+        box, b = self.win._group("Lectura")
+        self.btn_read = QtWidgets.QPushButton("▶  Leer en continuo")
+        self.btn_read.setObjectName("big")
+        self.btn_read.clicked.connect(lambda: self.set_reading(not self.link.reading))
+        b.addWidget(self.btn_read)
+        hint = QtWidgets.QLabel("Pide una lectura detrás de otra (READ:POW?). Cada una tarda el tiempo de "
+                                "promediación más el GPIB.", objectName="hint")
+        hint.setWordWrap(True)
+        b.addWidget(hint)
+        ll.addWidget(box)
+        self.lbl_state = QtWidgets.QLabel()
+        self.lbl_state.setWordWrap(True)
+        self.lbl_state.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        ll.addWidget(self.lbl_state)
+        ll.addStretch(1)
+        return left
+
+    def _build_right(self):
+        panel = QtWidgets.QWidget()
+        lay = QtWidgets.QVBoxLayout(panel)
+        lay.setContentsMargins(4, 4, 0, 0)
+        lay.setSpacing(10)
+
+        hero = QtWidgets.QHBoxLayout()
+        hero.setSpacing(10)
+        card, self.v_pow, self.lbl_pow_sub = self.win._hero_card(
+            "Potencia", "P", "Última lectura del HP 8153A; abajo, hace cuánto llegó")
+        hero.addWidget(card, 17)
+        side = QtWidgets.QFrame(objectName="readout")
+        sl = QtWidgets.QGridLayout(side)
+        sl.setContentsMargins(14, 10, 14, 10)
+        sl.setVerticalSpacing(4)
+        self.v_rate = QtWidgets.QLabel("—", objectName="sideValue", alignment=Qt.AlignRight)
+        self.v_mean = QtWidgets.QLabel("—", objectName="sideValue", alignment=Qt.AlignRight)
+        self.v_std = QtWidgets.QLabel("—", objectName="sideValue", alignment=Qt.AlignRight)
+        self.v_span = QtWidgets.QLabel("—", objectName="sideValue", alignment=Qt.AlignRight)
+        for i, (text, tip, w) in enumerate((
+                ("Lecturas por segundo", "Lecturas que llegan del equipo por segundo", self.v_rate),
+                ("Media", "Promedio de las lecturas en la ventana del gráfico", self.v_mean),
+                ("Desvío", "Desvío estándar de las lecturas en la ventana (en % de la media si está en W)",
+                 self.v_std),
+                ("Mín – máx", "Diferencia entre la lectura más alta y la más baja de la ventana", self.v_span))):
+            lbl = QtWidgets.QLabel(text, objectName="hint")
+            lbl.setToolTip(tip)
+            sl.addWidget(lbl, i, 0)
+            sl.addWidget(w, i, 1)
+        sl.setRowStretch(4, 1)
+        hero.addWidget(side, 12)
+        hero_box = QtWidgets.QWidget()
+        hero_box.setLayout(hero)
+        hero_box.setFixedHeight(128)
+        hero.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(hero_box)
+
+        bar = QtWidgets.QHBoxLayout()
+        bar.setSpacing(8)
+        bar.addWidget(QtWidgets.QLabel("Ventana", objectName="hint"))
+        row, btns = self.win._segmented([f"{s} s" for s in self.WINDOWS], checkable=True)
+        group = QtWidgets.QButtonGroup(self)
+        for s, btn in zip(self.WINDOWS, btns):
+            btn.setProperty("small", True)
+            btn.setMinimumWidth(48)
+            btn.setToolTip(f"Mostrar los últimos {s} s")
+            group.addButton(btn)
+            btn.clicked.connect(lambda _, s=s: setattr(self, "window_s", s))
+        btns[self.WINDOWS.index(self.window_s)].setChecked(True)
+        bar.addLayout(row)
+        bar.addSpacing(6)
+        btn_pause = QtWidgets.QPushButton("❚❚  Pausar", checkable=True)
+        btn_pause.setProperty("ghost", True)
+        btn_pause.setToolTip("Congela el gráfico para mirarlo; las lecturas se siguen recibiendo (y grabando)")
+        btn_pause.toggled.connect(lambda on: setattr(self, "paused", on))
+        bar.addWidget(btn_pause)
+        btn_clear = QtWidgets.QPushButton("Borrar", toolTip="Borrar el gráfico")
+        btn_clear.setProperty("ghost", True)
+        btn_clear.clicked.connect(self.hist.clear)
+        bar.addWidget(btn_clear)
+        bar.addStretch(1)
+        self.chk_with_main = QtWidgets.QCheckBox("Junto con «Grabar CSV» de Control")
+        self.chk_with_main.setToolTip("Si está marcado, «Grabar CSV» de la pestaña Control también arranca y\n"
+                                      "detiene esta grabación (dos archivos aparte, con la misma hora en el nombre).")
+        self.chk_with_main.setChecked(self._settings.value("hp_junto", True, type=bool))
+        self.chk_with_main.toggled.connect(lambda on: self._settings.setValue("hp_junto", on))
+        bar.addWidget(self.chk_with_main)
+        bar.addSpacing(6)
+        self.btn_rec = QtWidgets.QPushButton("●  Grabar CSV del HP", checkable=True)
+        self.btn_rec.setObjectName("rec")
+        self.btn_rec.setToolTip("Guarda cada lectura del HP en la carpeta de mediciones del día (hp8153a_*.csv)")
+        self.btn_rec.toggled.connect(self.toggle_record)
+        bar.addWidget(self.btn_rec)
+        lay.addLayout(bar)
+
+        plots_box = QtWidgets.QFrame(objectName="readout")
+        pl = QtWidgets.QVBoxLayout(plots_box)
+        pl.setContentsMargins(2, 6, 8, 4)
+        glw = pg.GraphicsLayoutWidget()
+        self.p = glw.addPlot(row=0, col=0, axisItems=es_axes())
+        tick_font = QtGui.QFont()
+        tick_font.setPointSize(8)
+        self.p.showGrid(x=True, y=True, alpha=0.2)
+        self.p.setMouseEnabled(x=False, y=True)
+        self.p.getAxis("left").setWidth(56)
+        for ax in ("left", "bottom"):
+            self.p.getAxis(ax).setTickFont(tick_font)
+            self.p.getAxis(ax).enableAutoSIPrefix(False)
+        self.p.setLabel("bottom", f"Tiempo&nbsp; <span style='color:{MUTED}'>t [s]</span>", **{"font-size": "9pt"})
+        self.win._set_title(self.p, "Potencia del HP 8153A", "P")
+        self.curve = self.p.plot(pen=pg.mkPen(BLUE, width=1.5), symbol="o", symbolSize=4,
+                                 symbolPen=None, symbolBrush=BLUE)
+        glw.scene().sigMouseClicked.connect(
+            lambda ev: ev.double() and self.p.getViewBox().enableAutoRange(y=True))
+        pl.addWidget(glw)
+        lay.addWidget(plots_box, 1)
+        return panel
+
+    # --- conexión y configuración -------------------------------------------------------
+    def refresh_resources(self):
+        self.link.list_resources()
+
+    def _got_resources(self, found):
+        current = self.res_combo.currentText().strip()
+        saved = self._settings.value("hp_recurso", "", type=str)
+        items = list(found)
+        for r in (hp.DEFAULT_RESOURCE, hp.SIMULADO):
+            if r not in items:
+                items.append(r)
+        self.res_combo.blockSignals(True)
+        self.res_combo.clear()
+        self.res_combo.addItems(items)
+        pick = current or (found[0] if found else saved or hp.DEFAULT_RESOURCE)
+        self.res_combo.setCurrentText(pick)
+        self.res_combo.blockSignals(False)
+        if not self.link.is_open and not self.connecting:
+            self._state(f"Equipos GPIB encontrados: {', '.join(found)}" if found else
+                        "No se encontró ningún equipo GPIB (¿driver instalado? ¿equipo encendido?). "
+                        "Se puede escribir el recurso a mano.", None if found else MUTED)
+
+    def toggle_connection(self):
+        if self.link.is_open:
+            self.set_record(False)
+            self.link.close()
+            return
+        resource = self.res_combo.currentText().strip()
+        if not resource:
+            return
+        self.connecting = True
+        self._state(f"Conectando con {resource}…", MUTED)
+        self.link.open(resource, self.ch_combo.currentIndex() + 1)
+        self.update_controls()
+
+    def _channel_changed(self, idx):
+        if self.link.is_open and self.info and self.info["canal"] != idx + 1:
+            self.set_record(False)
+            self.connecting = True
+            self.link.open(self.info["recurso"], idx + 1)
+            self.update_controls()
+
+    def _on_connected(self, info):
+        self.connecting = False
+        self.info = info
+        self._settings.setValue("hp_recurso", info["recurso"])
+        mods = info["modulos"]
+        ch = info["canal"]
+        mod = mods[ch - 1] if len(mods) >= ch else "?"
+        self.lbl_idn.setText(f"{self.win._esc(info['idn'])}<br>Módulos: {self.win._esc(', '.join(mods) or '?')}")
+        self._state(f"Conectado a {info['recurso']}, canal {'AB'[ch - 1]} ({mod})", GREEN)
+        if mod.upper() == "EMPTY":
+            self._state(f"El canal {'AB'[ch - 1]} está vacío: elegir el canal del módulo sensor.", AMBER)
+        self._show_config(info["config"])
+        self.hist.clear()
+        self.win.message(f"HP 8153A conectado ({info['recurso']})", GREEN)
+        self.update_controls()
+
+    def _on_configured(self, cfg):
+        if self.cfg and cfg["unidad"] != self.cfg["unidad"]:
+            self.hist.clear()          # no mezclar W y dBm en el gráfico
+        self._show_config(cfg)
+        self._state("Configuración aplicada: " + self._cfg_text(cfg), GREEN)
+        self.update_controls()
+
+    def _on_disconnected(self):
+        self.connecting = False
+        self.info = None
+        self.lbl_idn.setText("")
+        self._state("Desconectado del HP", MUTED)
+        self.update_controls()
+
+    def _on_error(self, msg):
+        self.connecting = False
+        self._state(msg, RED)
+        self.win.message("HP 8153A: " + msg, RED)
+        self.win.log_line("HP 8153A: " + msg, "error")
+        self.update_controls()
+
+    def _show_config(self, cfg):
+        self.cfg = cfg
+        tavg = cfg["tavg_s"]
+        i = self.cb_tavg.findData(tavg)
+        if i < 0:
+            self.cb_tavg.addItem(f"{fnum(tavg * 1000, 0)} ms" if tavg < 1 else f"{es_num(f'{tavg:g}')} s", tavg)
+            i = self.cb_tavg.count() - 1
+        self.cb_tavg.setCurrentIndex(i)
+        if math.isfinite(cfg["lambda_nm"]):
+            self.spin_wave.setValue(cfg["lambda_nm"])
+        self.cb_unit.setCurrentIndex(self.cb_unit.findData(cfg["unidad"]))
+        self.chk_auto.setChecked(cfg["autorango"])
+        self.spin_range.setValue(cfg["rango_dbm"])
+        self.lbl_cfg.setText("En el equipo: " + self._cfg_text(cfg))
+
+    @staticmethod
+    def _cfg_text(cfg):
+        tavg = cfg["tavg_s"]
+        t = f"{fnum(tavg * 1000, 0)} ms" if tavg < 1 else f"{es_num(f'{tavg:g}')} s"
+        wave = f"{fnum(cfg['lambda_nm'], 0)} nm" if math.isfinite(cfg["lambda_nm"]) else "λ ?"
+        rng = "rango automático" if cfg["autorango"] else f"rango {es_num(str(cfg['rango_dbm']))} dBm"
+        unit = "W" if cfg["unidad"] == hp.UNIT_W else "dBm"
+        return f"promediación {t} · {wave} · {rng} · {unit}"
+
+    def apply_config(self):
+        cfg = {"tavg_s": self.cb_tavg.currentData(), "lambda_nm": self.spin_wave.value(),
+               "unidad": self.cb_unit.currentData(), "autorango": self.chk_auto.isChecked(),
+               "rango_dbm": self.spin_range.value()}
+        self._state("Aplicando la configuración…", MUTED)
+        self.link.configure(cfg)
+
+    def set_reading(self, on):
+        self.link.set_reading(on)
+        if not on and self.btn_rec.isChecked():
+            self.set_record(False)
+        self.update_controls()
+
+    def _state(self, text, color=None):
+        set_color(self.lbl_state, text, color)
+
+    def update_controls(self):
+        open_ = self.link.is_open
+        rec = self.rec_file is not None
+        self.btn_conn.setText("Desconectar" if open_ else "Conectando…" if self.connecting else "Conectar")
+        self.btn_conn.setEnabled(not self.connecting)
+        set_flag(self.btn_conn, "ghost", open_)
+        self.res_combo.setEnabled(not open_ and not self.connecting)
+        self.btn_ref.setEnabled(not open_ and not self.connecting)
+        self.ch_combo.setEnabled(not self.connecting and not rec)
+        for w in (self.cb_tavg, self.spin_wave, self.cb_unit, self.chk_auto, self.btn_apply):
+            w.setEnabled(open_ and not rec)
+        self.spin_range.setEnabled(open_ and not rec and not self.chk_auto.isChecked())
+        self.btn_apply.setToolTip("No se puede cambiar la configuración mientras se graba" if rec else
+                                  "Manda la configuración al equipo y la vuelve a leer")
+        self.btn_read.setEnabled(open_)
+        self.btn_read.setText("■  Detener lectura" if self.link.reading else "▶  Leer en continuo")
+        self.btn_rec.setEnabled(open_ or rec)
+
+    # --- lecturas -----------------------------------------------------------------------
+    def _tick(self):
+        rows = self.link.take_rows()
+        now = time.monotonic()
+        if rows:
+            self.hist.add(rows)
+            self._rate_count += len(rows)
+            self.last_value = rows[-1][3]
+            self.last_time = rows[-1][1]
+            if self.rec_file:
+                self._record(rows)
+        if now - self._rate_t0 >= 1.0:
+            self.rate = self._rate_count / (now - self._rate_t0)
+            self._rate_count = 0
+            self._rate_t0 = now
+        if self.btn_read.text().startswith("■") != self.link.reading:
+            self.update_controls()       # la lectura se cortó sola (error)
+        self._update_values(now)
+        if not self.paused:
+            self._update_plot(now)
+
+    def _unit(self):
+        return self.cfg["unidad"] if self.cfg else hp.UNIT_W
+
+    def _update_values(self, now):
+        unit = self._unit()
+        reading = self.link.is_open and self.link.reading
+        fresh = self.last_time is not None and reading
+        set_color(self.v_pow, fmt_power(self.last_value, unit) if fresh else "—")
+        if fresh:
+            age = now - self.last_time
+            self.lbl_pow_sub.setText(f"hace {fnum(age, 1)} s" + (f" · {self.rec_n} lecturas grabadas"
+                                                                  if self.rec_file else ""))
+        else:
+            self.lbl_pow_sub.setText("conectado, sin leer" if self.link.is_open else "sin equipo")
+        set_color(self.v_rate, fnum(self.rate, 1) if reading else "—")
+        _, v = self.hist.last(self.window_s, now)
+        if len(v) >= 2:
+            v = np.asarray(v)
+            mean, std = float(np.mean(v)), float(np.std(v))
+            set_color(self.v_mean, fmt_power(mean, unit))
+            if unit == hp.UNIT_W and mean != 0:
+                set_color(self.v_std, f"{fnum(100 * std / abs(mean), 3)} %")
+            else:
+                set_color(self.v_std, f"{fnum(std, 3)} dB")
+            span = float(np.max(v) - np.min(v))
+            set_color(self.v_span, fmt_power(span, unit) if unit == hp.UNIT_W else f"{fnum(span, 3)} dB")
+        else:
+            for w in (self.v_mean, self.v_std, self.v_span):
+                set_color(w, "—")
+        status = ""
+        if self.rec_file:
+            status = f"● HP grabando ({self.rec_n})"
+        elif reading:
+            status = f"HP {fmt_power(self.last_value, unit)} · {fnum(self.rate, 1)} lect/s"
+        set_color(self.win.status_hp, status, RED if self.rec_file else MUTED)
+
+    def _update_plot(self, now):
+        t, v = self.hist.last(self.window_s, now)
+        unit = self._unit()
+        if unit == hp.UNIT_W:
+            ref = max((abs(x) for x in v), default=1e-6)
+            k, pre = si_watts(ref)
+            label = f"P [{pre}W]"
+        else:
+            k, label = 1.0, "P [dBm]"
+        if label != self._plot_unit:
+            self._plot_unit = label
+            self.win._set_title(self.p, "Potencia del HP 8153A", label)
+        x = np.asarray(t) - now
+        y = np.asarray(v) * k
+        self.curve.setData(x, y)
+        self.curve.setSymbol("o" if len(x) <= 1500 else None)
+        self.p.setXRange(-self.window_s, 0, padding=0.01)
+        if len(y):
+            self.win._follow(self.p, y[-1])
+
+    # --- grabación ----------------------------------------------------------------------
+    def main_record(self, on, stamp=None):
+        """«Grabar CSV» de la pestaña Control: arranca/detiene esta grabación si está marcado «Junto con»."""
+        if not self.chk_with_main.isChecked() or not self.link.is_open:
+            return
+        if on:
+            self._rec_stamp = stamp
+        self.set_record(on)
+
+    def set_record(self, on):
+        if self.btn_rec.isChecked() != on:
+            self.btn_rec.setChecked(on)    # llama a toggle_record
+
+    def toggle_record(self, on):
+        if on:
+            if not self.link.is_open:
+                self.btn_rec.setChecked(False)
+                return
+            if not self.link.reading:
+                self.link.set_reading(True)
+            now = self._rec_stamp or datetime.datetime.now()
+            self._rec_stamp = None
+            folder = data_folder(now)
+            os.makedirs(folder, exist_ok=True)
+            self.rec_path = os.path.join(folder, now.strftime("hp8153a_%Y%m%d_%H%M%S.csv"))
+            self.rec_file = open(self.rec_path, "w")
+            self.rec_t0 = time.monotonic()
+            self.rec_n = 0
+            info, cfg = self.info, self.cfg
+            ch = info["canal"]
+            mod = info["modulos"][ch - 1] if len(info["modulos"]) >= ch else "?"
+            unit = "W" if cfg["unidad"] == hp.UNIT_W else "dBm"
+            tavg_ms = cfg["tavg_s"] * 1000
+            self.rec_file.write(
+                f"t_s,t_pedido_s,hora_unix,potencia_{unit}\n"
+                f"# μMachining, lecturas del HP 8153A por GPIB (interfaz umachining), {now:%Y-%m-%d %H:%M:%S}\n"
+                f"# equipo: {info['idn']} · módulos: {', '.join(info['modulos'])} · canal {'AB'[ch - 1]} ({mod}) "
+                f"· recurso {info['recurso']}\n"
+                f"# configuración: {self._cfg_text(cfg)}\n"
+                f"# t_s: llegada de la lectura, en s desde el inicio de esta grabación (reloj de la PC). "
+                f"t_pedido_s: cuándo se pidió\n"
+                f"# cada potencia es el promedio que hizo el equipo durante {tavg_ms:g} ms, entre t_pedido_s y t_s\n"
+                f"# hora_unix: hora de la PC al llegar la lectura (s desde 1970), la misma que en el encabezado "
+                f"de interfaz_*.csv\n"
+                f"# inicio de la grabación: hora_unix={time.time():.3f}\n")
+            self.btn_rec.setText("■  Detener grabación del HP")
+            self.win.log_line(f"— grabando el HP en {self.rec_path} —", "info")
+        elif self.rec_file:
+            self.rec_file.close()
+            self.rec_file = None
+            self.btn_rec.setText("●  Grabar CSV del HP")
+            self.win.message(f"Grabación del HP guardada en {short_path(self.rec_path)} ({self.rec_n} lecturas)",
+                             GREEN)
+            self.win.log_line(f"— grabación del HP guardada: {self.rec_path} ({self.rec_n} lecturas) —", "info")
+        self.update_controls()
+
+    def _record(self, rows):
+        for t0, t1, epoch, v in rows:
+            if t0 < self.rec_t0:
+                continue               # pedida antes de empezar a grabar
+            self.rec_file.write(f"{t1 - self.rec_t0:.4f},{t0 - self.rec_t0:.4f},{epoch:.4f},{v:.6e}\n")
+            self.rec_n += 1
+        self.rec_file.flush()
+
+    def shutdown(self):
+        self.set_record(False)
+        self.link.shutdown()
+
+
+# ======================================================================================
 # Ventana principal
 # ======================================================================================
 
@@ -1514,8 +2220,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.user_relative = False     # el usuario mandó G91 por la consola
         self._win_err = None
         self._pos_note = ""            # referencia del gráfico de posición cuando rotula en µm
+        self.cal_time = None           # hora de la última calibración (M56) hecha desde esta sesión
 
         self._build_ui()
+        self._speed_changed(self.spin_speed.value())
+        self._update_go_label()
+        self.apply_theme(DARK, save=False)
         self.keyfilter = KeyFilter(self)
         QtWidgets.QApplication.instance().installEventFilter(self.keyfilter)
 
@@ -1557,14 +2267,28 @@ class MainWindow(QtWidgets.QMainWindow):
         top.addWidget(self.port_combo)
         top.addWidget(btn_refresh)
         top.addWidget(self.btn_connect)
-        top.addSpacing(16)
-        self.chip_conn = Chip("Desconectado", "Conexión con la placa")
-        self.chip_cal = Chip("Calibración", "Verde: el eje está calibrado (M56)")
-        self.chip_home = Chip("Homing", "Verde: el eje sabe dónde está el 0")
-        self.chip_loop = Chip("Lazo", "Verde: lazo cerrado activo, el eje sigue los comandos")
+        top.addSpacing(12)
+        leds = QtWidgets.QFrame(objectName="ledBox")
+        ll = QtWidgets.QHBoxLayout(leds)
+        ll.setContentsMargins(14, 6, 14, 6)
+        ll.setSpacing(18)
+        self.chip_conn = Led("Desconectado", "Conexión con la placa")
+        self.chip_cal = Led("Calibrado", "Verde: el eje está calibrado (M56)")
+        self.chip_home = Led("Homing hecho", "Verde: el eje sabe dónde está el 0")
+        self.chip_loop = Led("Lazo", "Verde: lazo cerrado activo, el eje sigue los comandos")
         for c in (self.chip_conn, self.chip_cal, self.chip_home, self.chip_loop):
-            top.addWidget(c)
+            ll.addWidget(c)
+        leds.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)   # que no se corten los textos
+        self.port_combo.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.port_combo.setMinimumContentsLength(24)
+        top.addWidget(leds)
         top.addStretch(1)
+        self.btn_theme = QtWidgets.QPushButton()
+        self.btn_theme.setProperty("ghost", True)
+        self.btn_theme.setToolTip("Cambiar entre fondo claro y oscuro (se recuerda para la próxima vez)")
+        self.btn_theme.clicked.connect(lambda: self.apply_theme(not DARK))
+        top.addWidget(self.btn_theme)
+        top.addSpacing(8)
         self.btn_off = QtWidgets.QPushButton("■  APAGAR MOTOR  (Esc)")
         self.btn_off.setObjectName("danger")
         self.btn_off.setToolTip("Corta la corriente del motor (M18). El carro queda libre donde está.\n"
@@ -1593,6 +2317,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.enc_tab = EncoderTab(self)
         self.tabs.addTab(self.enc_tab, "Encoder")
         self.tabs.setTabToolTip(1, "Barrido del encoder en lazo abierto (como encoder_sweep.py y plot_periods.py)")
+        self.hp_tab = HPTab(self)
+        self.tabs.addTab(self.hp_tab, "HP 8153A")
+        self.tabs.setTabToolTip(2, "Medidor de potencia óptica HP 8153A por GPIB: lecturas en vivo y su propio CSV")
         root.addWidget(self.tabs, 1)
 
         # --- barra de estado ---
@@ -1600,8 +2327,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.status_tel = QtWidgets.QLabel()
         self.status_tel.setMinimumWidth(260)
         self.status_rec = QtWidgets.QLabel()
+        self.status_hp = QtWidgets.QLabel()
         self.statusBar().addWidget(self.status_msg, 1)
         self.statusBar().addPermanentWidget(self.status_rec)
+        self.statusBar().addPermanentWidget(self.status_hp)
         self.statusBar().addPermanentWidget(self.status_tel)
 
     def _group(self, title):
@@ -1610,190 +2339,276 @@ class MainWindow(QtWidgets.QMainWindow):
         lay.setSpacing(6)
         return box, lay
 
+    @staticmethod
+    def _segmented(labels, checkable=False):
+        """Fila de botones pegados (control segmentado). Devuelve el layout y los botones."""
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(0)
+        btns = []
+        for i, text in enumerate(labels):
+            btn = QtWidgets.QPushButton(text, checkable=checkable)
+            btn.setProperty("segment", True)
+            btn.setProperty("seg", "first" if i == 0 else "last" if i == len(labels) - 1 else "mid")
+            row.addWidget(btn, 1)
+            btns.append(btn)
+        return row, btns
+
     def _build_controls(self):
         panel = QtWidgets.QWidget()
-        panel.setMinimumWidth(360)
-        panel.setMaximumWidth(470)
+        panel.setMinimumWidth(370)
+        panel.setMaximumWidth(440)
         lay = QtWidgets.QVBoxLayout(panel)
-        lay.setContentsMargins(0, 0, 4, 0)
-        lay.setSpacing(8)
+        lay.setContentsMargins(0, 4, 4, 0)
+        lay.setSpacing(10)
+        self.controls_lay = lay
 
         # 1. puesta en marcha
-        box, b = self._group("1 · Puesta en marcha")
-        self.btn_cal = QtWidgets.QPushButton("Calibrar e iniciar  (M56, ~3 min)")
+        self.step1 = StepCard(1, "Puesta en marcha")
+        b = self.step1.body
+        self.lbl_step1 = QtWidgets.QLabel(wordWrap=True, objectName="hint")
+        b.addWidget(self.lbl_step1)
+        self.step1_grid = QtWidgets.QGridLayout()
+        self.step1_grid.setSpacing(6)
+        self.btn_cal = QtWidgets.QPushButton("Calibrar e iniciar  (M56)")
         self.btn_cal.setToolTip("Homing contra el tope de 0 mm, calibración del encoder y reaprendizaje del\n"
-                                "anti-cogging (el carro va y vuelve dos veces entre 0 y 50 mm).\n"
+                                "anti-cogging (el carro va y vuelve dos veces entre 0 y 50 mm). Tarda ~3 min.\n"
                                 "Hacerlo cada vez que se enciende la placa.")
         self.btn_cal.clicked.connect(self.calibrate)
         self.btn_enable = QtWidgets.QPushButton("Habilitar lazo  (M17)")
         self.btn_enable.setToolTip("Prende el motor con el lazo cerrado, quieto donde está el carro.\n"
                                    "Sirve también para rearmar después de un corte por falla o de apagar el motor.")
         self.btn_enable.clicked.connect(self.enable_loop)
-        b.addWidget(self.btn_cal)
-        b.addWidget(self.btn_enable)
-        lay.addWidget(box)
+        self._step1_compact = None
+        self._layout_step1(False)
+        b.addLayout(self.step1_grid)
+        lay.addWidget(self.step1)
 
         # 2. ir a una posición
-        box, b = self._group("2 · Ir a una posición")
+        self.step2 = StepCard(2, "Ir a una posición")
+        b = self.step2.body
         form = QtWidgets.QGridLayout()
         form.setHorizontalSpacing(8)
+        form.setVerticalSpacing(6)
         self.spin_dest = SpinBox(AXIS_MIN_MM, AXIS_MAX_MM, POS_DECIMALS, 1.0, " mm")
         self.spin_dest.setToolTip("Destino absoluto (0 a 255 mm). Enter = Ir.\nTambién se elige con un clic en el carril.")
         self.spin_dest.lineEdit().returnPressed.connect(self.go)
+        self.spin_dest.valueChanged.connect(self._update_go_label)
+        self.spin_dest.lineEdit().textEdited.connect(self._update_go_label)
         self.spin_speed = SpinBox(0.01, SPEED_MAX, 2, 0.1, " mm/s")
         self.spin_speed.setValue(SPEED_DEFAULT)
         self.spin_speed.setToolTip(f"Velocidad para Ir, los pasos y el movimiento continuo.\n"
-                                   f"Hasta {SPEED_SAFE:g} mm/s: precisión completa (anti-cogging aprendido a 2 mm/s).\n"
+                                   f"Hasta {es_num(f'{SPEED_SAFE:g}')} mm/s: precisión completa (anti-cogging aprendido "
+                                   f"a {es_num(f'{SPEED_DEFAULT:g}')} mm/s).\n"
                                    f"Más rápido el anti-cogging se apaga y el error crece; a 4 mm/s falta torque.")
         self.spin_speed.valueChanged.connect(self._speed_changed)
-        self.lbl_speed_warn = QtWidgets.QLabel()
-        self.lbl_speed_warn.setWordWrap(True)
-        self.lbl_speed_warn.setStyleSheet(f"color:{AMBER}")
-        self.btn_go = QtWidgets.QPushButton("Ir  ▶")
-        self.btn_go.setObjectName("primary")
-        self.btn_go.clicked.connect(self.go)
-        form.addWidget(QtWidgets.QLabel("Destino"), 0, 0)
+        form.addWidget(QtWidgets.QLabel("Destino", objectName="hint"), 0, 0)
         form.addWidget(self.spin_dest, 0, 1)
-        form.addWidget(QtWidgets.QLabel("Velocidad"), 1, 0)
+        form.addWidget(QtWidgets.QLabel("Velocidad", objectName="hint"), 1, 0)
         form.addWidget(self.spin_speed, 1, 1)
-        form.addWidget(self.btn_go, 0, 2, 2, 1)
         form.setColumnStretch(1, 1)
         b.addLayout(form)
+        self.lbl_speed_warn = QtWidgets.QLabel(wordWrap=True)
         b.addWidget(self.lbl_speed_warn)
-        presets = QtWidgets.QHBoxLayout()
-        presets.setSpacing(4)
-        self.preset_btns = []
-        for label, mm in (("0", 0.0), ("50", 50.0), ("Centro", 127.5), ("200", 200.0), ("255", 255.0)):
-            btn = QtWidgets.QPushButton(label)
-            btn.setToolTip(f"Ir a {mm:g} mm")
+        presets = (("0", 0.0), ("50", 50.0), ("Centro", 127.5), ("200", 200.0), ("255", 255.0))
+        row, self.preset_btns = self._segmented([label for label, _ in presets])
+        for btn, (_, mm) in zip(self.preset_btns, presets):
+            btn.setToolTip(f"Ir a {es_num(f'{mm:g}')} mm")
             btn.clicked.connect(lambda _, mm=mm: self.move_to(mm))
-            presets.addWidget(btn)
-            self.preset_btns.append(btn)
-        b.addLayout(presets)
-        lay.addWidget(box)
+        b.addLayout(row)
+        self.btn_go = QtWidgets.QPushButton("Ir  ▶", objectName="primary")
+        self.btn_go.clicked.connect(self.go)
+        b.addWidget(self.btn_go)
+        lay.addWidget(self.step2)
 
         # 3. pasos y movimiento continuo
-        box, b = self._group("3 · Mover a mano")
-        steps = QtWidgets.QHBoxLayout()
+        self.step3 = StepCard(3, "Mover a mano")
+        b = self.step3.body
+        self.step_exp = -2                                 # paso = 10^step_exp mm (10 µm)
+        exps = list(range(STEP_EXP_MIN, STEP_EXP_MAX + 1))
+        steps = QtWidgets.QVBoxLayout()
         steps.setSpacing(4)
-        steps.addWidget(QtWidgets.QLabel("Paso:"))
-        self.step_exp = 0                                  # paso = 10^step_exp mm
-        self.btn_step_down = QtWidgets.QPushButton("÷10")
-        self.btn_step_up = QtWidgets.QPushButton("×10")
-        self.lbl_step = QtWidgets.QLabel(alignment=Qt.AlignCenter)
-        self.lbl_step.setObjectName("stepValue")
-        self.lbl_step.setMinimumWidth(QtGui.QFontMetrics(self.lbl_step.font()).horizontalAdvance("0000 µm") * 2)
-        for btn, k in ((self.btn_step_down, -1), (self.btn_step_up, +1)):
-            btn.setToolTip(f"Paso {btn.text()} (teclas ↑ ↓), de {fmt_len(STEP_EXP_MIN)} a {fmt_len(STEP_EXP_MAX)}")
-            btn.clicked.connect(lambda _, k=k: self.step_scale(k))
-        steps.addWidget(self.btn_step_down)
-        steps.addWidget(self.lbl_step, 1)
-        steps.addWidget(self.btn_step_up)
+        self.step_btns = []
+        for part in (exps[:len(exps) // 2], exps[len(exps) // 2:]):     # nm a µm arriba, 10 µm a 10 mm abajo
+            row, btns = self._segmented([fmt_len(e) for e in part], checkable=True)
+            steps.addLayout(row)
+            self.step_btns += btns
+        self.step_group = QtWidgets.QButtonGroup(self)
+        for e, btn in zip(exps, self.step_btns):
+            btn.setProperty("small", True)
+            btn.setToolTip(f"Paso de {fmt_len(e)} (también con las teclas ↑ ↓)")
+            self.step_group.addButton(btn, e - STEP_EXP_MIN)
+            btn.clicked.connect(lambda _, e=e: self.step_scale(e - self.step_exp))
         b.addLayout(steps)
-        self.step_scale(0)
-        jog = QtWidgets.QHBoxLayout()
-        self.btn_minus = QtWidgets.QPushButton("◀  − paso")
-        self.btn_plus = QtWidgets.QPushButton("+ paso  ▶")
+        jog = QtWidgets.QGridLayout()
+        jog.setSpacing(6)
+        self.btn_minus = QtWidgets.QPushButton(objectName="big")
+        self.btn_plus = QtWidgets.QPushButton(objectName="big")
         for btn in (self.btn_minus, self.btn_plus):
-            btn.setObjectName("big")
             btn.setToolTip("Mueve un paso desde el destino actual (teclas ← →)")
         self.btn_minus.clicked.connect(lambda: self.jog(-1))
         self.btn_plus.clicked.connect(lambda: self.jog(+1))
-        jog.addWidget(self.btn_minus)
-        jog.addWidget(self.btn_plus)
-        b.addLayout(jog)
-        hold = QtWidgets.QHBoxLayout()
+        jog.addWidget(self.btn_minus, 0, 0)
+        jog.addWidget(self.btn_plus, 0, 1)
         self.btn_hold_minus = QtWidgets.QPushButton("◀◀  mantener")
         self.btn_hold_plus = QtWidgets.QPushButton("mantener  ▶▶")
-        for btn, sign in ((self.btn_hold_minus, -1), (self.btn_hold_plus, +1)):
+        for col, (btn, sign) in enumerate(((self.btn_hold_minus, -1), (self.btn_hold_plus, +1))):
             btn.setToolTip("Se mueve mientras se mantiene apretado y frena al soltar")
             btn.pressed.connect(lambda sign=sign: self.hold_start(sign))
             btn.released.connect(self.hold_stop)
-            hold.addWidget(btn)
-        b.addLayout(hold)
+            jog.addWidget(btn, 1, col)
+        b.addLayout(jog)
         self.btn_stop = QtWidgets.QPushButton("■  Detener  (Espacio)")
         self.btn_stop.setObjectName("stop")
         self.btn_stop.setToolTip("Frena el movimiento y deja el carro quieto con el lazo activo")
         self.btn_stop.clicked.connect(self.stop_motion)
         b.addWidget(self.btn_stop)
-        lay.addWidget(box)
+        keys = QtWidgets.QLabel("← → paso · ↑ ↓ cambia el paso · Espacio detiene", objectName="hint")
+        keys.setToolTip("Atajos de teclado (no actúan mientras se escribe en un campo). Esc apaga el motor.")
+        b.addWidget(keys)
+        self.step_scale(0)
+        lay.addWidget(self.step3)
 
-        # consola
-        box, b = self._group("Consola G-code")
+        # consola: plegada, con el último comando a la vista
+        lay.addStretch(1)
+        self.console_box = QtWidgets.QFrame(objectName="step")
+        cl = QtWidgets.QVBoxLayout(self.console_box)
+        cl.setContentsMargins(10, 6, 10, 8)
+        cl.setSpacing(6)
+        head = QtWidgets.QHBoxLayout()
+        self.btn_console = QtWidgets.QToolButton(text="▸  Consola G-code", checkable=True, objectName="consoleToggle")
+        self.btn_console.setToolTip("Mostrar u ocultar la consola")
+        self.btn_console.toggled.connect(self._toggle_console)
+        self.lbl_last_cmd = QtWidgets.QLabel(objectName="lastCmd")
+        self.lbl_last_cmd.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
+        head.addWidget(self.btn_console)
+        head.addWidget(self.lbl_last_cmd, 1)
+        cl.addLayout(head)
+        self.console_body = QtWidgets.QWidget()
+        bl = QtWidgets.QVBoxLayout(self.console_body)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(6)
         self.console_view = QtWidgets.QPlainTextEdit(readOnly=True)
         self.console_view.setMaximumBlockCount(5000)
         self.console_view.setObjectName("console")
+        self.console_view.setMinimumHeight(40)     # que ceda lugar antes que los botones de los pasos
         self.gcode = GcodeLine()
         self.gcode.returnPressed.connect(self.send_typed)
-        b.addWidget(self.console_view, 1)
-        b.addWidget(self.gcode)
+        bl.addWidget(self.console_view, 1)
+        bl.addWidget(self.gcode)
         extra = QtWidgets.QHBoxLayout()
         extra.setSpacing(4)
         for label, cmd, tip in (("Estado", "M119", "M119: estado completo del eje"),
                                 ("Anti-cogging", "M59", "M59: estado de la compensación de retención"),
                                 ("Traza corte", "M121", "M121: los ~2 s previos al último corte por falla")):
-            btn = QtWidgets.QPushButton(label, toolTip=tip, objectName="seg")
+            btn = QtWidgets.QPushButton(label, toolTip=tip)
+            btn.setProperty("ghost", True)
             btn.clicked.connect(lambda _, c=cmd: self.send_console(c))
             extra.addWidget(btn)
-        btn_clear = QtWidgets.QPushButton("Limpiar", toolTip="Borrar la consola", objectName="seg")
+        btn_clear = QtWidgets.QPushButton("Limpiar", toolTip="Borrar la consola")
+        btn_clear.setProperty("ghost", True)
         btn_clear.clicked.connect(self.console_view.clear)
         extra.addWidget(btn_clear)
-        b.addLayout(extra)
-        lay.addWidget(box, 1)
+        bl.addLayout(extra)
+        cl.addWidget(self.console_body, 1)
+        self.console_body.hide()
+        lay.addWidget(self.console_box)
+        self._last_cmd = ""
         return panel
+
+    def _layout_step1(self, compact):
+        """Paso 1 pendiente: los dos botones uno abajo del otro, a lo ancho. Hecho: lado a lado, chicos."""
+        if compact == self._step1_compact:
+            return
+        self._step1_compact = compact
+        self.step1_grid.addWidget(self.btn_cal, 0, 0)
+        self.step1_grid.addWidget(self.btn_enable, 0 if compact else 1, 1 if compact else 0)
+        self.step1_grid.setColumnStretch(0, 1)
+        self.step1_grid.setColumnStretch(1, 1 if compact else 0)
+
+    def _toggle_console(self, on):
+        self.console_body.setVisible(on)
+        self.btn_console.setText(("▾" if on else "▸") + "  Consola G-code")
+        stretch_i = self.controls_lay.indexOf(self.console_box) - 1     # el addStretch de arriba
+        self.controls_lay.setStretch(stretch_i, 0 if on else 1)
+        self.controls_lay.setStretch(stretch_i + 1, 1 if on else 0)
+        if on:
+            self.gcode.setFocus()
+
+    def _hero_card(self, title, unit, tooltip):
+        card = QtWidgets.QFrame(objectName="readout")
+        card.setToolTip(tooltip)
+        cl = QtWidgets.QVBoxLayout(card)
+        cl.setContentsMargins(14, 10, 14, 10)
+        cl.setSpacing(2)
+        cl.addWidget(QtWidgets.QLabel(f"{title}&nbsp; <span style='color:{MUTED}'>{unit}</span>",
+                                      objectName="readoutTitle"))
+        value = QtWidgets.QLabel("—", objectName="heroValue")
+        sub = QtWidgets.QLabel("—", objectName="hint")
+        cl.addWidget(value)
+        cl.addStretch(1)
+        cl.addWidget(sub)
+        return card, value, sub
 
     def _build_live(self):
         panel = QtWidgets.QWidget()
         lay = QtWidgets.QVBoxLayout(panel)
-        lay.setContentsMargins(4, 0, 0, 0)
-        lay.setSpacing(8)
+        lay.setContentsMargins(4, 4, 0, 0)
+        lay.setSpacing(10)
 
-        # valores grandes
-        grid = QtWidgets.QGridLayout()
-        grid.setSpacing(8)
-        self.r_pos = Readout("Posición", "mm", "Posición medida por el encoder")
-        self.r_dest = Readout("Destino", "mm", "A dónde va el carro (último comando)")
-        self.r_err = Readout("Error de seguimiento", "µm",
-                             "Objetivo del perfil menos posición medida (promedio de 0,1 s).\n"
-                             "El firmware corta si pasa de 1 mm durante 0,5 s.")
-        self.r_vel = Readout("Velocidad", "mm/s", "Velocidad medida (promedio de 0,1 s)")
-        grid.addWidget(self.r_pos, 0, 0)
-        grid.addWidget(self.r_dest, 0, 1)
-        grid.addWidget(self.r_err, 0, 2)
-        grid.addWidget(self.r_vel, 0, 3)
-
-        torque = QtWidgets.QFrame()
-        torque.setObjectName("readout")
-        tl = QtWidgets.QVBoxLayout(torque)
-        tl.setContentsMargins(10, 6, 10, 6)
-        tl.setSpacing(2)
-        tl.addWidget(QtWidgets.QLabel(f"Uso de torque <span style='color:{MUTED}'>[salida del lazo]</span>",
-                                      objectName="readoutTitle"))
+        # lo que más se mira, grande; lo demás, chico al costado
+        hero = QtWidgets.QHBoxLayout()
+        hero.setSpacing(10)
+        card, self.v_pos, self.lbl_pos_sub = self._hero_card(
+            "Posición", "x [mm]", "Posición medida por el encoder; abajo, el destino (último comando)")
+        hero.addWidget(card, 17)
+        card, self.v_err, self.lbl_err_sub = self._hero_card(
+            "Error de seguimiento", "e [µm]", "Objetivo del perfil menos posición medida (promedio de 0,1 s).\n"
+                                              "El firmware corta si pasa de 1 mm durante 0,5 s.\n"
+                                              "Abajo: RMS y máximo en la ventana de los gráficos.")
+        hero.addWidget(card, 12)
+        side = QtWidgets.QFrame(objectName="readout")
+        sl = QtWidgets.QGridLayout(side)
+        sl.setContentsMargins(14, 10, 14, 10)
+        sl.setVerticalSpacing(4)
+        self.v_vel = QtWidgets.QLabel("—", objectName="sideValue", alignment=Qt.AlignRight)
+        self.v_out = QtWidgets.QLabel("—", objectName="sideValue", alignment=Qt.AlignRight)
+        self.v_enc = QtWidgets.QLabel("—", objectName="sideValue", alignment=Qt.AlignRight)
         self.bar_out = QtWidgets.QProgressBar()
         self.bar_out.setRange(0, 100)
         self.bar_out.setTextVisible(False)
-        self.bar_out.setFixedHeight(14)
-        self.lbl_out = QtWidgets.QLabel("—")
-        tl.addWidget(self.bar_out)
-        tl.addWidget(self.lbl_out)
-        torque.setToolTip("Ángulo de campo que pide el lazo, contra el máximo de 81° eléctricos.\n"
-                          "Cerca del 100 % el motor se queda sin margen (fricción, velocidad alta).")
-        self.r_enc = Readout("Encoder", "estado", "Bits de estado del MT6835")
-        grid.addWidget(torque, 1, 0, 1, 2)
-        grid.addWidget(self.r_enc, 1, 2)
-        self.r_stats = Readout("Ventana del gráfico", "µm", "Error de seguimiento en la ventana visible")
-        grid.addWidget(self.r_stats, 1, 3)
-        for c in range(4):
-            grid.setColumnStretch(c, 1)
-        lay.addLayout(grid)
+        self.bar_out.setFixedHeight(6)
+        lbl_vel = QtWidgets.QLabel(f"Velocidad <span style='color:{MUTED}'>v [mm/s]</span>", objectName="hint")
+        lbl_vel.setToolTip("Velocidad medida (promedio de 0,1 s)")
+        lbl_out = QtWidgets.QLabel(f"Torque <span style='color:{MUTED}'>u [° el.]</span>", objectName="hint")
+        lbl_out.setToolTip(f"Ángulo de campo que pide el lazo y su porcentaje del máximo (±{OUT_LIMIT_DEG:.0f}° "
+                           f"eléctricos).\nCerca del 100 % el motor se queda sin margen (fricción, velocidad alta).")
+        lbl_enc = QtWidgets.QLabel("Encoder", objectName="hint")
+        lbl_enc.setToolTip("Bits de estado del MT6835")
+        sl.addWidget(lbl_vel, 0, 0)
+        sl.addWidget(self.v_vel, 0, 1)
+        sl.addWidget(lbl_out, 1, 0)
+        sl.addWidget(self.v_out, 1, 1)
+        sl.addWidget(self.bar_out, 2, 0, 1, 2)
+        sl.addWidget(lbl_enc, 3, 0)
+        sl.addWidget(self.v_enc, 3, 1)
+        sl.setRowStretch(4, 1)
+        hero.addWidget(side, 10)
+        hero_box = QtWidgets.QWidget()
+        hero_box.setLayout(hero)
+        hero_box.setFixedHeight(128)
+        hero.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(hero_box)
 
         # carril
         rail_box = QtWidgets.QFrame()
         rail_box.setObjectName("readout")
         rl = QtWidgets.QVBoxLayout(rail_box)
-        rl.setContentsMargins(6, 4, 6, 2)
-        rl.addWidget(QtWidgets.QLabel(f"Carril <span style='color:{MUTED}'>— azul: carro · naranja: destino · "
-                                      f"clic para elegir destino</span>", objectName="readoutTitle"))
+        rl.setContentsMargins(10, 4, 6, 0)
+        rl.setSpacing(0)
+        rl.addWidget(QtWidgets.QLabel(
+            f"Carril&nbsp; <span style='color:{MUTED}'>x [mm]</span>&nbsp;&nbsp;&nbsp; <span style='color:{BLUE}'>■</span> "
+            f"carro&nbsp;&nbsp; <span style='color:{ORANGE}'>▼</span> destino&nbsp;&nbsp; "
+            f"<span style='color:{MUTED}'>· clic para elegir destino</span>", objectName="readoutTitle"))
         self.rail = RailWidget()
         self.rail.picked.connect(self._rail_picked)
         rl.addWidget(self.rail)
@@ -1801,40 +2616,57 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # controles de los gráficos
         bar = QtWidgets.QHBoxLayout()
-        bar.addWidget(QtWidgets.QLabel("Ventana:"))
-        self.window_combo = QtWidgets.QComboBox()
-        for s in (5, 10, 30, 60, 120):
-            self.window_combo.addItem(f"{s} s", s)
-        self.window_combo.setCurrentIndex(1)
-        bar.addWidget(self.window_combo)
-        self.chk_pause = QtWidgets.QCheckBox("Pausar gráficos")
-        self.chk_pause.toggled.connect(lambda on: setattr(self, "paused", on))
-        bar.addWidget(self.chk_pause)
+        bar.setSpacing(8)
+        bar.addWidget(QtWidgets.QLabel("Ventana", objectName="hint"))
+        windows = (5, 10, 30, 60, 120)
+        row, self.win_btns = self._segmented([f"{s} s" for s in windows], checkable=True)
+        self.win_group = QtWidgets.QButtonGroup(self)
+        for s, btn in zip(windows, self.win_btns):
+            btn.setProperty("small", True)
+            btn.setMinimumWidth(48)
+            btn.setToolTip(f"Mostrar los últimos {s} s")
+            self.win_group.addButton(btn)
+            btn.clicked.connect(lambda _, s=s: setattr(self, "window_s", s))
+        self.window_s = 10
+        self.win_btns[windows.index(self.window_s)].setChecked(True)
+        bar.addLayout(row)
+        bar.addSpacing(6)
+        self.btn_pause = QtWidgets.QPushButton("❚❚  Pausar", checkable=True)
+        self.btn_pause.setProperty("ghost", True)
+        self.btn_pause.setToolTip("Congela los gráficos para mirarlos; los datos se siguen recibiendo")
+        self.btn_pause.toggled.connect(lambda on: setattr(self, "paused", on))
+        bar.addWidget(self.btn_pause)
         btn_clear = QtWidgets.QPushButton("Borrar", toolTip="Borrar los gráficos")
+        btn_clear.setProperty("ghost", True)
         btn_clear.clicked.connect(self.hist.clear)
         bar.addWidget(btn_clear)
         bar.addStretch(1)
+        bar.addWidget(QtWidgets.QLabel("Banda celeste: ±RMS del error en la ventana", objectName="hint"))
+        bar.addSpacing(6)
         self.btn_rec = QtWidgets.QPushButton("●  Grabar CSV", checkable=True)
+        self.btn_rec.setObjectName("rec")
         self.btn_rec.setToolTip("Guarda toda la telemetría (1 kHz) y los comandos en mediciones/AAAA-MM-DD/")
         self.btn_rec.toggled.connect(self.toggle_record)
         bar.addWidget(self.btn_rec)
         lay.addLayout(bar)
 
         # gráficos
-        pg.setConfigOptions(antialias=False, background=SURFACE, foreground=INK2)
+        pg.setConfigOptions(antialias=False, background=CARD, foreground=INK2)
+        plots_box = QtWidgets.QFrame(objectName="readout")
+        pl = QtWidgets.QVBoxLayout(plots_box)
+        pl.setContentsMargins(2, 6, 8, 4)
         glw = pg.GraphicsLayoutWidget()
-        glw.ci.setSpacing(4)
-        self.pos_axis = OffsetAxis("mm", self._pos_title)
-        self.p_pos = glw.addPlot(row=0, col=0, axisItems={"left": self.pos_axis})
-        self.p_err = glw.addPlot(row=1, col=0)
-        self.p_out = glw.addPlot(row=2, col=0)
+        glw.ci.setSpacing(6)
+        self.pos_axis = OffsetAxis(self._pos_title)
+        self.p_pos = glw.addPlot(row=0, col=0, axisItems=es_axes(left=self.pos_axis))
+        self.p_err = glw.addPlot(row=1, col=0, axisItems=es_axes())
+        self.p_out = glw.addPlot(row=2, col=0, axisItems=es_axes())
         tick_font = QtGui.QFont()
         tick_font.setPointSize(8)
-        for p, title, unit in ((self.p_pos, "Posición", "mm"), (self.p_err, "Error de seguimiento", "µm"),
-                               (self.p_out, "Salida del lazo", "° el.")):
-            self._set_title(p, title)
-            p.setLabel("left", unit)
-            p.showGrid(x=True, y=True, alpha=0.25)
+        for p, title, unit in ((self.p_pos, "Posición", "x [mm]"), (self.p_err, "Error de seguimiento", "e [µm]"),
+                               (self.p_out, "Salida del lazo", f"u [° el.] · límite ±{OUT_LIMIT_DEG:.0f}")):
+            self._set_title(p, title, unit)
+            p.showGrid(x=True, y=True, alpha=0.2)
             p.setDownsampling(auto=True, mode="peak")
             p.setClipToView(True)
             p.setMouseEnabled(x=False, y=True)
@@ -1847,17 +2679,23 @@ class MainWindow(QtWidgets.QMainWindow):
             if p is not self.p_pos:
                 p.setXLink(self.p_pos)
         self.p_pos.setLimits(minYRange=POS_PLOT_MIN_SPAN_MM)
-        self.p_out.setLabel("bottom", "tiempo", "s")
-        self.p_pos.addLegend(offset=(8, 4), labelTextColor=INK2)
-        self.c_target = self.p_pos.plot(pen=pg.mkPen(MUTED, width=1.5, style=Qt.DashLine), name="objetivo")
-        self.c_pos = self.p_pos.plot(pen=pg.mkPen(BLUE, width=1.5), name="medida")
+        self.p_out.setLabel("bottom", f"Tiempo&nbsp; <span style='color:{MUTED}'>t [s]</span>", **{"font-size": "9pt"})
+        self.p_pos.addLegend(offset=(8, 4), labelTextColor=INK2, brush=legend_brush())
+        self.c_target = self.p_pos.plot(pen=pg.mkPen(ORANGE, width=1.5, style=Qt.DashLine), name="objetivo x*")
+        self.c_pos = self.p_pos.plot(pen=pg.mkPen(BLUE, width=1.5), name="medida x")
+        self.err_band = pg.LinearRegionItem(values=(0, 0), orientation="horizontal", movable=False,
+                                            brush=pg.mkBrush(42, 120, 214, 34), pen=pg.mkPen(None))
+        self.err_band.setZValue(-10)
+        self.err_band.hide()
+        self.p_err.addItem(self.err_band, ignoreBounds=True)
         self.p_err.addLine(y=0, pen=pg.mkPen(GRID, width=1))
         self.c_err = self.p_err.plot(pen=pg.mkPen(BLUE, width=1))
         for y in (OUT_LIMIT_DEG, -OUT_LIMIT_DEG):
             self.p_out.addLine(y=y, pen=pg.mkPen(RED, width=1, style=Qt.DashLine))
         self.c_out = self.p_out.plot(pen=pg.mkPen(BLUE, width=1))
         glw.scene().sigMouseClicked.connect(self._plot_clicked)
-        lay.addWidget(glw, 1)
+        pl.addWidget(glw)
+        lay.addWidget(plots_box, 1)
         return panel
 
     # ----------------------------------------------------------------------------------
@@ -2016,9 +2854,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def step_scale(self, k):
         self.step_exp = clamp(self.step_exp + k, STEP_EXP_MIN, STEP_EXP_MAX)
-        self.lbl_step.setText(fmt_len(self.step_exp))
-        self.btn_step_down.setEnabled(self.step_exp > STEP_EXP_MIN)
-        self.btn_step_up.setEnabled(self.step_exp < STEP_EXP_MAX)
+        self.step_btns[self.step_exp - STEP_EXP_MIN].setChecked(True)
+        step = fmt_len(self.step_exp)
+        self.btn_minus.setText(f"◀  − {step}")
+        self.btn_plus.setText(f"+ {step}  ▶")
 
     def jog(self, sign):
         if not self.can_move():
@@ -2114,6 +2953,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                               + "\n".join(extra[-6:]))
             else:
                 self.message(f"{cmd.code} terminado" + (f": {extra[-1]}" if extra else ""), GREEN)
+            if cmd.code == "M56":
+                self.cal_time = datetime.datetime.now()
             if cmd.code in ("M56", "G28"):
                 self.link.send("M119", silent=True, on_done=self._after_long_status)
         else:
@@ -2168,21 +3009,35 @@ class MainWindow(QtWidgets.QMainWindow):
             self.rec_file.write(f"# {self.hist.t:.4f} > {text}\n")
         if kind == "cmd":
             self.log_line("> " + text, "cmd")
+            self._last_cmd = self._esc(text)
+            self.lbl_last_cmd.setText(self._last_cmd)
         elif kind == "reply":
             self.log_line(text, "ok" if text.startswith("ok") else "error" if text.startswith("error") else "reply")
+            # resumen en la consola plegada: el último comando con ✓ o ✗
+            if text.startswith("ok"):
+                self.lbl_last_cmd.setText(f"{self._last_cmd} <span style='color:{GREEN}'>✓</span>")
+            elif text.startswith("error"):
+                self.lbl_last_cmd.setText(f"{self._last_cmd} <span style='color:{RED}'>✗ {self._esc(text)}</span>")
         else:
             self.log_line(text, "error" if text.startswith("E)") else "warn" if text.startswith("W)") else "log")
+            if text.startswith(("E)", "W)")):
+                self.lbl_last_cmd.setText(f"<span style='color:{RED if text.startswith('E)') else AMBER}'>"
+                                          f"{self._esc(text)}</span>")
+
+    @staticmethod
+    def _esc(text):
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     def log_line(self, text, kind):
-        color = {"cmd": BLUE, "ok": MUTED, "error": RED, "warn": AMBER, "log": INK2, "info": MUTED,
-                 "reply": INK}[kind]
+        # sin color: el del texto del tema (así lo viejo se sigue leyendo si se cambia a modo oscuro)
+        color = {"cmd": BLUE, "ok": MUTED, "error": RED, "warn": AMBER, "log": None, "info": MUTED,
+                 "reply": None}[kind]
         weight = "600" if kind == "cmd" else "400"
-        esc = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        self.console_view.appendHtml(f"<span style='color:{color};font-weight:{weight}'>{esc}</span>")
+        css = f"color:{color};" if color else ""
+        self.console_view.appendHtml(f"<span style='{css}font-weight:{weight}'>{self._esc(text)}</span>")
 
-    def message(self, text, color=INK):
-        self.status_msg.setText(text)
-        self.status_msg.setStyleSheet(f"color:{color}")
+    def message(self, text, color=None):
+        set_color(self.status_msg, text, color)
 
     # ----------------------------------------------------------------------------------
     # Telemetría y pantalla
@@ -2205,7 +3060,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._record(new)
         if self.paused or self.hist.n == 0:
             return
-        win = self.window_combo.currentData()
+        win = self.window_s
         d = self.hist.last(win)
         if d.shape[1] < 2:
             return
@@ -2240,14 +3095,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @staticmethod
     def _set_title(p, title, note=""):
+        p._mm_title = (title, note)            # para volver a ponerlo con los colores del otro tema
         if note:
             note = f"&nbsp;&nbsp;<span style='color:{MUTED}'>{note}</span>"
         p.setTitle(f"<span style='color:{INK};font-weight:600'>{title}</span>{note}", justify="left", size="9pt")
 
     def _pos_title(self, note):
+        """Unidad del gráfico de posición en el título: x [mm], o x [µm] respecto de una referencia con zoom."""
         if note != self._pos_note:
             self._pos_note = note
-            self._set_title(self.p_pos, "Posición", note)
+            self._set_title(self.p_pos, "Posición", note or "x [mm]")
 
     def _pos_offset(self, d):
         """Referencia (redonda) que se resta a la posición para graficarla cerca de cero.
@@ -2298,31 +3155,52 @@ class MainWindow(QtWidgets.QMainWindow):
             vel = float(np.mean(d[History.VEL]))
             out = float(np.mean(d[History.OUT]))
             status = int(self.last[History.STATUS])
-            self.r_pos.set(f"{pos:.{POS_DECIMALS}f}")
-            self.r_err.set(f"{err:+.3f}", RED if abs(err) > 100 else AMBER if abs(err) > 10 else INK)
-            self.r_vel.set(f"{vel:+.3f}")
+            # en monoespaciada el espacio fino ocupa un dígito entero: se dibuja en letra chica para que sea fino
+            set_color(self.v_pos, fnum(pos, POS_DECIMALS, group=True).replace(
+                NNBSP, "<span style='font-size:6pt'>&nbsp;</span>"))
+            set_color(self.v_err, fnum(err, 3, sign=True), RED if abs(err) > 100 else AMBER if abs(err) > 10 else None)
+            set_color(self.v_vel, fnum(vel, 3, sign=True))
             pct = abs(out) / OUT_LIMIT_DEG * 100
             self.bar_out.setValue(int(min(100, pct)))
             col = RED if pct > 85 else AMBER if pct > 60 else GREEN
             if col != getattr(self, "_bar_col", None):
                 self._bar_col = col
-                self.bar_out.setStyleSheet(f"QProgressBar::chunk{{background:{col};border-radius:3px}}")
-            self.lbl_out.setText(f"{out:+.1f}° de ±{OUT_LIMIT_DEG:.0f}°  ({pct:.0f} %)")
+                self.bar_out.setStyleSheet(f"QProgressBar::chunk{{background:{col};border-radius:2px}}")
+            set_color(self.v_out, f"{fnum(out, 1, sign=True)} · {pct:.0f} %")
             bits = [name for bit, name in STATUS_BITS.items() if status & bit]
-            self.r_enc.set(", ".join(bits) if bits else "OK", RED if bits else GREEN)
+            set_color(self.v_enc, "● " + (", ".join(bits) if bits else "OK"), RED if bits else GREEN)
             self.rail.set_state(pos, self.dest)
+            self.lbl_pos_sub.setText(self._dest_text(pos))
             if getattr(self, "_win_err", None) is not None and len(self._win_err):
                 rms = float(np.sqrt(np.mean(self._win_err ** 2)))
                 mx = float(np.max(np.abs(self._win_err)))
-                self.r_stats.set(f"RMS {rms:.2f} · máx {mx:.1f}")
+                self.lbl_err_sub.setText(f"ventana de {self.window_s} s: RMS {fnum(rms, 2)} · máx {fnum(mx, 1)}")
+                self.err_band.setRegion((-rms, rms))
+                self.err_band.show()
         else:
-            for r in (self.r_pos, self.r_err, self.r_vel, self.r_enc, self.r_stats):
-                r.set("—", MUTED)
+            for lbl in (self.v_pos, self.v_err, self.v_vel, self.v_out, self.v_enc):
+                set_color(lbl, "—", MUTED)
             self.bar_out.setValue(0)
-            self.lbl_out.setText("—")
+            self.lbl_pos_sub.setText(self._dest_text(None))
+            self.lbl_err_sub.setText("—")
+            self.err_band.hide()
             self.rail.set_state(None, self.dest)
-        self.r_dest.set(f"{self.dest:.{POS_DECIMALS}f}" if self.dest is not None else "—")
         self.update_controls()
+
+    def _dest_text(self, pos):
+        """Debajo de la posición: el destino, cuánto falta y, en movimiento, en cuánto llega."""
+        if self.dest is None:
+            return "destino —"
+        text = f"destino {fnum(self.dest, POS_DECIMALS, group=True)}"
+        if pos is None:
+            return text
+        left = abs(self.dest - pos)
+        if abs(self.cmd_vel) > 1e-4 and self.last is not None:
+            eta = abs(self.dest - self.last[History.TARGET]) / abs(self.cmd_vel)
+            return f"{text} · faltan {fnum(left, POS_DECIMALS, group=True)} mm · llega en ~{fnum(eta, 1)} s"
+        if left < 1e-3:
+            return f"{text} · en destino"
+        return f"{text} · faltan {fnum(left, POS_DECIMALS, group=True)} mm"
 
     def update_controls(self):
         open_ = self.link.is_open
@@ -2349,6 +3227,7 @@ class MainWindow(QtWidgets.QMainWindow):
         movable = self.can_move()
         self.btn_cal.setEnabled(idle)
         self.btn_enable.setEnabled(idle and bool(self.calibrated) and bool(self.homed))
+        self._update_steps(open_, movable)
         for w in [self.btn_go, self.btn_minus, self.btn_plus, self.btn_hold_minus, self.btn_hold_plus,
                   self.btn_stop] + self.preset_btns:
             # no deshabilitar un botón de mantener mientras está apretado: no llegaría el «soltar»
@@ -2377,6 +3256,94 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self._banner(None)
 
+    # ----------------------------------------------------------------------------------
+    # Tema claro / oscuro
+    # ----------------------------------------------------------------------------------
+    def apply_theme(self, dark, save=True):
+        """Cambia de tema en vivo: hoja de estilo, paleta, gráficos y los widgets que se pintan solos."""
+        old_grid = GRID
+        set_theme(dark)
+        app = QtWidgets.QApplication.instance()
+        app.setPalette(make_palette())
+        app.setStyleSheet(make_style())
+        self.btn_theme.setText("Modo claro" if DARK else "Modo oscuro")
+        for w in (self.chip_conn, self.chip_cal, self.chip_home, self.chip_loop,
+                  self.step1, self.step2, self.step3):
+            w.refresh()
+        self._speed_changed(self.spin_speed.value())
+        self.rail.update()
+        self._banner_now = None              # el aviso se vuelve a pintar con los colores nuevos
+        self.update_controls()
+        self._restyle_plots(old_grid)
+        enc = self.enc_tab
+        if enc.table is not None and not enc.running:
+            enc._show(enc.table)               # los gráficos del barrido toman los colores al dibujarse
+        if save:
+            QtCore.QSettings("μMachining", "interfaz").setValue("modo_oscuro", DARK)
+
+    def _restyle_plots(self, old_grid):
+        for w in self.findChildren(pg.GraphicsLayoutWidget):
+            w.setBackground(QtGui.QColor(CARD))
+            for item in w.scene().items():
+                if not isinstance(item, pg.PlotItem):
+                    continue
+                for name in ("left", "bottom"):
+                    ax = item.getAxis(name)
+                    ax.setPen(pg.mkPen(INK2))
+                    ax.setTextPen(pg.mkPen(INK2))
+                if getattr(item, "_mm_title", None):
+                    self._set_title(item, *item._mm_title)
+                if item.legend is not None:
+                    item.legend.setBrush(legend_brush())
+                    item.legend.setPen(pg.mkPen(GRID))
+                    for _, label in item.legend.items:
+                        label.setText(label.text, color=INK2)
+                for it in item.items:            # líneas de referencia (el cero) en el color de la grilla
+                    if isinstance(it, pg.InfiniteLine) and it.pen.color().name() == old_grid:
+                        it.setPen(pg.mkPen(GRID, width=1))
+
+    def _update_steps(self, open_, movable):
+        """Números de los pasos (✓ hecho, azul se puede usar, gris todavía no) y el resumen del paso 1."""
+        ready = movable
+        current1 = open_ and not ready
+        self.step1.set_state("done" if ready else "active" if open_ else "todo", current=current1)
+        for step in (self.step2, self.step3):
+            step.set_state("active" if movable else "todo")
+        if not open_:
+            text = "Primero conectar la placa (arriba)."
+        elif self.busy:
+            text = f"{self.busy}…"
+        elif not self.calibrated or not self.homed:
+            text = "Hace falta en cada encendido: homing, calibración del encoder y anti-cogging (~3 min)."
+        elif self.fault:
+            text = "Corte por falla: revisar el carro y «Habilitar lazo»."
+        elif not self.loop_on:
+            text = "Lazo apagado: «Habilitar lazo» para volver a mover."
+        else:
+            text = "Listo: calibrado, homing hecho, lazo activo"
+            if self.cal_time:
+                text += f" · calibrado a las {self.cal_time:%H:%M}"
+        self.lbl_step1.setText(text)
+        cal_text = "Recalibrar  (M56)" if self.calibrated and self.homed else "Calibrar e iniciar  (M56)"
+        if self.btn_cal.text() != cal_text:
+            self.btn_cal.setText(cal_text)
+        # ya hecho: los botones pasan a segundo plano; pendiente: el que hay que apretar, en azul
+        self._layout_step1(ready or not open_)
+        for btn in (self.btn_cal, self.btn_enable):
+            set_flag(btn, "ghost", ready or not open_)
+        need_cal = open_ and not self.busy and not (self.calibrated and self.homed)
+        need_loop = open_ and not self.busy and not need_cal and (self.fault or not self.loop_on)
+        set_flag(self.btn_cal, "todo", bool(need_cal))
+        set_flag(self.btn_enable, "todo", bool(need_loop))
+
+    def _update_go_label(self, *_):
+        try:
+            v = clamp(float(_plain_num(self.spin_dest.lineEdit().text()).replace("mm", "").strip()),
+                      AXIS_MIN_MM, AXIS_MAX_MM)
+        except ValueError:
+            v = self.spin_dest.value()
+        self.btn_go.setText(f"Ir a {fnum(v, POS_DECIMALS, group=True)} mm  ▶")
+
     def _banner(self, text, kind="warn"):
         if text is None:
             self.banner.hide()
@@ -2384,8 +3351,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if (text, kind) == getattr(self, "_banner_now", None) and self.banner.isVisible():
             return
         self._banner_now = (text, kind)
-        bg = {"error": "#fbe3e3", "warn": "#fdf1dc", "busy": "#e3eefb"}[kind]
-        fg = {"error": RED, "warn": "#8a5a00", "busy": "#184f95"}[kind]
+        bg, fg = {"error": BOX_ERR, "warn": BOX_WARN, "busy": BOX_INFO}[kind]
         self.banner.setStyleSheet(f"background:{bg}; color:{fg}; padding:8px 12px; border-radius:6px;"
                                   f"font-weight:600")
         self.banner.setText(text)
@@ -2393,14 +3359,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _rail_picked(self, mm):
         self.spin_dest.setValue(mm)
-        self.message(f"Destino {mm:g} mm: apretar «Ir» para mover")
+        self.message(f"Destino {es_num(f'{mm:g}')} mm: apretar «Ir» para mover")
 
     def _speed_changed(self, v):
+        safe = es_num(f"{SPEED_SAFE:g}")
         if v > SPEED_SAFE + 1e-9:
-            self.lbl_speed_warn.setText(f"Más de {SPEED_SAFE:g} mm/s: el anti-cogging se apaga y el error "
-                                        f"crece; a 4 mm/s puede faltar torque.")
+            set_color(self.lbl_speed_warn, f"⚠ Más de {safe} mm/s: el anti-cogging se apaga y el error crece; "
+                                           f"a 4 mm/s puede faltar torque.", WARN_FG)
         else:
-            self.lbl_speed_warn.setText("")
+            set_color(self.lbl_speed_warn, f"✓ Hasta {safe} mm/s: anti-cogging completo.", OK_FG)
 
     # ----------------------------------------------------------------------------------
     # Grabación
@@ -2419,11 +3386,15 @@ class MainWindow(QtWidgets.QMainWindow):
             self.rec_file.write("t_s,objetivo_mm,posicion_mm,error_um,velocidad_mm_s,salida_deg,estado_encoder,flags\n"
                                 f"# μMachining, grabación de la interfaz, {now:%Y-%m-%d %H:%M:%S}\n"
                                 f"# telemetría a {2000 // TELEMETRY_DECIMATION} Hz; las líneas '# t > G1 ...' "
-                                f"son los comandos mandados (t en s, mismo reloj)\n")
+                                f"son los comandos mandados (t en s, mismo reloj)\n"
+                                f"# inicio de la grabación: hora_unix={time.time():.3f} (hora de la PC, como en "
+                                f"hp8153a_*.csv), t_s del último paquete recibido={self.hist.t:.4f}\n")
             self.btn_rec.setText("■  Detener grabación")
             self.status_rec.setText(f"● grabando {rutas.corta(self.rec_path)}")
             self.status_rec.setStyleSheet(f"color:{RED}")
+            self.hp_tab.main_record(True, now)
         elif self.rec_file:
+            self.hp_tab.main_record(False)
             self.rec_file.close()
             self.rec_file = None
             self.btn_rec.setText("●  Grabar CSV")
@@ -2441,43 +3412,91 @@ class MainWindow(QtWidgets.QMainWindow):
     def closeEvent(self, ev):
         if self.btn_rec.isChecked():
             self.btn_rec.setChecked(False)
+        self.hp_tab.shutdown()
         self.link.close()
         super().closeEvent(ev)
 
 
-STYLE = f"""
+def make_style():
+    """Hoja de estilo con los colores del tema actual (set_theme)."""
+    return f"""
 QWidget {{ font-size: 10pt; color: {INK}; }}
 QMainWindow, QWidget#central {{ background: {SURFACE}; }}
+QScrollArea#encScroll, QScrollArea#encScroll > QWidget > QWidget {{ background: {SURFACE}; }}
 QGroupBox {{ font-weight: 600; border: 1px solid {GRID}; border-radius: 8px; margin-top: 12px;
-             padding: 10px 8px 8px 8px; background: white; }}
+             padding: 10px 8px 8px 8px; background: {CARD}; }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 4px; color: {INK2}; }}
-QFrame#readout {{ background: white; border: 1px solid {GRID}; border-radius: 8px; }}
+QFrame#readout, QFrame#step, QFrame#ledBox {{ background: {CARD}; border: 1px solid {GRID}; border-radius: 8px; }}
+QFrame#step[current="true"] {{ border: 2px solid {CUR_BORDER}; }}
+QLabel#stepTitle {{ font-weight: 600; }}
+QLabel#hint {{ color: {INK2}; font-size: 9pt; }}
+QLabel#ink2 {{ color: {INK2}; font-weight: 400; }}
 QLabel#readoutTitle {{ color: {INK2}; font-size: 9pt; }}
-QLabel#readoutValue {{ font-family: 'DejaVu Sans Mono', monospace; font-size: 19pt; font-weight: 600; }}
-QPushButton {{ padding: 6px 10px; border: 1px solid #c3c2b7; border-radius: 6px; background: #f6f5f2; }}
-QPushButton:hover {{ background: #eeede8; }}
-QPushButton:pressed {{ background: #e1e0d9; }}
-QPushButton:disabled {{ color: #b5b3ac; background: #f3f2ef; border-color: #e1e0d9; }}
-QPushButton#primary {{ background: {BLUE}; color: white; border-color: #256abf; font-weight: 600; min-width: 70px; }}
-QPushButton#primary:disabled {{ background: #a9c6ea; border-color: #a9c6ea; }}
-QPushButton#big {{ padding: 12px; font-size: 12pt; font-weight: 600; }}
-QPushButton#stop {{ padding: 10px; font-weight: 600; background: #fdf1dc; border-color: {AMBER}; color: #8a5a00; }}
-QPushButton#stop:disabled {{ background: #f3f2ef; border-color: #e1e0d9; color: #b5b3ac; }}
+QLabel#heroValue {{ font-family: 'DejaVu Sans Mono', monospace; font-size: 25pt; font-weight: 600; }}
+QLabel#sideValue {{ font-family: 'DejaVu Sans Mono', monospace; font-size: 11pt; font-weight: 600; }}
+QLabel#lastCmd {{ font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt; color: {INK2}; }}
+QToolButton#consoleToggle {{ border: none; background: transparent; font-weight: 600; padding: 4px 2px; }}
+QPushButton {{ padding: 6px 10px; border: 1px solid {BORDER}; border-radius: 6px; background: {BTN}; }}
+QPushButton:hover {{ background: {BTN_HOVER}; }}
+QPushButton:pressed {{ background: {BTN_PRESS}; }}
+QPushButton:disabled {{ color: {DIS_FG}; background: {DIS_BG}; border-color: {GRID}; }}
+QPushButton[ghost="true"] {{ padding: 4px 8px; background: {CARD}; border-color: {SOFT_BORDER}; color: {INK2};
+                             font-size: 9pt; }}
+QPushButton[ghost="true"]:hover {{ background: {BTN}; }}
+QPushButton[ghost="true"]:checked {{ background: {SEL_BG}; border-color: {BLUE}; color: {SEL_FG}; }}
+QPushButton[ghost="true"]:disabled {{ color: {DIS_FG}; border-color: {GRID}; }}
+QPushButton[todo="true"] {{ background: {BLUE}; color: white; border-color: #256abf; font-weight: 600; }}
+QPushButton[segment="true"] {{ border-radius: 0; border-left: none; padding: 5px 2px; background: {CARD}; }}
+QPushButton[seg="first"] {{ border-left: 1px solid {BORDER}; border-top-left-radius: 6px; border-bottom-left-radius: 6px; }}
+QPushButton[seg="last"] {{ border-top-right-radius: 6px; border-bottom-right-radius: 6px; }}
+QPushButton[segment="true"]:hover {{ background: {BTN}; }}
+QPushButton[segment="true"]:checked {{ background: {BLUE}; color: white; border-color: #256abf; }}
+QPushButton[segment="true"]:disabled {{ color: {DIS_FG}; background: {DIS_BG}; }}
+QPushButton[segment="true"]:checked:disabled {{ background: {SEL_BG}; color: {DIS_FG}; }}
+QPushButton[small="true"] {{ font-size: 9pt; }}
+QPushButton#primary {{ background: {BLUE}; color: white; border-color: #256abf; font-weight: 600; min-width: 70px;
+                       padding: 8px 10px; }}
+QPushButton#primary:hover {{ background: #2f84ea; }}
+QPushButton#primary:disabled {{ background: {SEL_BG}; border-color: {SEL_BG}; color: {DIS_FG}; }}
+QPushButton#big {{ padding: 10px; font-size: 11pt; font-weight: 600; }}
+QPushButton#stop {{ padding: 9px; font-weight: 600; background: {STOP_BG}; border-color: {STOP_BG}; color: {STOP_FG}; }}
+QPushButton#stop:hover {{ background: {STOP_HOVER}; border-color: {STOP_HOVER}; }}
+QPushButton#stop:disabled {{ background: {DIS_BG}; border-color: {GRID}; color: {DIS_FG}; }}
 QPushButton#danger {{ background: {RED}; color: white; border-color: #a82e2e; font-weight: 700; padding: 8px 16px; }}
-QPushButton#danger:disabled {{ background: #e9b3b3; border-color: #e9b3b3; }}
-QLabel#stepValue {{ font-family: 'DejaVu Sans Mono', monospace; font-size: 12pt; font-weight: 600; }}
+QPushButton#danger:hover {{ background: #dc4a4a; }}
+QPushButton#danger:disabled {{ background: {DIS_BG}; border-color: {GRID}; color: {DIS_FG}; }}
 QPushButton#seg {{ padding: 4px 6px; }}
 QPushButton#seg:checked {{ background: {BLUE}; color: white; border-color: #256abf; }}
-QPushButton:checked {{ background: #fbe3e3; border-color: {RED}; color: {RED}; }}
-QPlainTextEdit#console {{ font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt; background: #fafaf8;
+QPushButton:checked {{ background: {REC_BG}; border-color: {RED}; color: {RED}; }}
+QPlainTextEdit#console {{ font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt; background: {CONSOLE_BG};
                           border: 1px solid {GRID}; border-radius: 6px; }}
-QProgressBar {{ border: 1px solid {GRID}; border-radius: 4px; background: #f3f2ef; }}
+QProgressBar {{ border: none; border-radius: 3px; background: {TRACK}; }}
 QLabel#resValue {{ font-family: 'DejaVu Sans Mono', monospace; font-size: 10pt; font-weight: 600; }}
-QTabWidget#mainTabs::pane {{ border: none; }}
-QTabBar::tab {{ padding: 6px 16px; border: 1px solid {GRID}; border-bottom: none; border-top-left-radius: 6px;
-                border-top-right-radius: 6px; background: #f3f2ef; color: {INK2}; margin-right: 2px; }}
-QTabBar::tab:selected {{ background: white; color: {INK}; border-color: #c3c2b7; }}
+QTabWidget#mainTabs::pane {{ border: none; border-top: 1px solid {GRID}; }}
+QTabBar::tab {{ padding: 6px 4px 7px 4px; margin-right: 22px; border: none; border-bottom: 2px solid transparent;
+                background: transparent; color: {INK2}; }}
+QTabBar::tab:selected {{ color: {INK}; border-bottom: 2px solid {INK}; }}
+QTabBar::tab:hover:!selected {{ color: {INK}; }}
+QToolTip {{ background: {CARD}; color: {INK}; border: 1px solid {BORDER}; padding: 4px; }}
 """
+
+
+def make_palette():
+    """Paleta de Qt para lo que no toca la hoja de estilo (campos de texto, listas, barras de desplazamiento)."""
+    if not DARK:
+        return QtWidgets.QApplication.style().standardPalette()
+    pal = QtGui.QPalette()
+    P = QtGui.QPalette
+    for role, color in ((P.Window, SURFACE), (P.WindowText, INK), (P.Base, CONSOLE_BG), (P.AlternateBase, CARD),
+                        (P.ToolTipBase, CARD), (P.ToolTipText, INK), (P.Text, INK), (P.Button, BTN),
+                        (P.ButtonText, INK), (P.BrightText, "#ffffff"), (P.Highlight, BLUE),
+                        (P.HighlightedText, "#ffffff"), (P.Link, "#6aa8f0"), (P.PlaceholderText, MUTED),
+                        (P.Light, BTN_PRESS), (P.Midlight, BTN_HOVER), (P.Mid, BORDER), (P.Dark, "#0e0e0d"),
+                        (P.Shadow, "#000000")):
+        pal.setColor(role, QtGui.QColor(color))
+    for role in (P.Text, P.ButtonText, P.WindowText):
+        pal.setColor(P.Disabled, role, QtGui.QColor(DIS_FG))
+    return pal
 
 
 def main():
@@ -2493,12 +3512,13 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName("μMachining")
     app.setStyle("Fusion")
-    app.setStyleSheet(STYLE)
+    set_theme(QtCore.QSettings("μMachining", "interfaz").value("modo_oscuro", False, type=bool))
+    app.setPalette(make_palette())
+    app.setStyleSheet(make_style())
     win = MainWindow(args.port)
     win.resize(1500, 920)
     win.show()
     sys.exit(app.exec_())
-
 
 if __name__ == "__main__":
     main()

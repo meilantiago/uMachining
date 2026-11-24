@@ -12,15 +12,21 @@ umachining
 
 Busca la placa y se conecta sola. Si no la encuentra, elegir el puerto arriba a la izquierda y apretar **Conectar** (↻ vuelve a buscar).
 
+**Modo oscuro** (arriba a la derecha) cambia a fondo oscuro y vuelve con **Modo claro**. La elección se recuerda para la próxima vez.
+
 > Antes de abrirla, cerrar el monitor serie de PlatformIO y cualquier otro script que use el puerto. Si no, no se puede conectar.
 
 La instalación está en el [README](../README.md). Para elegir el puerto desde la terminal: `umachining --port COM3` (Windows), `umachining --port /dev/ttyACM0` (Linux) o `umachining --port /dev/cu.usbmodem…` (macOS).
 
 ## 2. Cada vez que se enciende la placa
 
-1. Apretar **Calibrar e iniciar (M56)** y confirmar.
+El panel de la izquierda está ordenado en tres pasos: **1 Puesta en marcha**, **2 Ir a una posición** y **3 Mover a mano**. El paso que hay que hacer ahora tiene borde azul; un paso hecho muestra ✓; los números en gris indican que todavía no se puede usar.
+
+1. En **1 Puesta en marcha**, apretar **Calibrar e iniciar (M56)** (en azul) y confirmar.
 2. Esperar unos 3 minutos. El carro va contra el tope de 0 mm, se calibra el encoder y después va y vuelve dos veces entre 0 y 50 mm. Arriba se ve el avance.
-3. Cuando termina, los cuatro indicadores de arriba quedan en verde (**Conectado · Calibración · Homing · Lazo activo**) y ya se puede mover.
+3. Cuando termina, el paso 1 muestra ✓ («Listo: calibrado, homing hecho, lazo activo», con la hora de la calibración), los cuatro indicadores de arriba quedan en verde (**Conectado · Calibrado · Homing hecho · Lazo activo**) y los pasos 2 y 3 se habilitan. Los botones del paso 1 pasan a segundo plano (**Recalibrar** y **Habilitar lazo**).
+
+Los indicadores de arriba no son botones: gris es desconocido (sin conexión), verde bien, ámbar lazo apagado u ocupado, rojo lo que falta o una falla.
 
 > El recorrido tiene que estar libre. Mientras calibra, la placa no atiende otros comandos, ni siquiera **Apagar motor**.
 
@@ -28,30 +34,32 @@ La instalación está en el [README](../README.md). Para elegir el puerto desde 
 
 | Qué | Cómo |
 |---|---|
-| Ir a una posición | Escribir el **Destino** (0 a 255 mm) y apretar **Ir** o Enter. También se puede hacer clic en el carril para elegir el punto. |
+| Ir a una posición | Escribir el **Destino** (0 a 255 mm) y apretar **Ir a … mm** o Enter. El botón repite el destino para confirmar a dónde va. También se puede hacer clic en el carril para elegir el punto. |
 | Posiciones fijas | Botones **0 · 50 · Centro · 200 · 255** |
-| Un paso | Elegir el **Paso** (1 µm a 10 mm) y apretar **− paso** / **+ paso**, o las flechas ← → del teclado |
+| Un paso | Elegir el **Paso** (de 1 nm a 10 mm, o con ↑ ↓) y apretar **− 10 µm** / **+ 10 µm** (el botón dice el paso elegido), o las flechas ← → del teclado |
 | Mover de corrido | Mantener apretado **◀◀ mantener** o **mantener ▶▶**: el carro se mueve mientras el botón está apretado y frena al soltarlo |
-| Frenar | **Detener** o la barra espaciadora. El carro queda quieto con el lazo activo. |
+| Frenar | **Detener** (el botón oscuro) o la barra espaciadora. El carro queda quieto con el lazo activo. |
 | Cortar el motor | **APAGAR MOTOR** (rojo, arriba a la derecha) o Esc. Para volver a mover: **Habilitar lazo**. |
 
-La **Velocidad** vale para todo lo anterior. Conviene dejarla en **2 mm/s**: el anti-cogging se aprende a esa velocidad. Más rápido el error crece, y a 4 mm/s el motor se queda sin torque. Si se pasa de 2 mm/s, aparece un aviso.
+La **Velocidad** vale para todo lo anterior. Conviene dejarla en **2 mm/s**: el anti-cogging se aprende a esa velocidad. Más rápido el error crece, y a 4 mm/s el motor se queda sin torque. Debajo de la velocidad se ve «✓ Hasta 2 mm/s: anti-cogging completo»; si se pasa de 2 mm/s, cambia por un aviso en ámbar.
+
+Los números se muestran con coma decimal y los decimales agrupados de a tres (`52,000 000 mm`). Al escribir se puede usar coma o punto y no hace falta poner los espacios. El G-code de la consola y los CSV siguen con punto.
 
 Los pasos se cuentan desde el **destino**, no desde donde está el carro. Así, diez pasos de 1 µm dan exactamente 10 µm. En la prueba, después de cada paso (de 1 µm a 1 mm) el carro quedó a menos de 0,03 µm del destino.
 
 ## 4. Qué se ve en vivo
 
+Arriba, en grande, lo que más se mira: la posición y el error de seguimiento. Al costado, en chico, velocidad, torque y encoder.
+
 | Valor | Qué es | Normal |
 |---|---|---|
-| **Posición** | Lo que mide el encoder | — |
-| **Destino** | A dónde va el carro (también es el triángulo naranja del carril) | — |
-| **Error de seguimiento** | Posición pedida menos posición medida (promedio de 0,1 s) | Quieto: 0,0 µm. A 2 mm/s oscila unos ±2 µm. |
-| **Velocidad** | Velocidad medida | 2,000 mm/s en crucero |
-| **Uso de torque** | Cuánto empuja el lazo, contra su máximo (81°). Verde hasta 60 %, ámbar hasta 85 %, rojo arriba. | Quieto: casi 0. A 2 mm/s: 40–60 %, con picos al arrancar |
+| **Posición** x [mm] | Lo que mide el encoder. Debajo: el **destino** (también es el triángulo naranja del carril), cuánto falta y, en movimiento, en cuánto llega. | — |
+| **Error de seguimiento** e [µm] | Posición pedida menos posición medida (promedio de 0,1 s). Debajo: RMS y máximo en la ventana de los gráficos. | Quieto: 0,0 µm. A 2 mm/s oscila unos ±2 µm; RMS ~1 µm, máximo 5–7 µm. |
+| **Velocidad** v [mm/s] | Velocidad medida | 2,000 mm/s en crucero |
+| **Torque** u [° el.] | Cuánto empuja el lazo y qué porcentaje es de su máximo (81°). La barra es verde hasta 60 %, ámbar hasta 85 %, roja arriba. | Quieto: casi 0. A 2 mm/s: 40–60 %, con picos al arrancar |
 | **Encoder** | Estado del sensor magnético | OK |
-| **Ventana del gráfico** | Error RMS y máximo de lo que se ve en los gráficos | A 2 mm/s: RMS ~1 µm, máximo 5–7 µm |
 
-Los tres gráficos muestran los últimos segundos (de 5 a 120, se elige en **Ventana**): la posición pedida y la medida, el error de seguimiento y la salida del lazo con su límite en rojo. Llegan 1000 puntos por segundo. **Pausar gráficos** congela la imagen para mirarla; los datos se siguen recibiendo. Con la rueda del mouse se hace zoom en el eje vertical.
+Los tres gráficos muestran los últimos segundos (5, 10, 30, 60 o 120 s, se elige en **Ventana**): la posición pedida (naranja, a trazos) y la medida (azul), el error de seguimiento con una banda celeste de ±RMS, y la salida del lazo con su límite en rojo. Cada título dice la magnitud y la unidad. Llegan 1000 puntos por segundo. **Pausar** congela la imagen para mirarla; los datos se siguen recibiendo. Con la rueda del mouse se hace zoom en el eje vertical; con zoom de µm sobre la posición, el título pasa a «x [µm] respecto de … mm».
 
 ## 5. Grabar una medición
 
@@ -74,7 +82,7 @@ d = pd.read_csv("interfaz_....csv", comment="#")
 
 ## 6. Consola
 
-Abajo a la izquierda se puede escribir cualquier comando del firmware (ver la tabla del [README](../README.md#4-primer-uso)) y apretar Enter. Las flechas ↑ ↓ recorren los comandos anteriores. Ahí también aparecen los mensajes de la placa. Los botones **Estado** (M119), **Anti-cogging** (M59) y **Traza corte** (M121) son atajos.
+Abajo a la izquierda, plegada. Cerrada muestra el último comando con ✓ (ok) o ✗ (error), y los avisos de la placa (`W)` en ámbar, `E)` en rojo). **▸ Consola G-code** la abre: ahí se puede escribir cualquier comando del firmware (ver la tabla del [README](../README.md#4-primer-uso)) y apretar Enter. Las flechas ↑ ↓ recorren los comandos anteriores. Los botones **Estado** (M119), **Anti-cogging** (M59) y **Traza corte** (M121) son atajos.
 
 ## 7. Pestaña Encoder: barrido de 2 vueltas
 
@@ -106,7 +114,47 @@ En los barridos de la interfaz, los imanes se cuentan **desde el home** (0 mm). 
 
 El error incluye el atraso del rotor en lazo abierto. En un punto duro del cople, el motor puede patinar y aparecer como salto. Para distinguirlo de un problema del encoder, ver si el salto cae en el mismo lugar en ida y en vuelta.
 
-## 8. Si algo sale mal
+## 8. Pestaña HP 8153A: medidor de potencia óptica por GPIB
+
+Lee el **HP 8153A Lightwave Multimeter** por la placa **NI GPIB-USB-HS**, muestra cada lectura en vivo y la graba en un CSV aparte. La telemetría del encoder no cambia. Esta versión todavía no sincroniza los dos registros: se alinean después con la hora de la PC (ver más abajo).
+
+**Qué hace falta en la PC** (una sola vez):
+
+- pyvisa y pyvisa-py, que el instalador del paquete ya instala.
+- El driver de la GPIB-USB-HS:
+  - **Windows:** NI-488.2 y NI-VISA, de ni.com.
+  - **Linux:** los "NI Linux Device Drivers" de ni.com, con los paquetes `ni-488.2` y `ni-visa`. La otra opción es linux-gpib (driver `ni_usb_gpib`) más `pip install gpib-ctypes`.
+- Sin nada de esto, la pestaña funciona igual con **SIMULADO (sin equipo)**, que contesta como un 8153A con un módulo HP 81531A. Sirve para probar la interfaz.
+
+**Usarla**
+
+1. Elegir el recurso y apretar **Conectar**. De fábrica el 8153A está en la dirección 22 (`GPIB0::22::INSTR`); ↻ busca los equipos conectados. Se puede escribir otro recurso a mano.
+2. Al conectar se muestran la identificación del equipo (`*IDN?`), los módulos de cada canal (`*OPT?`) y la configuración que tiene puesta. **Canal** elige A o B: tiene que ser el del módulo sensor.
+3. **Configuración del equipo:** promediación, longitud de onda, unidad (W o dBm) y rango (automático o fijo). No se cambia nada en el equipo hasta apretar **Aplicar al equipo**. Con la promediación mínima de 20 ms salen unas 40 lecturas por segundo con el simulado; con el equipo real hay que ver cuántas salen.
+4. **Leer en continuo** pide una lectura detrás de otra (`READ:POW?`). Cada lectura es el **promedio** que hizo el equipo durante el tiempo de promediación.
+5. **● Grabar CSV del HP** guarda `~/uMachining/mediciones/AAAA-MM-DD/hp8153a_<fecha>_<hora>.csv`, en la misma carpeta que **Grabar CSV**. Si está marcado **Junto con «Grabar CSV» de Control**, el botón de la pestaña Control arranca y detiene las dos grabaciones a la vez. Siguen siendo dos archivos, y los nombres llevan la misma hora.
+
+Mientras se graba no se puede cambiar la configuración, para que todo el archivo quede en la misma unidad y con el mismo rango. Abajo a la derecha se ve la última lectura del HP desde cualquier pestaña.
+
+**El CSV del HP**
+
+```
+t_s, t_pedido_s, hora_unix, potencia_W      (o potencia_dBm)
+```
+
+- `t_s`: cuándo llegó la lectura, en segundos desde el inicio de la grabación. Usa el reloj de la PC, no el de la placa.
+- `t_pedido_s`: cuándo se pidió. La potencia es el promedio de un tramo de la duración de la promediación, entre `t_pedido_s` y `t_s`.
+- `hora_unix`: la hora de la PC al llegar la lectura.
+
+En el encabezado (líneas con `#`) quedan el equipo, el módulo, el canal y la configuración.
+
+**Alinear con la telemetría del encoder:** el encabezado de `interfaz_*.csv` tiene una línea `# inicio de la grabación: hora_unix=… t_s del último paquete recibido=…`. Esa línea da la hora de la PC que corresponde a un `t_s` de la placa. Para pasar una lectura del HP al reloj de la placa:
+
+`t_placa ≈ hora_unix_HP − hora_unix_inicio + t_s_inicio`.
+
+El error de esta cuenta es de algunos milisegundos más la deriva entre los dos relojes (hasta unos 18 ms cada 10 minutos). Alcanza para mediciones con el carro quieto.
+
+## 9. Si algo sale mal
 
 | Qué se ve | Qué hacer |
 |---|---|
@@ -115,7 +163,7 @@ El error incluye el atraso del rotor en lazo abierto. En un punto duro del cople
 | **Se perdió la conexión** | La placa se desenchufó o se reinició. Apretar ↻ y **Conectar**. Si se reinició, hay que volver a **Calibrar e iniciar**. |
 | Aviso **El eje no está calibrado** | Pasa en cada encendido: **Calibrar e iniciar**. |
 | Aviso **El lazo está apagado** | Se apagó el motor: **Habilitar lazo**. |
-| Los botones de mover están grises | Falta alguno de los pasos de arriba: la barra de abajo dice cuál. |
+| Los botones de mover están grises | Falta la puesta en marcha: el texto del paso 1 (con borde azul) dice qué hacer. |
 | **sin telemetría** abajo a la derecha | Es normal mientras calibra. Si sigue después, desconectar y volver a conectar. |
 | **Barrido del encoder: la placa respondió ok pero sin muestras** | El firmware grabado es anterior al 17/11/2026 y no tiene `M57 … R1`. Grabar el firmware del paquete (`umachining-flashear`). |
 | **3 % perdidos** abajo a la derecha | Es normal: el firmware descarta un punto suelto cuando el otro núcleo está ocupado. No afecta el control. |
@@ -125,6 +173,7 @@ El error incluye el atraso del rotor en lazo abierto. En un punto duro del cople
 | Tecla | Acción |
 |---|---|
 | ← → | Un paso para atrás o para adelante (en la pestaña Encoder: ventana anterior o siguiente) |
+| ↑ ↓ | Paso ×10 / ÷10 |
 | Espacio | Detener |
 | Esc | Apagar el motor |
 | Enter (en Destino) | Ir |
