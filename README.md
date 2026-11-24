@@ -24,6 +24,17 @@ Para ver si Python ya está instalado: `python3 --version` (en Windows, `py --ve
 
 ## 1. Instalar el paquete
 
+### Con el instalador (recomendado)
+
+1. Bajar el repositorio: [Firmware-para-usuarios.zip](https://github.com/meilantiago/uMachining/archive/refs/heads/Firmware-para-usuarios.zip), y descomprimirlo.
+2. Correr el instalador:
+   - **Windows:** doble clic en `instalar.bat`.
+   - **Linux y macOS:** abrir una terminal en la carpeta descomprimida y correr `python3 instalar.py`.
+
+El instalador va mostrando cada paso (revisa Python, crea el entorno, instala las dependencias y revisa los permisos del puerto USB) y al final avisa **Instalado correctamente** y muestra cómo abrir la interfaz. Todo queda en la carpeta `umachining-venv` dentro de la carpeta personal; para usar otra: `python3 instalar.py --entorno <carpeta>`. Volver a correrlo actualiza la instalación.
+
+### A mano, con pip
+
 Se instala en un entorno virtual, para no mezclarlo con el Python del sistema.
 
 **Linux y macOS**
@@ -72,7 +83,7 @@ En Linux, un usuario común no puede abrir el puerto USB de la placa hasta que l
 sudo usermod -aG dialout $USER
 ```
 
-Después hay que **cerrar la sesión y volver a entrar** (o reiniciar). En Windows 10/11 y en macOS no hace falta instalar drivers ni dar permisos.
+Después hay que **cerrar la sesión y volver a entrar** (o reiniciar). El instalador revisa esto y ofrece correr el comando. En Windows 10/11 y en macOS no hace falta instalar drivers ni dar permisos.
 
 ## 3. El firmware de la placa
 
@@ -175,6 +186,7 @@ umachining/          paquete de Python: interfaz, herramientas y firmware compil
 firmware/            fuente del firmware (proyecto de PlatformIO)
   src/hw_config.h    pines, parámetros del montaje y ganancias del control
 docs/                guía de la interfaz, arquitectura del firmware y origen del código
+instalar.py          instalador (instalar.bat lo abre con doble clic en Windows)
 setup.cfg            definición del paquete para pip (pyproject.toml solo elige setuptools)
 ```
 

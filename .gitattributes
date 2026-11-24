@@ -1,0 +1,2 @@
+*.bat text eol=crlf
+*.uf2 binary
